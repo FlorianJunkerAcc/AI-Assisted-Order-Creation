@@ -2,8 +2,10 @@
 <macros:Page id="Page" title="Create Sales Order" showFooter="true">
 <macros:items>
 <VBox id="salesOrderContent" class="sapUiResponsiveContentPadding" width="100%">
+<Panel id="orderHeaderPanel" headerText="Order Information" expandable="true" expanded="true" width="100%" class="sapUiResponsiveMargin">
+<content>
+<VBox id="orderHeaderContent" width="100%">
 <!--  Order Information  -->
-<Title id="orderInformationTitle" text="Order Information" level="H2" class="sapUiSmallMarginBottom"/>
 <Label id="customerLabel" text="Customer" labelFor="customerSelect"/>
 <ComboBox id="customerSelect" width="25rem" placeholder="Select Customer" items="{/Customers}" class="sapUiSmallMarginBottom">
 <core:Item id="customerSelectItem" key="{ID}" text="{= ${customerNumber} + ' | ' + ${name} + ' | ' + ${address}}"/>
@@ -51,9 +53,16 @@
 </FlexBox>
 </VBox>
 </VBox>
+ </VBox>
+</content>
+</Panel>
 <!--  Order Items  -->
+<Panel id="orderItemsPanel" headerText="Products in Sales Order" width="100%" class="sapUiResponsiveMargin">
+<content>
+<VBox id="orderItemsContent" width="100%">
 <Title id="orderItemsTitle" text="Order Items" level="H2" class="sapUiMediumMarginTop sapUiSmallMarginBottom"/>
 <Table id="orderItemsTable" width="100%" items="{order>/items}">
+<Table id="orderItemsTable" width="100%" noDataText="No products added yet" items="{order>/items}">
 <columns>
 <Column id="productColumn" width="25rem">
 <Text id="productColumnText" text="Product"/>
@@ -88,9 +97,33 @@
 </Table>
 <!--  Order Summary  -->
 <HBox id="orderSummary" width="100%" justifyContent="SpaceBetween" alignItems="Center" class="sapUiSmallMarginTop">
-<Button id="addProductButton" text="Add Product" icon="sap-icon://add" type="Transparent" press=".onAddProduct"/>
 <ObjectStatus id="orderTotal" title="Order Total" text="{order>/orderTotal} EUR" state="Information"/>
 </HBox>
+</VBox>
+</content>
+</Panel>
+<Panel id="addProductsPanel" headerText="Add Products" width="100%" class="sapUiResponsiveMargin">
+<content>
+<HBox id="productEntryToolbar" width="100%" alignItems="End" wrap="Wrap" class="sapUiSmallMargin">
+<VBox id="productEntryField" width="min(32rem, 100%)" class="sapUiTinyMarginEnd">
+<Label id="productEntryLabel" text="Product" labelFor="productEntryProductInput"/>
+<HBox id="productEntrySelect" width="100%" alignItems="Center">
+<Input id="productEntryProductInput" width="100%" value="{productEntry>/productName}" placeholder="Select Product" editable="false"/>
+<Button id="productEntryValueHelpButton" icon="sap-icon://value-help" type="Transparent" tooltip="Select Product" press=".onProductEntryValueHelpRequest"/>
+</HBox>
+</VBox>
+<VBox id="productEntryQuantityField" width="8rem" class="sapUiTinyMarginEnd">
+<Label id="productEntryQuantityLabel" text="Quantity" labelFor="productEntryQuantity"/>
+<StepInput id="productEntryQuantity" width="100%" min="1" value="{productEntry>/quantity}"/>
+</VBox>
+<VBox id="productEntryPriceField" width="8rem" class="sapUiTinyMarginEnd">
+<Label id="productEntryPriceLabel" text="Unit Price"/>
+<ObjectStatus id="productEntryPrice" text="{productEntry>/unitPrice} EUR" state="Information"/>
+</VBox>
+<Button id="addProductButton" text="Add to Sales Order" icon="sap-icon://add" type="Emphasized" press=".onAddProduct"/>
+</HBox>
+</content>
+</Panel>
 </VBox>
 </macros:items>
 <!--  Page Footer  -->

@@ -22,80 +22,84 @@ sap.ui.define(
         return PageController.extend(
             "com.prototype.salesorderai.salesorderui.ext.view.Main",
             {
-
-                /**
-                 * Wird einmal beim Start der Seite ausgeführt.
-                 *
-                 * Hier erstellen wir ein lokales JSONModel für den
-                 * aktuellen Sales-Order-Entwurf.
-                 */
                 onInit: function () {
                     PageController.prototype.onInit.apply(
                         this,
                         arguments
                     );
 
-                    const oOrderModel = new JSONModel({
-                        items: [
-                            {
-                                product_ID: "",
-                                productName: "",
-                                quantity: 1,
-                                unitPrice: "0.00",
-                                totalPrice: "0.00"
-                            }
-                        ],
-                        orderTotal: "0.00"
-                    });
-
-                    // Das Modell erhält den Namen "order".
                     this.getView().setModel(
-                        oOrderModel,
+                        new JSONModel({
+                            items: [],
+                            orderTotal: "0.00"
+                        }),
                         "order"
                     );
-                        // Modell für die aktuelle Rückfrage (Clarification)
-    const oClarificationModel = new JSONModel({
-        visible: false,
-        question: "",
-        quantity: 1,
-        suggestions: [],
 
-        // Warteschlange für weitere Rückfragen,
-        // falls mehrere Produkte gleichzeitig unklar sind
-        pending: []
-    });
+                    this.getView().setModel(
+                        new JSONModel({
+                            visible: false,
+                            question: "",
+                            quantity: 1,
+                            suggestions: [],
+                            pending: []
+                        }),
+                        "clarification"
+                    );
 
-    this.getView().setModel(
-        oClarificationModel,
-        "clarification"
-    );
-
+                    this.getView().setModel(
+                        new JSONModel({
+                            product_ID: "",
+                            productName: "",
+                            quantity: 1,
+                            unitPrice: "0.00"
+                        }),
+                        "productEntry"
+                    );
                 },
-                
-                
 
-                /**
-                 * Fügt manuell eine neue leere Produktzeile hinzu.
-                 */
                 onAddProduct: function () {
                     const oOrderModel =
                         this.getView().getModel("order");
+                    const oProductEntryModel =
+                        this.getView().getModel("productEntry");
+                    const oProductEntry =
+                        oProductEntryModel.getData();
 
+                    if (!oProductEntry.product_ID) {
+                        MessageBox.warning("Please select a product.");
+                        return;
+                    }
+
+                    const iQuantity =
+                        Number(oProductEntry.quantity) || 1;
+                    const fUnitPrice =
+                        Number(oProductEntry.unitPrice) || 0;
                     const aItems =
                         oOrderModel.getProperty("/items");
 
                     aItems.push({
+                        product_ID: oProductEntry.product_ID,
+                        productName: oProductEntry.productName,
+                        quantity: iQuantity,
+                        unitPrice: fUnitPrice.toFixed(2),
+                        totalPrice: (iQuantity * fUnitPrice).toFixed(2)
+                    });
+
+                    oOrderModel.setProperty("/items", aItems);
+                    oProductEntryModel.setData({
                         product_ID: "",
                         productName: "",
                         quantity: 1,
-                        unitPrice: "0.00",
-                        totalPrice: "0.00"
+                        unitPrice: "0.00"
                     });
+                    this._calculateOrderTotal();
+                },
 
-                    oOrderModel.setProperty(
-                        "/items",
-                        aItems
-                    );
+                onProductEntryValueHelpRequest: function () {
+                    this._productOrderContext = null;
+                    this._productEntryMode = true;
+                    this._openProductValueHelp();
                 },
 
                 /**
@@ -135,13 +139,16 @@ sap.ui.define(
                         "/items",
                         aItems
                     );
-
-                    this._calculateOrderTotal();
                 },
 
                 onProductValueHelpRequest: function (oEvent) {
                     this._productOrderContext =
                         oEvent.getSource().getBindingContext("order");
+                    this._productEntryMode = false;
+                    this._openProductValueHelp();
+                },
+
+                _openProductValueHelp: function () {
 
                     if (!this._productValueHelpPromise) {
                         this._productValueHelpPromise = Fragment.load({
@@ -291,7 +298,8 @@ sap.ui.define(
                     ).getSelectedItem();
                     const oOrderContext = this._productOrderContext;
 
-                    if (!oSelectedItem || !oOrderContext) {
+                    if (!oSelectedItem ||
+                        (!oOrderContext && !this._productEntryMode)) {
                         MessageBox.warning("Please select a product.");
                         return;
                     }
@@ -300,11 +308,32 @@ sap.ui.define(
                         const oProductContext =
                             oSelectedItem.getBindingContext();
 
-                        await this._setSelectedProduct(
-                            oProductContext,
-                            oOrderContext
-                        );
+                        if (this._productEntryMode) {
+                            const sProductID =
+                                await oProductContext.requestProperty("ID");
+                            const sProductName =
+                                await oProductContext.requestProperty("name");
+                            const vPrice =
+                                await oProductContext.requestProperty("price");
+                            const oProductEntryModel =
+                                this.getView().getModel("productEntry");
+                            const iQuantity =
+                                Number(oProductEntryModel.getProperty("/quantity")) || 1;
+
+                            oProductEntryModel.setData({
+                                product_ID: sProductID,
+                                productName: sProductName,
+                                quantity: iQuantity,
+                                unitPrice: Number(vPrice || 0).toFixed(2)
+                            });
+                        } else {
+                            await this._setSelectedProduct(
+                                oProductContext,
+                                oOrderContext
+                            );
+                        }
                         this.byId("productValueHelpDialog").close();
+                        this._productEntryMode = false;
                     } catch (oError) {
                         console.error(
                             "Could not read product:",
@@ -319,6 +348,7 @@ sap.ui.define(
 
                 onProductValueHelpCancel: function () {
                     this._productOrderContext = null;
+                    this._productEntryMode = false;
                     this.byId("productValueHelpDialog").close();
                 },
 
@@ -889,6 +919,13 @@ MessageToast.show(
                             return;
                         }
 
+                        if (!aUiItems.length) {
+                            MessageBox.warning(
+                                "Please add at least one product."
+                            );
+                            return;
+                        }
+
                         const bInvalidItem =
                             aUiItems.some(
                                 function (oItem) {
@@ -1013,16 +1050,17 @@ MessageToast.show(
                     this.getView()
                         .getModel("order")
                         .setData({
-                            items: [
-                                {
-                                    product_ID: "",
-                                    productName: "",
-                                    quantity: 1,
-                                    unitPrice: "0.00",
-                                    totalPrice: "0.00"
-                                }
-                            ],
+                                items: [],
                             orderTotal: "0.00"
+                        });
+
+                    this.getView()
+                        .getModel("productEntry")
+                        .setData({
+                            product_ID: "",
+                            productName: "",
+                            quantity: 1,
+                            unitPrice: "0.00"
                         });
                 }
 
