@@ -133,3 +133,45 @@
 .aiAssistedEntryButton:hover .sapMBtnIcon {
     color: #7D3C98 !important;
 }
+
+/* ============================================================
+   Verlässliche Sichtbarkeit von Item-Anzahl und Order Total
+   auf allen Geräten, insbesondere iPad Safari.
+   ============================================================ */
+
+/* 1) Absicherung des Seiten-Footers.
+   sap.f.DynamicPage/FPM pinnt den Footer zwar standardmäßig an den
+   unteren Rand, iOS Safari kann diesen aber bei bestimmten Viewport-
+   und Zoom-Zuständen (z.B. dynamische Adressleiste, Split View)
+   verschieben. Diese Regeln erzwingen zusätzlich eine feste Position
+   und respektieren den iPad-Homebar-Bereich (safe-area-inset). */
+.stickyPageFooter,
+.sapMFooter-CTX {
+    position: fixed !important;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    z-index: 100;
+    padding-bottom: env(safe-area-inset-bottom);
+    background-color: var(--sapObjectHeader_Background, #FFFFFF);
+}
+
+/* Platz am unteren Seitenrand reservieren, damit der letzte Inhalt der
+   Seite nicht vom fixierten Footer verdeckt wird. */
+.sapUiResponsiveContentPadding {
+    padding-bottom: 3.5rem !important;
+}
+
+/* 2) Redundante, fixe Anzeige von Item-Anzahl und Order Total direkt
+   im Header der Sales-Order-Items-Sektion. Dieser Toolbar bleibt beim
+   Scrollen durch lange Positionslisten sichtbar (position: sticky),
+   sodass Item-Anzahl und Order Total auch dann erkennbar bleiben,
+   wenn der Seiten-Footer aus irgendeinem Grund nicht sichtbar sein
+   sollte. Damit gibt es zwei unabhängige, fixe Anzeigeorte. */
+.stickyOrderItemsToolbar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: var(--sapGroup_ContentBackground, #FFFFFF);
+}

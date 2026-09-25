@@ -26,9 +26,10 @@
 <!--  Sales Order Items  -->
 <Panel id="orderItemsPanel" expandable="true" expanded="true" width="100%" class="sapUiResponsiveMargin">
 <headerToolbar>
-<Toolbar id="orderItemsToolbar">
+<Toolbar id="orderItemsToolbar" class="stickyOrderItemsToolbar">
 <Title id="orderItemsTitle" text="{i18n>orderItems}" level="H2"/>
 <ObjectStatus id="orderItemsCount" text="{order>/itemCount} {i18n>items}" state="None" class="sapUiTinyMarginBegin"/>
+<ObjectStatus id="orderItemsHeaderTotal" title="{i18n>orderTotal}" text="{order>/orderTotal} EUR" state="Information" class="sapUiSmallMarginBegin"/>
 <ToolbarSpacer/>
 <Button id="addProductButton" text="{i18n>addProduct}" icon="sap-icon://add" type="Transparent" press=".onAddProduct" class="addProductButton sapUiSmallMarginEnd"/>
 <Button id="startAIAssistantButton" text="{i18n>aiAssistedEntry}" icon="sap-icon://ai" type="Transparent" press=".onStartAIAssistant" class="aiAssistedEntryButton"/>
@@ -102,9 +103,11 @@
 </Panel>
 </VBox>
 </macros:items>
-<!--  Page Footer  -->
+<!--  Page Footer: always pinned to the bottom of the viewport,
+     shows item count, order total and the primary Create Order action.
+     Reinforced via CSS (see style.css) to remain visible on iPad.  -->
 <macros:footer>
-<OverflowToolbar id="footerToolbar">
+<OverflowToolbar id="footerToolbar" class="stickyPageFooter">
 <ObjectStatus id="footerItemCount" text="{order>/itemCount} {i18n>items}" state="None"/>
 <ObjectStatus id="footerOrderTotal" title="{i18n>orderTotal}" text="{order>/orderTotal} EUR" state="Information" class="sapUiSmallMarginBegin"/>
 <ToolbarSpacer id="footerSpacer"/>
