@@ -5,10 +5,6 @@ sap.ui.define(
         "sap/ui/core/Fragment",
         "sap/ui/model/Filter",
         "sap/ui/model/FilterOperator",
-        "sap/m/OverflowToolbar",
-        "sap/m/Input",
-        "sap/m/Button",
-        "sap/m/ToolbarSpacer",
         "sap/m/MessageToast",
         "sap/m/MessageBox"
     ],
@@ -18,10 +14,6 @@ sap.ui.define(
         Fragment,
         Filter,
         FilterOperator,
-        OverflowToolbar,
-        Input,
-        Button,
-        ToolbarSpacer,
         MessageToast,
         MessageBox
     ) {
@@ -158,46 +150,6 @@ sap.ui.define(
                             controller: this
                         }).then(function (oDialog) {
                             this.getView().addDependent(oDialog);
-
-                            oDialog.setSubHeader(
-                                new OverflowToolbar({
-                                    content: [
-                                        new Input(
-                                            this.getView().createId(
-                                                "productNumberFilter"
-                                            ),
-                                            {
-                                                width: "11rem",
-                                                placeholder: "Product number",
-                                                liveChange:
-                                                    this.onProductFilterChange
-                                                        .bind(this)
-                                            }
-                                        ),
-                                        new Input(
-                                            this.getView().createId(
-                                                "productCategoryFilter"
-                                            ),
-                                            {
-                                                width: "11rem",
-                                                placeholder: "Product category",
-                                                liveChange:
-                                                    this.onProductFilterChange
-                                                        .bind(this)
-                                            }
-                                        ),
-                                        new ToolbarSpacer(),
-                                        new Button({
-                                            icon: "sap-icon://clear-filter",
-                                            type: "Transparent",
-                                            tooltip: "Clear filters",
-                                            press:
-                                                this.onClearProductFilters
-                                                    .bind(this)
-                                        })
-                                    ]
-                                })
-                            );
                             return oDialog;
                         }.bind(this));
                     }
@@ -220,15 +172,16 @@ sap.ui.define(
 
                 onProductValueHelpSearch: function (oEvent) {
                     this._applyProductFilters(
-                        oEvent.getParameter("value") || ""
+                        oEvent.getParameter("newValue") ||
+                        oEvent.getParameter("query") ||
+                        ""
                     );
                 },
 
                 onProductFilterChange: function () {
-                    const oDialog = this.byId("productValueHelpDialog");
-                    const oSearchField = oDialog &&
-                        typeof oDialog.getSearchField === "function" &&
-                        oDialog.getSearchField();
+                    const oSearchField = this.byId(
+                        "productFreeTextFilter"
+                    );
 
                     this._applyProductFilters(
                         oSearchField ? oSearchField.getValue() : ""
@@ -242,7 +195,9 @@ sap.ui.define(
                         return;
                     }
 
-                    const oBinding = oDialog.getBinding("items");
+                    const oBinding = this.byId(
+                        "productTable"
+                    ).getBinding("items");
                     const oProductNumber = this.byId(
                         "productNumberFilter"
                     );
@@ -321,20 +276,23 @@ sap.ui.define(
                         oProductCategory.setValue("");
                     }
 
-                    if (
-                        oDialog &&
-                        typeof oDialog.getSearchField === "function" &&
-                        oDialog.getSearchField()
-                    ) {
-                        oDialog.getSearchField().setValue("");
+                    const oSearchField = this.byId(
+                        "productFreeTextFilter"
+                    );
+
+                    if (oSearchField) {
+                        oSearchField.setValue("");
                     }
                 },
 
                 onProductValueHelpConfirm: async function (oEvent) {
-                    const oSelectedItem = oEvent.getParameter("selectedItem");
+                    const oSelectedItem = this.byId(
+                        "productTable"
+                    ).getSelectedItem();
                     const oOrderContext = this._productOrderContext;
 
                     if (!oSelectedItem || !oOrderContext) {
+                        MessageBox.warning("Please select a product.");
                         return;
                     }
 
@@ -346,6 +304,7 @@ sap.ui.define(
                             oProductContext,
                             oOrderContext
                         );
+                        this.byId("productValueHelpDialog").close();
                     } catch (oError) {
                         console.error(
                             "Could not read product:",
@@ -360,6 +319,7 @@ sap.ui.define(
 
                 onProductValueHelpCancel: function () {
                     this._productOrderContext = null;
+                    this.byId("productValueHelpDialog").close();
                 },
 
                 _setSelectedProduct: async function (

@@ -1,32 +1,76 @@
 <core:FragmentDefinition xmlns="sap.m" xmlns:core="sap.ui.core">
-    <TableSelectDialog
+    <Dialog
         id="productValueHelpDialog"
         title="Select Product"
-        noDataText="No products found"
-        rememberSelections="false"
-        search=".onProductValueHelpSearch"
-        confirm=".onProductValueHelpConfirm"
-        cancel=".onProductValueHelpCancel"
-        items="{/Products}">
-        <columns>
-            <Column>
-                <Text text="Product Number" />
-            </Column>
-            <Column>
-                <Text text="Description" />
-            </Column>
-            <Column>
-                <Text text="Product Category" />
-            </Column>
-        </columns>
-        <items>
-            <ColumnListItem type="Active">
-                <cells>
-                    <Text text="{productNumber}" />
-                    <Text text="{name}" />
-                    <Text text="{productCategoryID}" />
-                </cells>
-            </ColumnListItem>
-        </items>
-    </TableSelectDialog>
+        contentWidth="60rem"
+        stretchOnPhone="true"
+        draggable="true"
+        resizable="true">
+        <content>
+            <VBox width="100%">
+                <OverflowToolbar>
+                    <SearchField
+                        id="productFreeTextFilter"
+                        width="18rem"
+                        placeholder="Search products"
+                        liveChange=".onProductValueHelpSearch" />
+                    <Input
+                        id="productNumberFilter"
+                        width="11rem"
+                        placeholder="Product number"
+                        liveChange=".onProductFilterChange" />
+                    <Input
+                        id="productCategoryFilter"
+                        width="11rem"
+                        placeholder="Product category"
+                        liveChange=".onProductFilterChange" />
+                    <ToolbarSpacer />
+                    <Button
+                        icon="sap-icon://clear-filter"
+                        type="Transparent"
+                        tooltip="Clear filters"
+                        press=".onClearProductFilters" />
+                </OverflowToolbar>
+                <Table
+                    id="productTable"
+                    mode="SingleSelectMaster"
+                    growing="true"
+                    growingThreshold="20"
+                    noDataText="No products found"
+                    items="{/Products}">
+                    <columns>
+                        <Column>
+                            <Text text="Product Number" />
+                        </Column>
+                        <Column>
+                            <Text text="Description" />
+                        </Column>
+                        <Column>
+                            <Text text="Product Category" />
+                        </Column>
+                    </columns>
+                    <items>
+                        <ColumnListItem type="Active">
+                            <cells>
+                                <Text text="{productNumber}" />
+                                <Text text="{name}" />
+                                <Text text="{productCategoryID}" />
+                            </cells>
+                        </ColumnListItem>
+                    </items>
+                </Table>
+            </VBox>
+        </content>
+        <beginButton>
+            <Button
+                text="Cancel"
+                press=".onProductValueHelpCancel" />
+        </beginButton>
+        <endButton>
+            <Button
+                text="Select"
+                type="Emphasized"
+                press=".onProductValueHelpConfirm" />
+        </endButton>
+    </Dialog>
 </core:FragmentDefinition>
