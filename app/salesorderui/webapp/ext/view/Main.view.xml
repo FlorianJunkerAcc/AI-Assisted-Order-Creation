@@ -24,82 +24,15 @@
 </content>
 </Panel>
 <!--  Order Items  -->
-<Panel id="orderItemsPanel" headerText="{i18n>productsInSalesOrder}" expandable="true" expanded="true" width="100%" class="sapUiResponsiveMargin">
+<Panel id="orderItemsPanel" headerText="{i18n>salesOrderItems}" expandable="true" expanded="true" width="100%" class="sapUiResponsiveMargin">
 <content>
 <VBox id="orderItemsContent" width="100%">
 <Toolbar id="orderItemsToolbar">
 <Title id="orderItemsTitle" text="{i18n>orderItems}" level="H2"/>
 <ObjectStatus id="orderItemsCount" text="{order>/itemCount} {i18n>items}" state="None" class="sapUiTinyMarginBegin"/>
 <ToolbarSpacer/>
-</Toolbar>
-<Table id="orderItemsTable" width="100%" growing="true" growingThreshold="10" noDataText="{i18n>noProductsAdded}" items="{order>/items}">
-<columns>
-<Column id="productColumn" width="45%">
-<Text id="productColumnText" text="{i18n>product}"/>
-</Column>
-<Column id="quantityColumn" width="15%" hAlign="End">
-<Text id="quantityColumnText" text="{i18n>quantity}"/>
-</Column>
-<Column id="unitPriceColumn" width="18%" hAlign="End" demandPopin="true" minScreenWidth="Desktop">
-<Text id="unitPriceColumnText" text="{i18n>unitPrice}"/>
-</Column>
-<Column id="totalPriceColumn" width="18%" hAlign="End" demandPopin="true" minScreenWidth="Desktop">
-<Text id="totalPriceColumnText" text="{i18n>totalPrice}"/>
-</Column>
-<Column id="actionsColumn" width="4rem" hAlign="End">
-<Text id="actionsColumnText" text=""/>
-</Column>
-</columns>
-<items>
-<ColumnListItem id="orderItemTemplate">
-<cells>
-<HBox id="productSelect" width="100%" alignItems="Center">
-<Input id="productSelectInput" width="100%" value="{order>productName}" placeholder="{i18n>selectProduct}" editable="false" class="productDisplayField"/>
-<Button id="productValueHelpButton" icon="sap-icon://value-help" type="Transparent" tooltip="Select Product" press=".onProductValueHelpRequest"/>
-</HBox>
-<Input id="quantityInput" type="Number" value="{order>quantity}" liveChange=".onQuantityChange" textAlign="End"/>
-<ObjectNumber id="unitPriceText" number="{order>unitPrice}" unit="EUR"/>
-<ObjectNumber id="totalPriceText" number="{order>totalPrice}" unit="EUR"/>
-<Button id="deleteOrderItemButton" icon="sap-icon://delete" type="Transparent" tooltip="Remove item" press=".onDeleteProduct"/>
-</cells>
-</ColumnListItem>
-</items>
-</Table>
-<!--  Order Summary  -->
-<HBox id="orderSummary" width="100%" justifyContent="SpaceBetween" alignItems="Center" class="sapUiSmallMarginTop">
-<ObjectStatus id="orderTotal" title="{i18n>orderTotal}" text="{order>/orderTotal} EUR" state="Information"/>
-</HBox>
-</VBox>
-</content>
-</Panel>
-<Panel id="addProductsPanel" headerText="{i18n>addProducts}" expandable="true" expanded="true" width="100%" class="sapUiResponsiveMargin">
-<content>
-<VBox id="aiAssistantArea" width="100%" visible="false" class="aiAssistantArea sapUiMediumMarginBottom">
-<Title id="aiOrderEntryTitle" text="{i18n>aiOrderEntry}" level="H2" class="sapUiSmallMarginBottom"/>
-<Button id="startVoiceInputButton" text="{i18n>startVoiceInput}" icon="sap-icon://microphone" press=".onStartVoiceInput" class="sapUiSmallMarginBottom voiceStartButton"/>
-<VBox id="voiceListeningIndicator" visible="false" alignItems="Center" class="sapUiMediumMargin">
-<core:Icon id="voiceListeningIcon" src="sap-icon://microphone" size="2rem" color="#0070F2" class="voiceListeningPulse"/>
-<Text id="voiceListeningText" text="Listening..." class="sapUiSmallMarginTop"/>
-</VBox>
-<Label id="aiOrderInputLabel" text="{i18n>recognizedCommand}" labelFor="aiOrderInput"/>
-<TextArea id="aiOrderInput" width="100%" rows="3" placeholder="{i18n>voicePlaceholder}" change=".onAIInputChange"/>
-<HBox id="aiConfirmationActions" width="100%" justifyContent="End" class="sapUiSmallMarginTop">
-<Button id="interpretOrderButton" text="{i18n>confirmAndAddItems}" type="Emphasized" enabled="false" press=".onInterpretOrderItems"/>
-</HBox>
-<VBox id="clarificationArea" visible="{clarification>/visible}" width="100%" class="sapUiMediumMarginTop">
-<VBox id="clarificationBox" class="clarificationBox sapUiSmallMarginBottom">
-<HBox id="clarificationHeaderBox" alignItems="Center" class="sapUiTinyMarginBottom">
-<core:Icon id="clarificationIcon" src="sap-icon://ai" class="clarificationIcon sapUiTinyMarginEnd"/>
-<Text id="clarificationHeaderText" text="The AI Assistant needs clarification" class="clarificationHeaderText"/>
-</HBox>
-<Text id="clarificationQuestionText" text="{clarification>/question}" class="clarificationQuestionText"/>
-</VBox>
-<FlexBox id="clarificationSuggestions" wrap="Wrap" items="{clarification>/suggestions}">
-<Button id="clarificationSuggestionButton" text="{clarification>productName}" type="Default" press=".onSelectClarificationSuggestion" class="sapUiTinyMarginEnd sapUiTinyMarginBottom"/>
-</FlexBox>
-</VBox>
-</VBox>
 <Button id="startAIAssistantButton" text="{i18n>aiAssistedEntry}" icon="sap-icon://ai" type="Transparent" press=".onStartAIAssistant" class="sapUiSmallMarginBottom"/>
+</Toolbar>
 <Table id="productEntryTable" width="100%" noDataText="{i18n>prepareProducts}" items="{productEntry>/items}">
 <columns>
 <Column id="entryProductColumn"><Text text="{i18n>product}"/></Column>
@@ -126,6 +59,54 @@
 <ToolbarSpacer/>
 <Button id="addProductButton" text="{i18n>addToSalesOrder}" icon="sap-icon://add" type="Emphasized" enabled="{productEntry>/canAdd}" press=".onAddProduct"/>
 </Toolbar>
+<VBox id="aiAssistantArea" width="100%" visible="false" class="aiAssistantArea sapUiMediumMarginBottom">
+<Title id="aiOrderEntryTitle" text="{i18n>aiOrderEntry}" level="H2" class="sapUiSmallMarginBottom"/>
+<Button id="startVoiceInputButton" text="{i18n>startVoiceInput}" icon="sap-icon://microphone" press=".onStartVoiceInput" class="sapUiSmallMarginBottom voiceStartButton"/>
+<VBox id="voiceListeningIndicator" visible="false" alignItems="Center" class="sapUiMediumMargin">
+<core:Icon id="voiceListeningIcon" src="sap-icon://microphone" size="2rem" color="#0070F2" class="voiceListeningPulse"/>
+<Text id="voiceListeningText" text="Listening..." class="sapUiSmallMarginTop"/>
+</VBox>
+<Label id="aiOrderInputLabel" text="{i18n>recognizedCommand}" labelFor="aiOrderInput"/>
+<TextArea id="aiOrderInput" width="100%" rows="3" value="{ui>/recognizedCommand}" liveChange=".onAIInputChange" valueLiveUpdate="true" placeholder="{i18n>voicePlaceholder}"/>
+<HBox id="aiConfirmationActions" width="100%" justifyContent="End" class="sapUiSmallMarginTop">
+<Button id="interpretOrderButton" text="{i18n>confirmAndAddItems}" type="Emphasized" enabled="{ui>/canSubmitAiCommand}" press=".onInterpretOrderItems"/>
+</HBox>
+<VBox id="clarificationArea" visible="{clarification>/visible}" width="100%" class="sapUiMediumMarginTop">
+<VBox id="clarificationBox" class="clarificationBox sapUiSmallMarginBottom">
+<HBox id="clarificationHeaderBox" alignItems="Center" class="sapUiTinyMarginBottom">
+<core:Icon id="clarificationIcon" src="sap-icon://ai" class="clarificationIcon sapUiTinyMarginEnd"/>
+<Text id="clarificationHeaderText" text="The AI Assistant needs clarification" class="clarificationHeaderText"/>
+</HBox>
+<Text id="clarificationQuestionText" text="{clarification>/question}" class="clarificationQuestionText"/>
+</VBox>
+<FlexBox id="clarificationSuggestions" wrap="Wrap" items="{clarification>/suggestions}">
+<Button id="clarificationSuggestionButton" text="{clarification>productName}" type="Default" press=".onSelectClarificationSuggestion" class="sapUiTinyMarginEnd sapUiTinyMarginBottom"/>
+</FlexBox>
+</VBox>
+</VBox>
+<Table id="orderItemsTable" width="100%" growing="true" growingThreshold="10" noDataText="{i18n>noProductsAdded}" items="{order>/items}">
+<columns>
+<Column id="productColumn" width="45%"><Text id="productColumnText" text="{i18n>product}"/></Column>
+<Column id="quantityColumn" width="15%" hAlign="End"><Text id="quantityColumnText" text="{i18n>quantity}"/></Column>
+<Column id="unitPriceColumn" width="18%" hAlign="End" demandPopin="true" minScreenWidth="Desktop"><Text id="unitPriceColumnText" text="{i18n>unitPrice}"/></Column>
+<Column id="totalPriceColumn" width="18%" hAlign="End" demandPopin="true" minScreenWidth="Desktop"><Text id="totalPriceColumnText" text="{i18n>totalPrice}"/></Column>
+<Column id="actionsColumn" width="4rem" hAlign="End"><Text id="actionsColumnText" text=""/></Column>
+</columns>
+<items>
+<ColumnListItem id="orderItemTemplate">
+<cells>
+<HBox id="productSelect" width="100%" alignItems="Center">
+<Input id="productSelectInput" width="100%" value="{order>productName}" placeholder="{i18n>selectProduct}" editable="false" class="productDisplayField"/>
+<Button id="productValueHelpButton" icon="sap-icon://value-help" type="Transparent" tooltip="Select Product" press=".onProductValueHelpRequest"/>
+</HBox>
+<Input id="quantityInput" type="Number" value="{order>quantity}" liveChange=".onQuantityChange" textAlign="End"/>
+<ObjectNumber id="unitPriceText" number="{order>unitPrice}" unit="EUR"/>
+<ObjectNumber id="totalPriceText" number="{order>totalPrice}" unit="EUR"/>
+<Button id="deleteOrderItemButton" icon="sap-icon://delete" type="Transparent" tooltip="Remove item" press=".onDeleteProduct"/>
+</cells>
+</ColumnListItem>
+</items>
+</Table>
 </content>
 </Panel>
 </VBox>

@@ -12,49 +12,60 @@
                     <SearchField
                         id="productFreeTextFilter"
                         width="18rem"
-                        placeholder="Search products"
+                        placeholder="{i18n>searchProducts}"
                         liveChange=".onProductValueHelpSearch" />
                     <Input
                         id="productNumberFilter"
                         width="11rem"
-                        placeholder="Product number"
+                        placeholder="{i18n>productNumber}"
                         liveChange=".onProductFilterChange" />
                     <Input
                         id="productCategoryFilter"
                         width="11rem"
-                        placeholder="Product category"
+                        placeholder="{i18n>productCategory}"
                         liveChange=".onProductFilterChange" />
                     <ToolbarSpacer />
                     <Button
                         icon="sap-icon://clear-filter"
                         type="Transparent"
-                        tooltip="Clear filters"
+                        tooltip="{i18n>clearFilters}"
                         press=".onClearProductFilters" />
                 </OverflowToolbar>
                 <Table
                     id="productTable"
+                    class="productValueHelpTable"
                     mode="SingleSelectMaster"
                     growing="true"
                     growingThreshold="20"
-                    noDataText="No products found"
+                    noDataText="{i18n>noProductsFound}"
+                    updateFinished=".onProductTableUpdateFinished"
                     items="{/Products}">
                     <columns>
                         <Column>
-                            <Text text="Product Number" />
+                            <Text text="{i18n>productNumber}" />
                         </Column>
                         <Column>
-                            <Text text="Description" />
+                            <Text text="{i18n>description}" />
                         </Column>
                         <Column>
-                            <Text text="Product Category" />
+                            <Text text="{i18n>productCategory}" />
+                        </Column>
+                        <Column>
+                            <Text text="{i18n>status}" />
                         </Column>
                     </columns>
                     <items>
-                        <ColumnListItem type="Active">
+                        <ColumnListItem
+                            type="Active"
+                            highlight="{path: 'ID', formatter: '.formatProductHighlight'}">
                             <cells>
                                 <Text text="{productNumber}" />
                                 <Text text="{name}" />
                                 <Text text="{productCategoryID}" />
+                                <ObjectStatus
+                                    text="{i18n>alreadyInOrder}"
+                                    state="Success"
+                                    visible="{path: 'ID', formatter: '.formatIsAlreadyInOrder'}" />
                             </cells>
                         </ColumnListItem>
                     </items>
@@ -63,12 +74,12 @@
         </content>
         <beginButton>
             <Button
-                text="Cancel"
+                text="{i18n>cancel}"
                 press=".onProductValueHelpCancel" />
         </beginButton>
         <endButton>
             <Button
-                text="Select"
+                text="{i18n>select}"
                 type="Emphasized"
                 press=".onProductValueHelpConfirm" />
         </endButton>

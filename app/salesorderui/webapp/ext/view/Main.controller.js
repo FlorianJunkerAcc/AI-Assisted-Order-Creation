@@ -51,6 +51,15 @@ sap.ui.define(
 
                     this.getView().setModel(
                         new JSONModel({
+                            recognizedCommand: "",
+                            isAiProcessing: false,
+                            canSubmitAiCommand: false
+                        }),
+                        "ui"
+                    );
+
+                    this.getView().setModel(
+                        new JSONModel({
                             items: [{
                                 product_ID: "",
                                 productName: "",
@@ -132,7 +141,8 @@ sap.ui.define(
 
                     if (aUpdatedProducts.length) {
                         MessageToast.show(
-                            "Existing product quantities were updated."
+                            `Quantity of ${aUpdatedProducts[0].productName} ` +
+                            `updated to ${aUpdatedProducts[0].quantity}.`
                         );
                     } else {
                         MessageToast.show(
@@ -197,10 +207,29 @@ sap.ui.define(
                 },
 
                 onAIInputChange: function () {
-                    const oInput = this.byId("aiOrderInput");
-                    const oButton = this.byId("interpretOrderButton");
+                    const sValue =
+                        this.byId("aiOrderInput").getValue();
+                    const oUiModel = this.getView().getModel("ui");
 
-                    oButton.setEnabled(Boolean(oInput.getValue().trim()));
+                    oUiModel.setProperty(
+                        "/recognizedCommand",
+                        sValue
+                    );
+                    this._updateAiSubmitState();
+                },
+
+                _updateAiSubmitState: function () {
+                    const oUiModel = this.getView().getModel("ui");
+                    const sCommand =
+                        oUiModel.getProperty("/recognizedCommand") || "";
+                    const bProcessing = Boolean(
+                        oUiModel.getProperty("/isAiProcessing")
+                    );
+
+                    oUiModel.setProperty(
+                        "/canSubmitAiCommand",
+                        Boolean(sCommand.trim()) && !bProcessing
+                    );
                 },
 
                 /**
@@ -240,6 +269,7 @@ sap.ui.define(
                         "/items",
                         aItems
                     );
+                    this._calculateOrderTotal();
                 },
 
                 onProductValueHelpRequest: function (oEvent) {
@@ -265,6 +295,13 @@ sap.ui.define(
                     this._productValueHelpPromise
                         .then(function (oDialog) {
                             this._clearProductFilterFields();
+                            const oProductBinding = this.byId(
+                                "productTable"
+                            ).getBinding("items");
+
+                            if (oProductBinding) {
+                                oProductBinding.refresh();
+                            }
                             oDialog.open();
                         }.bind(this))
                         .catch(function (oError) {
@@ -276,6 +313,45 @@ sap.ui.define(
                                 "The product selection could not be opened."
                             );
                         });
+                },
+
+                formatIsAlreadyInOrder: function (sProductId) {
+                    const aItems = this.getView()
+                        .getModel("order")
+                        .getProperty("/items") || [];
+
+                    return aItems.some(function (oItem) {
+                        return oItem.product_ID === sProductId;
+                    });
+                },
+
+                formatProductHighlight: function (sProductId) {
+                    return this.formatIsAlreadyInOrder(sProductId)
+                        ? "Success"
+                        : "None";
+                },
+
+                onProductTableUpdateFinished: function (oEvent) {
+                    const oTable = oEvent.getSource();
+                    const aItems = this.getView()
+                        .getModel("order")
+                        .getProperty("/items") || [];
+
+                    oTable.getItems().forEach(function (oItem) {
+                        const oContext = oItem.getBindingContext();
+                        const sProductId = oContext &&
+                            oContext.getProperty("ID");
+                        const bAlreadyInOrder = aItems.some(
+                            function (oOrderItem) {
+                                return oOrderItem.product_ID === sProductId;
+                            }
+                        );
+
+                        oItem.toggleStyleClass(
+                            "productAlreadyInOrder",
+                            bAlreadyInOrder
+                        );
+                    });
                 },
 
                 onProductValueHelpSearch: function (oEvent) {
@@ -501,6 +577,32 @@ sap.ui.define(
                     const fTotalPrice = fUnitPrice * iQuantity;
                     const sPath = oOrderContext.getPath();
                     const oModel = oOrderContext.getModel();
+                    const aItems = oModel.getProperty("/items") || [];
+                    const oExistingItem = aItems.find(function (oItem) {
+                        return (
+                            oItem.product_ID === sProductID &&
+                            oItem !== oOrderContext.getObject()
+                        );
+                    });
+
+                    if (oExistingItem) {
+                        oExistingItem.quantity += iQuantity;
+                        oExistingItem.totalPrice = (
+                            oExistingItem.quantity *
+                            Number(oExistingItem.unitPrice)
+                        ).toFixed(2);
+                        aItems.splice(
+                            aItems.indexOf(oOrderContext.getObject()),
+                            1
+                        );
+                        oModel.setProperty("/items", aItems);
+                        this._calculateOrderTotal();
+                        MessageToast.show(
+                            `Quantity of ${sProductName} updated to ` +
+                            `${oExistingItem.quantity}.`
+                        );
+                        return;
+                    }
 
                     oModel.setProperty(sPath + "/product_ID", sProductID);
                     oModel.setProperty(sPath + "/productName", sProductName);
@@ -559,8 +661,8 @@ sap.ui.define(
                 },
                 _addAiItemsToOrder: function (aResolvedItems) {
 
-    const oProductEntryModel =
-        this.getView().getModel("productEntry");
+    const oOrderModel =
+        this.getView().getModel("order");
 
     const aAiItems = aResolvedItems.map(function (oItem) {
         return {
@@ -573,7 +675,7 @@ sap.ui.define(
     });
 
     const aExistingItems =
-        (oProductEntryModel.getProperty("/items") || []).filter(
+        (oOrderModel.getProperty("/items") || []).filter(
             function (oItem) {
                 return Boolean(oItem.product_ID);
             }
@@ -596,8 +698,8 @@ sap.ui.define(
         }
     });
 
-    oProductEntryModel.setProperty("/items", aExistingItems);
-    oProductEntryModel.setProperty("/canAdd", true);
+    oOrderModel.setProperty("/items", aExistingItems);
+    this._calculateOrderTotal();
 },
 onSelectClarificationSuggestion: function (oEvent) {
 
@@ -726,6 +828,15 @@ _advanceToNextClarification: function () {
                         "/itemCount",
                         aItems.length
                     );
+                    const oProductTable = this.byId("productTable");
+
+                    if (oProductTable) {
+                        this.onProductTableUpdateFinished({
+                            getSource: function () {
+                                return oProductTable;
+                            }
+                        });
+                    }
                     this._updateCreateEnabled();
                 },
 
@@ -805,9 +916,7 @@ _advanceToNextClarification: function () {
 
     const oVoiceButton =
         this.byId("startVoiceInputButton");
-
-    const oTextArea =
-        this.byId("aiOrderInput");
+    const oController = this;
     const oResourceBundle =
         this.getView().getModel("i18n").getResourceBundle();
 
@@ -838,8 +947,12 @@ _advanceToNextClarification: function () {
             sTranscript
         );
 
-        // Erkannten Text ins AI-Eingabefeld schreiben
-        oTextArea.setValue(sTranscript);
+        // Erkannten Text in den gemeinsamen UI-State schreiben.
+        oController.getView().getModel("ui").setProperty(
+            "/recognizedCommand",
+            sTranscript
+        );
+        oController._updateAiSubmitState();
 
     };
 
@@ -899,15 +1012,17 @@ _advanceToNextClarification: function () {
                  * Die Methode erstellt noch keinen Sales Order.
                  */
                 onInterpretOrderItems: async function () {
-                    const oInput =
-                        this.byId("aiOrderInput");
-
                     const oButton =
                         this.byId("interpretOrderButton");
+                    const oUiModel =
+                        this.getView().getModel("ui");
 
                     // Text aus dem Eingabefeld lesen.
                     const sOrderRequest =
-                        oInput.getValue().trim();
+                        (
+                            oUiModel.getProperty("/recognizedCommand") ||
+                            ""
+                        ).trim();
 
                     // Leere Eingaben werden nicht an CAP gesendet.
                     if (!sOrderRequest) {
@@ -920,10 +1035,6 @@ _advanceToNextClarification: function () {
                     // Das Standardmodell ist das OData-V4-Modell.
                     const oModel =
                         this.getView().getModel();
-
-                    // Lokales Modell für den Auftragsentwurf.
-                    const oOrderModel =
-                        this.getView().getModel("order");
 
                     /**
                      * Erstellt ein verzögertes OData Operation Binding.
@@ -945,6 +1056,11 @@ _advanceToNextClarification: function () {
 
                     try {
                         // Busy-Anzeige auf dem Bestätigungsbutton.
+                        oUiModel.setProperty(
+                            "/isAiProcessing",
+                            true
+                        );
+                        this._updateAiSubmitState();
                         oButton.setBusy(true);
 
                         /**
@@ -1039,8 +1155,6 @@ if (aResolvedItems.length === 0) {
                          */
                       this._addAiItemsToOrder(aResolvedItems);
 
-oInput.setValue("");
-
 MessageToast.show(
     `${aResolvedItems.length} item(s) added to the order draft`
 );
@@ -1058,6 +1172,11 @@ MessageToast.show(
     );
 
 } finally {
+                        oUiModel.setProperty(
+                            "/isAiProcessing",
+                            false
+                        );
+                        this._updateAiSubmitState();
                         // Busy-Anzeige immer beenden.
                         oButton.setBusy(false);
                     }
@@ -1227,9 +1346,13 @@ MessageToast.show(
                         "statusInput"
                     ).setText("Draft");
 
-                    this.byId(
-                        "aiOrderInput"
-                    ).setValue("");
+                    this.getView()
+                        .getModel("ui")
+                        .setData({
+                            recognizedCommand: "",
+                            isAiProcessing: false,
+                            canSubmitAiCommand: false
+                        });
 
                     // AI-Bereich nach erfolgreichem Auftrag wieder schließen.
                     this.byId(
@@ -1242,16 +1365,13 @@ MessageToast.show(
                             .getResourceBundle()
                             .getText("aiAssistedEntry")
                     );
-                    this.byId(
-                        "interpretOrderButton"
-                    ).setEnabled(false);
-
                     this.getView()
                         .getModel("order")
                         .setData({
                                 items: [],
                             orderTotal: "0.00",
-                            itemCount: 0
+                            itemCount: 0,
+                            canCreate: false
                         });
 
                     this.getView()
