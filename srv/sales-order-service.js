@@ -25,7 +25,7 @@ export default cds.service.impl(async function () {
             ID: customer.ObjectID,
             customerNumber: customer.AccountID,
             name: customer.Name,
-            address: customer.Address,
+            address: customer.FormattedPostalAddressDescription,
             city: ""
         }));
     });
