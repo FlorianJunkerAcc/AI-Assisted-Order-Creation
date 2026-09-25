@@ -104,7 +104,7 @@
 <Panel id="addProductsPanel" headerText="Add Products" width="100%" class="sapUiResponsiveMargin">
 <content>
 <HBox id="productEntryToolbar" width="100%" alignItems="End" wrap="Wrap" class="sapUiSmallMargin">
-<VBox id="productEntryField" width="min(32rem, 100%)" class="sapUiTinyMarginEnd">
+<VBox id="productEntryField" width="100%" class="productEntryField sapUiTinyMarginEnd">
 <Label id="productEntryLabel" text="Product" labelFor="productEntryProductInput"/>
 <HBox id="productEntrySelect" width="100%" alignItems="Center">
 <Input id="productEntryProductInput" width="100%" value="{productEntry>/productName}" placeholder="Select Product" editable="false"/>

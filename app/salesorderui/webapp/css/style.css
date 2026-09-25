@@ -68,3 +68,13 @@
 .clarificationQuestionText {
     color: #7D3C98;
 }
+
+.productEntryField {
+    max-width: 32rem;
+}
+
+@media (max-width: 64rem) {
+    .productEntryField {
+        max-width: 100%;
+    }
+}
