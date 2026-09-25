@@ -3,8 +3,6 @@ import { OrchestrationClient } from "@sap-ai-sdk/orchestration";
 
 // SELECT wird für Datenbankabfragen benötigt.
 const { INSERT, SELECT, UPDATE } = cds.ql;
-const BASE_PRICE_LIST_ID =
-    "0261F6BA4EDE1FE1AE97CB43E9EF5D85";
 
 // Implementierung des SalesOrderService.
 // Diese Datei wird automatisch mit der gleichnamigen CDS-Service-Datei verbunden.
@@ -27,21 +25,16 @@ export default cds.service.impl(async function () {
                 })
             ),
             salesCloud.run(
-                SELECT.from(InternalPriceDiscountListItemsCollection).where({
-                    InternalPriceDiscountListID: BASE_PRICE_LIST_ID
-                })
+                SELECT.from(InternalPriceDiscountListItemsCollection)
             )
         ]);
 
         const pricesByProduct = new Map();
 
         for (const priceItem of priceItems) {
-            const productKey =
-                priceItem.ProductObjectID || priceItem.ProductID;
-
-            if (productKey) {
+            if (priceItem.ObjectID) {
                 pricesByProduct.set(
-                    productKey,
+                    priceItem.ObjectID,
                     Number(priceItem.Price) || 0
                 );
             }
@@ -53,8 +46,6 @@ export default cds.service.impl(async function () {
             name: product.Description || product.Name,
             description: product.Description || product.Name,
             price: pricesByProduct.get(product.ObjectID) ??
-                pricesByProduct.get(product.ID) ??
-                pricesByProduct.get(product.ProductID) ??
                 0,
             unit: "EA"
         }));
