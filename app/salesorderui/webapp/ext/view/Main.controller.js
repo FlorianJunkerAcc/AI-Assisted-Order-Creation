@@ -70,16 +70,6 @@ sap.ui.define(
         "clarification"
     );
 
-                    this.getView()
-                        .getModel()
-                        .bindList("/Products")
-                        .requestContexts(0, 100)
-                        .catch(function (oError) {
-                            console.error(
-                                "Could not load Sales Cloud products:",
-                                oError
-                            );
-                        });
                 },
                 
                 
