@@ -3,6 +3,8 @@ import { OrchestrationClient } from "@sap-ai-sdk/orchestration";
 
 // SELECT wird für Datenbankabfragen benötigt.
 const { INSERT, SELECT, UPDATE } = cds.ql;
+const BASE_PRICE_LIST_ID =
+    "0261F6BA4EDE1FE1AE97CB43E9EF5D85";
 
 // Implementierung des SalesOrderService.
 // Diese Datei wird automatisch mit der gleichnamigen CDS-Service-Datei verbunden.
@@ -11,7 +13,52 @@ export default cds.service.impl(async function () {
     // Holt die Entity Products aus dem aktuellen SalesOrderService.
     const { Customers, Products } = this.entities;
     const salesCloud = await cds.connect.to("SalesCloud");
-    const { CorporateAccountCollection } = salesCloud.entities;
+    const {
+        CorporateAccountCollection,
+        ProductCollection,
+        InternalPriceDiscountListItemsCollection
+    } = salesCloud.entities;
+
+    const loadSalesCloudProducts = async () => {
+        const [products, priceItems] = await Promise.all([
+            salesCloud.run(
+                SELECT.from(ProductCollection).where({
+                    Status: "2"
+                })
+            ),
+            salesCloud.run(
+                SELECT.from(InternalPriceDiscountListItemsCollection).where({
+                    InternalPriceDiscountListID: BASE_PRICE_LIST_ID
+                })
+            )
+        ]);
+
+        const pricesByProduct = new Map();
+
+        for (const priceItem of priceItems) {
+            const productKey =
+                priceItem.ProductObjectID || priceItem.ProductID;
+
+            if (productKey) {
+                pricesByProduct.set(
+                    productKey,
+                    Number(priceItem.Price) || 0
+                );
+            }
+        }
+
+        return products.map((product) => ({
+            ID: product.ObjectID,
+            productNumber: product.ID || product.ProductID,
+            name: product.Description || product.Name,
+            description: product.Description || product.Name,
+            price: pricesByProduct.get(product.ObjectID) ??
+                pricesByProduct.get(product.ID) ??
+                pricesByProduct.get(product.ProductID) ??
+                0,
+            unit: "EA"
+        }));
+    };
 
     this.on("READ", Customers, async () => {
         const customers = await salesCloud.run(
@@ -30,8 +77,13 @@ export default cds.service.impl(async function () {
         }));
     });
 
+    this.on("READ", Products, async () => {
+        return loadSalesCloudProducts();
+    });
+
     this.before("CREATE", "SalesOrders", async (req) => {
         const customerId = req.data.customer_ID;
+        const orderItems = req.data.items || [];
 
         if (!customerId) {
             return;
@@ -50,6 +102,32 @@ export default cds.service.impl(async function () {
                 400,
                 "The selected customer is not an active Sales Cloud customer."
             );
+        }
+
+        const products = await loadSalesCloudProducts();
+        const productById = new Map(
+            products.map((product) => [product.ID, product])
+        );
+
+        for (const item of orderItems) {
+            const product = productById.get(item.product_ID);
+
+            if (!product) {
+                return req.reject(
+                    400,
+                    "The selected product is not an active Sales Cloud product."
+                );
+            }
+
+            const localProduct = await SELECT.one
+                .from(Products)
+                .where({ ID: product.ID });
+
+            if (localProduct) {
+                await UPDATE(Products, product.ID).with(product);
+            } else {
+                await INSERT.into(Products).entries(product);
+            }
         }
 
         const localCustomer = await SELECT.one
@@ -113,14 +191,7 @@ export default cds.service.impl(async function () {
              * Die Daten stammen bei dir ursprünglich aus der Products-CSV
              * und wurden von CAP nach SQLite geladen.
              */
-            const products = await SELECT
-                .from(Products)
-                .columns(
-                    "ID",
-                    "productNumber",
-                    "name",
-                    "price"
-                );
+            const products = await loadSalesCloudProducts();
 
             // Abbruch, falls der Produktkatalog leer ist.
             if (!products.length) {
