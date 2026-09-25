@@ -32,7 +32,8 @@
         "kind": "odata-v2",
         "model": "srv/external/sales-cloud",
         "credentials": {
-          "destination": "SAP_Sales_Cloud_V1"
+          "destination": "SAP_Sales_Cloud_V1",
+          "path": "/sap/c4c/odata/v1/c4codataapi"
         }
       }
     }

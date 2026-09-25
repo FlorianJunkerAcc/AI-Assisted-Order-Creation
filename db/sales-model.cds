@@ -5,6 +5,7 @@ using { cuid, managed } from '@sap/cds/common';
 entity Customers : cuid, managed {
     customerNumber : String(10);
     name           : String(100);
+    address        : String(255);
     city           : String(100);
 }
 

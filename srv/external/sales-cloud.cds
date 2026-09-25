@@ -5,6 +5,7 @@ service SalesCloud {
         key ObjectID             : UUID;
             AccountID            : String(40);
             Name                 : String(255);
+            Address              : String(255);
             LifeCycleStatusCode  : String(2);
             RoleCode             : String(20);
     }

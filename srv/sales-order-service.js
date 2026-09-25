@@ -25,6 +25,7 @@ export default cds.service.impl(async function () {
             ID: customer.ObjectID,
             customerNumber: customer.AccountID,
             name: customer.Name,
+            address: customer.Address,
             city: ""
         }));
     });
@@ -59,6 +60,7 @@ export default cds.service.impl(async function () {
             await UPDATE(Customers, customer.ObjectID).with({
                 customerNumber: customer.AccountID,
                 name: customer.Name,
+                address: customer.Address,
                 city: ""
             });
         } else {
@@ -66,6 +68,7 @@ export default cds.service.impl(async function () {
                 ID: customer.ObjectID,
                 customerNumber: customer.AccountID,
                 name: customer.Name,
+                address: customer.Address,
                 city: ""
             });
         }

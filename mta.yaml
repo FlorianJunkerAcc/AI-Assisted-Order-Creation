@@ -97,7 +97,7 @@ resources:
             Name: SAP_Sales_Cloud_V1
             ProxyType: Internet
             Type: HTTP
-            URL: https://my347080.crm.ondemand.com/sap/c4c/odata/v1/c4codataapi
+            URL: https://my347080.crm.ondemand.com
           existing_destinations_policy: update
       version: 1.0.0
     service: destination

@@ -6,7 +6,7 @@
 <Title id="orderInformationTitle" text="Order Information" level="H2" class="sapUiSmallMarginBottom"/>
 <Label id="customerLabel" text="Customer" labelFor="customerSelect"/>
 <ComboBox id="customerSelect" width="25rem" placeholder="Select Customer" items="{/Customers}" class="sapUiSmallMarginBottom">
-<core:Item id="customerSelectItem" key="{ID}" text="{name}"/>
+<core:Item id="customerSelectItem" key="{ID}" text="{= ${customerNumber} + ' | ' + ${name} + ' | ' + ${address}}"/>
 </ComboBox>
 <Label id="orderNumberLabel" text="Order Number" labelFor="orderNumberInput"/>
 <Input id="orderNumberInput" width="25rem" placeholder="Enter Order Number" class="sapUiSmallMarginBottom"/>
