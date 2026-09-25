@@ -31,7 +31,9 @@ sap.ui.define(
                     this.getView().setModel(
                         new JSONModel({
                             items: [],
-                            orderTotal: "0.00"
+                            orderTotal: "0.00",
+                                itemCount: 0,
+                                canCreate: false
                         }),
                         "order"
                     );
@@ -49,7 +51,13 @@ sap.ui.define(
 
                     this.getView().setModel(
                         new JSONModel({
-                            items: []
+                            items: [{
+                                product_ID: "",
+                                productName: "",
+                                quantity: 1,
+                                unitPrice: "0.00"
+                            }],
+                            canAdd: false
                         }),
                         "productEntry"
                     );
@@ -62,14 +70,20 @@ sap.ui.define(
                         this.getView().getModel("productEntry");
                     const oProductEntry =
                         oProductEntryModel.getData();
+                    const aDraftItems = oProductEntry.items.filter(
+                        function (oItem) {
+                            return Boolean(oItem.product_ID);
+                        }
+                    );
 
-                    if (!oProductEntry.items.length) {
+                    if (!aDraftItems.length ||
+                        aDraftItems.length !== oProductEntry.items.length) {
                         MessageBox.warning("Please select a product.");
                         return;
                     }
 
                     const aItems = oOrderModel.getProperty("/items");
-                    const aNewItems = oProductEntry.items.map(function (oItem) {
+                    const aNewItems = aDraftItems.map(function (oItem) {
                         const iQuantity = Number(oItem.quantity) || 1;
                         const fUnitPrice = Number(oItem.unitPrice) || 0;
 
@@ -82,12 +96,49 @@ sap.ui.define(
                         };
                     });
 
-                    oOrderModel.setProperty(
-                        "/items",
-                        aItems.concat(aNewItems)
-                    );
-                    oProductEntryModel.setData({ items: [] });
+                    const aMergedItems = aItems.slice();
+                    const aUpdatedProducts = [];
+
+                    aNewItems.forEach(function (oNewItem) {
+                        const oExistingItem = aMergedItems.find(
+                            function (oItem) {
+                                return oItem.product_ID === oNewItem.product_ID;
+                            }
+                        );
+
+                        if (oExistingItem) {
+                            oExistingItem.quantity += oNewItem.quantity;
+                            oExistingItem.totalPrice = (
+                                oExistingItem.quantity *
+                                Number(oExistingItem.unitPrice)
+                            ).toFixed(2);
+                            aUpdatedProducts.push(oExistingItem);
+                        } else {
+                            aMergedItems.push(oNewItem);
+                        }
+                    });
+
+                    oOrderModel.setProperty("/items", aMergedItems);
+                    oProductEntryModel.setData({
+                        items: [{
+                            product_ID: "",
+                            productName: "",
+                            quantity: 1,
+                            unitPrice: "0.00"
+                        }],
+                        canAdd: false
+                    });
                     this._calculateOrderTotal();
+
+                    if (aUpdatedProducts.length) {
+                        MessageToast.show(
+                            "Existing product quantities were updated."
+                        );
+                    } else {
+                        MessageToast.show(
+                            `${aNewItems.length} product(s) added to the order`
+                        );
+                    }
                 },
 
                 onAddProductEntryRow: function () {
@@ -102,6 +153,14 @@ sap.ui.define(
                         unitPrice: "0.00"
                     });
                     oProductEntryModel.setProperty("/items", aItems);
+                    oProductEntryModel.setProperty(
+                        "/canAdd",
+                        aItems.length > 0 && aItems.every(
+                            function (oItem) {
+                                return Boolean(oItem.product_ID);
+                            }
+                        )
+                    );
                 },
 
                 onDeleteProductEntry: function (oEvent) {
@@ -115,6 +174,14 @@ sap.ui.define(
 
                     aItems.splice(iIndex, 1);
                     oModel.setProperty("/items", aItems);
+                    oModel.setProperty(
+                        "/canAdd",
+                        aItems.length > 0 && aItems.every(
+                            function (oItem) {
+                                return Boolean(oItem.product_ID);
+                            }
+                        )
+                    );
                 },
 
                 onProductEntryValueHelpRequest: function (oEvent) {
@@ -123,6 +190,17 @@ sap.ui.define(
                     this._productOrderContext = null;
                     this._productEntryMode = true;
                     this._openProductValueHelp();
+                },
+
+                onHeaderChange: function () {
+                    this._updateCreateEnabled();
+                },
+
+                onAIInputChange: function () {
+                    const oInput = this.byId("aiOrderInput");
+                    const oButton = this.byId("interpretOrderButton");
+
+                    oButton.setEnabled(Boolean(oInput.getValue().trim()));
                 },
 
                 /**
@@ -359,6 +437,28 @@ sap.ui.define(
                                 "totalPrice",
                                 (iQuantity * Number(vPrice || 0)).toFixed(2)
                             );
+                            const aEntryItems =
+                                oProductEntryContext.getModel().getProperty("/items");
+                            oProductEntryContext.getModel().setProperty(
+                                "/canAdd",
+                                aEntryItems.every(
+                                    function (oItem) {
+                                        return Boolean(oItem.product_ID);
+                                    }
+                                )
+                            );
+
+                            const oEntryRow = this.byId(
+                                "productEntryTable"
+                            ).getItems().find(function (oItem) {
+                                return oItem.getBindingContext(
+                                    "productEntry"
+                                ) === oProductEntryContext;
+                            });
+
+                            if (oEntryRow) {
+                                oEntryRow.getCells()[1].focus();
+                            }
                         } else {
                             await this._setSelectedProduct(
                                 oProductContext,
@@ -473,12 +573,31 @@ sap.ui.define(
     });
 
     const aExistingItems =
-        oProductEntryModel.getProperty("/items") || [];
+        (oProductEntryModel.getProperty("/items") || []).filter(
+            function (oItem) {
+                return Boolean(oItem.product_ID);
+            }
+        );
 
-    oProductEntryModel.setProperty(
-        "/items",
-        [...aExistingItems, ...aAiItems]
-    );
+    aAiItems.forEach(function (oNewItem) {
+        const oExistingItem = aExistingItems.find(
+            function (oItem) {
+                return oItem.product_ID === oNewItem.product_ID;
+            }
+        );
+
+        if (oExistingItem) {
+            oExistingItem.quantity += oNewItem.quantity;
+            oExistingItem.totalPrice = (
+                oExistingItem.quantity * Number(oExistingItem.unitPrice)
+            ).toFixed(2);
+        } else {
+            aExistingItems.push(oNewItem);
+        }
+    });
+
+    oProductEntryModel.setProperty("/items", aExistingItems);
+    oProductEntryModel.setProperty("/canAdd", true);
 },
 onSelectClarificationSuggestion: function (oEvent) {
 
@@ -603,6 +722,30 @@ _advanceToNextClarification: function () {
                         "/orderTotal",
                         fOrderTotal.toFixed(2)
                     );
+                    oOrderModel.setProperty(
+                        "/itemCount",
+                        aItems.length
+                    );
+                    this._updateCreateEnabled();
+                },
+
+                _updateCreateEnabled: function () {
+                    const oCustomer = this.byId("customerSelect");
+                    const oOrderNumber = this.byId("orderNumberInput");
+                    const aItems = this.getView()
+                        .getModel("order")
+                        .getProperty("/items") || [];
+                    const bCanCreate = Boolean(
+                        oCustomer &&
+                        oCustomer.getSelectedKey() &&
+                        oOrderNumber &&
+                        oOrderNumber.getValue().trim() &&
+                        aItems.length
+                    );
+
+                    this.getView()
+                        .getModel("order")
+                        .setProperty("/canCreate", bCanCreate);
                 },
 
                 /**
@@ -612,14 +755,25 @@ _advanceToNextClarification: function () {
                  * mit visible="false" versteckt.
                  */
                 onStartAIAssistant: function () {
-                    this.byId(
-                        "aiAssistantArea"
-                    ).setVisible(true);
+                    const oArea = this.byId("aiAssistantArea");
+                    const oButton = this.byId("startAIAssistantButton");
+                    const bVisible = oArea.getVisible();
+
+                    oArea.setVisible(!bVisible);
+                    oButton.setText(
+                        this.getView().getModel("i18n")
+                            .getResourceBundle()
+                            .getText(
+                                bVisible
+                                    ? "aiAssistedEntry"
+                                    : "aiCollapse"
+                            )
+                    );
 
                     // Cursor direkt in das Texteingabefeld setzen.
-                    this.byId(
-                        "aiOrderInput"
-                    ).focus();
+                    if (!bVisible) {
+                        this.byId("aiOrderInput").focus();
+                    }
                 },
                 onStartVoiceInput: function () {
 
@@ -654,6 +808,8 @@ _advanceToNextClarification: function () {
 
     const oTextArea =
         this.byId("aiOrderInput");
+    const oResourceBundle =
+        this.getView().getModel("i18n").getResourceBundle();
 
 
     // Mikrofon beginnt zuzuhören
@@ -664,6 +820,9 @@ _advanceToNextClarification: function () {
 
         // Button während der Aufnahme deaktivieren
         oVoiceButton.setEnabled(false);
+        oVoiceButton.setText(
+            oResourceBundle.getText("listening")
+        );
 
     };
 
@@ -693,6 +852,9 @@ _advanceToNextClarification: function () {
 
         // Voice Button wieder aktivieren
         oVoiceButton.setEnabled(true);
+        oVoiceButton.setText(
+            oResourceBundle.getText("startVoiceInput")
+        );
 
     };
 
@@ -707,6 +869,9 @@ _advanceToNextClarification: function () {
 
         oListeningIndicator.setVisible(false);
         oVoiceButton.setEnabled(true);
+        oVoiceButton.setText(
+            oResourceBundle.getText("startVoiceInput")
+        );
 
         MessageBox.error(
             "Voice recognition failed: " +
@@ -922,7 +1087,7 @@ MessageToast.show(
                         const sStatus =
                             this.byId(
                                 "statusInput"
-                            ).getValue();
+                            ).getText();
 
                         const aUiItems =
                             this.getView()
@@ -1060,7 +1225,7 @@ MessageToast.show(
 
                     this.byId(
                         "statusInput"
-                    ).setValue("Draft");
+                    ).setText("Draft");
 
                     this.byId(
                         "aiOrderInput"
@@ -1070,18 +1235,35 @@ MessageToast.show(
                     this.byId(
                         "aiAssistantArea"
                     ).setVisible(false);
+                    this.byId(
+                        "startAIAssistantButton"
+                    ).setText(
+                        this.getView().getModel("i18n")
+                            .getResourceBundle()
+                            .getText("aiAssistedEntry")
+                    );
+                    this.byId(
+                        "interpretOrderButton"
+                    ).setEnabled(false);
 
                     this.getView()
                         .getModel("order")
                         .setData({
                                 items: [],
-                            orderTotal: "0.00"
+                            orderTotal: "0.00",
+                            itemCount: 0
                         });
 
                     this.getView()
                         .getModel("productEntry")
                         .setData({
-                            items: []
+                            items: [{
+                                product_ID: "",
+                                productName: "",
+                                quantity: 1,
+                                unitPrice: "0.00"
+                            }],
+                            canAdd: false
                         });
                 }
 

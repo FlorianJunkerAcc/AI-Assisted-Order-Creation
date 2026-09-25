@@ -1,42 +1,52 @@
-<mvc:View xmlns:core="sap.ui.core" xmlns:mvc="sap.ui.core.mvc" xmlns="sap.m" xmlns:macros="sap.fe.macros" controllerName="com.prototype.salesorderai.salesorderui.ext.view.Main">
+<mvc:View xmlns:core="sap.ui.core" xmlns:mvc="sap.ui.core.mvc" xmlns="sap.m" xmlns:l="sap.ui.layout" xmlns:macros="sap.fe.macros" controllerName="com.prototype.salesorderai.salesorderui.ext.view.Main">
 <macros:Page id="Page" title="Create Sales Order" showFooter="true">
 <macros:items>
 <VBox id="salesOrderContent" class="sapUiResponsiveContentPadding" width="100%">
-<Panel id="orderHeaderPanel" headerText="Order Information" expandable="true" expanded="true" width="100%" class="sapUiResponsiveMargin">
+<Panel id="orderHeaderPanel" headerText="{i18n>orderInformation}" expandable="true" expanded="true" width="100%" class="sapUiResponsiveMargin">
 <content>
-<VBox id="orderHeaderContent" width="100%">
+<l:Grid id="orderHeaderContent" defaultSpan="L4 M6 S12" hSpacing="1" vSpacing="0" width="100%">
 <!--  Order Information  -->
+<VBox id="customerField" width="100%">
 <Label id="customerLabel" text="Customer" labelFor="customerSelect"/>
-<ComboBox id="customerSelect" width="25rem" placeholder="Select Customer" items="{/Customers}" class="sapUiSmallMarginBottom">
+<ComboBox id="customerSelect" width="100%" placeholder="{i18n>selectCustomer}" items="{/Customers}" selectionChange=".onHeaderChange" class="sapUiSmallMarginBottom">
 <core:Item id="customerSelectItem" key="{ID}" text="{= ${customerNumber} + ' | ' + ${name} + ' | ' + ${address}}"/>
 </ComboBox>
+</VBox>
+<VBox id="orderNumberField" width="100%">
 <Label id="orderNumberLabel" text="Order Number" labelFor="orderNumberInput"/>
-<Input id="orderNumberInput" width="25rem" placeholder="Enter Order Number" class="sapUiSmallMarginBottom"/>
+<Input id="orderNumberInput" width="100%" placeholder="{i18n>enterOrderNumber}" change=".onHeaderChange" class="sapUiSmallMarginBottom"/>
+</VBox>
+<VBox id="statusField" width="100%">
 <Label id="statusLabel" text="Status" labelFor="statusInput"/>
-<Input id="statusInput" width="25rem" value="Draft"/>
+<ObjectStatus id="statusInput" text="Draft" state="Information" class="sapUiSmallMarginBottom"/>
  </VBox>
+</l:Grid>
 </content>
 </Panel>
 <!--  Order Items  -->
-<Panel id="orderItemsPanel" headerText="Products in Sales Order" expandable="true" expanded="true" width="100%" class="sapUiResponsiveMargin">
+<Panel id="orderItemsPanel" headerText="{i18n>productsInSalesOrder}" expandable="true" expanded="true" width="100%" class="sapUiResponsiveMargin">
 <content>
 <VBox id="orderItemsContent" width="100%">
-<Title id="orderItemsTitle" text="Order Items" level="H2" class="sapUiMediumMarginTop sapUiSmallMarginBottom"/>
-<Table id="orderItemsTable" width="100%" noDataText="No products added yet" items="{order>/items}">
+<Toolbar id="orderItemsToolbar">
+<Title id="orderItemsTitle" text="{i18n>orderItems}" level="H2"/>
+<ObjectStatus id="orderItemsCount" text="{order>/itemCount} {i18n>items}" state="None" class="sapUiTinyMarginBegin"/>
+<ToolbarSpacer/>
+</Toolbar>
+<Table id="orderItemsTable" width="100%" growing="true" growingThreshold="10" noDataText="{i18n>noProductsAdded}" items="{order>/items}">
 <columns>
-<Column id="productColumn" width="25rem">
-<Text id="productColumnText" text="Product"/>
+<Column id="productColumn" width="45%">
+<Text id="productColumnText" text="{i18n>product}"/>
 </Column>
-<Column id="quantityColumn" width="10rem">
-<Text id="quantityColumnText" text="Quantity"/>
+<Column id="quantityColumn" width="15%" hAlign="End">
+<Text id="quantityColumnText" text="{i18n>quantity}"/>
 </Column>
-<Column id="unitPriceColumn" width="10rem">
-<Text id="unitPriceColumnText" text="Unit Price"/>
+<Column id="unitPriceColumn" width="18%" hAlign="End" demandPopin="true" minScreenWidth="Desktop">
+<Text id="unitPriceColumnText" text="{i18n>unitPrice}"/>
 </Column>
-<Column id="totalPriceColumn" width="10rem">
-<Text id="totalPriceColumnText" text="Total Price"/>
+<Column id="totalPriceColumn" width="18%" hAlign="End" demandPopin="true" minScreenWidth="Desktop">
+<Text id="totalPriceColumnText" text="{i18n>totalPrice}"/>
 </Column>
-<Column id="actionsColumn" width="5rem">
+<Column id="actionsColumn" width="4rem" hAlign="End">
 <Text id="actionsColumnText" text=""/>
 </Column>
 </columns>
@@ -44,10 +54,10 @@
 <ColumnListItem id="orderItemTemplate">
 <cells>
 <HBox id="productSelect" width="100%" alignItems="Center">
-<Input id="productSelectInput" width="100%" value="{order>productName}" placeholder="Select Product" editable="false" class="productDisplayField"/>
+<Input id="productSelectInput" width="100%" value="{order>productName}" placeholder="{i18n>selectProduct}" editable="false" class="productDisplayField"/>
 <Button id="productValueHelpButton" icon="sap-icon://value-help" type="Transparent" tooltip="Select Product" press=".onProductValueHelpRequest"/>
 </HBox>
-<Input id="quantityInput" type="Number" value="{order>quantity}" liveChange=".onQuantityChange"/>
+<Input id="quantityInput" type="Number" value="{order>quantity}" liveChange=".onQuantityChange" textAlign="End"/>
 <ObjectNumber id="unitPriceText" number="{order>unitPrice}" unit="EUR"/>
 <ObjectNumber id="totalPriceText" number="{order>totalPrice}" unit="EUR"/>
 <Button id="deleteOrderItemButton" icon="sap-icon://delete" type="Transparent" tooltip="Remove item" press=".onDeleteProduct"/>
@@ -57,23 +67,24 @@
 </Table>
 <!--  Order Summary  -->
 <HBox id="orderSummary" width="100%" justifyContent="SpaceBetween" alignItems="Center" class="sapUiSmallMarginTop">
-<ObjectStatus id="orderTotal" title="Order Total" text="{order>/orderTotal} EUR" state="Information"/>
+<ObjectStatus id="orderTotal" title="{i18n>orderTotal}" text="{order>/orderTotal} EUR" state="Information"/>
 </HBox>
 </VBox>
 </content>
 </Panel>
-<Panel id="addProductsPanel" headerText="Add Products" expandable="true" expanded="true" width="100%" class="sapUiResponsiveMargin">
+<Panel id="addProductsPanel" headerText="{i18n>addProducts}" expandable="true" expanded="true" width="100%" class="sapUiResponsiveMargin">
 <content>
 <VBox id="aiAssistantArea" width="100%" visible="false" class="aiAssistantArea sapUiMediumMarginBottom">
-<Title id="aiOrderEntryTitle" text="AI-Assisted Order Entry" level="H2" class="sapUiSmallMarginBottom"/>
-<Button id="startVoiceInputButton" text="Start Voice Input" icon="sap-icon://microphone" press=".onStartVoiceInput" class="sapUiSmallMarginBottom voiceStartButton"/>
+<Title id="aiOrderEntryTitle" text="{i18n>aiOrderEntry}" level="H2" class="sapUiSmallMarginBottom"/>
+<Button id="startVoiceInputButton" text="{i18n>startVoiceInput}" icon="sap-icon://microphone" press=".onStartVoiceInput" class="sapUiSmallMarginBottom voiceStartButton"/>
 <VBox id="voiceListeningIndicator" visible="false" alignItems="Center" class="sapUiMediumMargin">
 <core:Icon id="voiceListeningIcon" src="sap-icon://microphone" size="2rem" color="#0070F2" class="voiceListeningPulse"/>
 <Text id="voiceListeningText" text="Listening..." class="sapUiSmallMarginTop"/>
 </VBox>
-<TextArea id="aiOrderInput" width="100%" rows="3" placeholder="For example: Add 5 Ferrero Rocher and 10 Kinder Bueno"/>
+<Label id="aiOrderInputLabel" text="{i18n>recognizedCommand}" labelFor="aiOrderInput"/>
+<TextArea id="aiOrderInput" width="100%" rows="3" placeholder="{i18n>voicePlaceholder}" change=".onAIInputChange"/>
 <HBox id="aiConfirmationActions" width="100%" justifyContent="End" class="sapUiSmallMarginTop">
-<Button id="interpretOrderButton" text="Confirm and Add Items" type="Emphasized" press=".onInterpretOrderItems"/>
+<Button id="interpretOrderButton" text="{i18n>confirmAndAddItems}" type="Emphasized" enabled="false" press=".onInterpretOrderItems"/>
 </HBox>
 <VBox id="clarificationArea" visible="{clarification>/visible}" width="100%" class="sapUiMediumMarginTop">
 <VBox id="clarificationBox" class="clarificationBox sapUiSmallMarginBottom">
@@ -88,12 +99,12 @@
 </FlexBox>
 </VBox>
 </VBox>
-<Button id="startAIAssistantButton" text="AI-Assisted Entry" icon="sap-icon://ai" type="Transparent" press=".onStartAIAssistant" class="sapUiSmallMarginBottom"/>
-<Table id="productEntryTable" width="100%" noDataText="Add products to prepare the sales order" items="{productEntry>/items}">
+<Button id="startAIAssistantButton" text="{i18n>aiAssistedEntry}" icon="sap-icon://ai" type="Transparent" press=".onStartAIAssistant" class="sapUiSmallMarginBottom"/>
+<Table id="productEntryTable" width="100%" noDataText="{i18n>prepareProducts}" items="{productEntry>/items}">
 <columns>
-<Column id="entryProductColumn"><Text text="Product"/></Column>
-<Column id="entryQuantityColumn" width="9rem"><Text text="Quantity"/></Column>
-<Column id="entryPriceColumn" width="9rem"><Text text="Unit Price"/></Column>
+<Column id="entryProductColumn"><Text text="{i18n>product}"/></Column>
+<Column id="entryQuantityColumn" width="9rem"><Text text="{i18n>quantity}"/></Column>
+<Column id="entryPriceColumn" width="9rem"><Text text="{i18n>unitPrice}"/></Column>
 <Column id="entryActionsColumn" width="4rem"><Text text=""/></Column>
 </columns>
 <items>
@@ -111,9 +122,9 @@
 </items>
 </Table>
 <Toolbar id="productEntryActions" class="sapUiSmallMarginTop">
-<Button id="addProductEntryRowButton" text="Add Product" icon="sap-icon://add" type="Transparent" press=".onAddProductEntryRow"/>
+<Button id="addProductEntryRowButton" text="{i18n>addProduct}" icon="sap-icon://add" type="Transparent" press=".onAddProductEntryRow"/>
 <ToolbarSpacer/>
-<Button id="addProductButton" text="Add to Sales Order" icon="sap-icon://add" type="Emphasized" press=".onAddProduct"/>
+<Button id="addProductButton" text="{i18n>addToSalesOrder}" icon="sap-icon://add" type="Emphasized" enabled="{productEntry>/canAdd}" press=".onAddProduct"/>
 </Toolbar>
 </content>
 </Panel>
@@ -122,8 +133,10 @@
 <!--  Page Footer  -->
 <macros:footer>
 <OverflowToolbar id="footerToolbar">
+<ObjectStatus id="footerItemCount" text="{order>/itemCount} {i18n>items}" state="None"/>
+<ObjectStatus id="footerOrderTotal" title="{i18n>orderTotal}" text="{order>/orderTotal} EUR" state="Information" class="sapUiSmallMarginBegin"/>
 <ToolbarSpacer id="footerSpacer"/>
-<Button id="createOrderButton" text="Create Order" type="Emphasized" press=".onCreateOrder"/>
+<Button id="createOrderButton" text="{i18n>createOrder}" type="Emphasized" enabled="{order>/canCreate}" press=".onCreateOrder"/>
 </OverflowToolbar>
 </macros:footer>
 </macros:Page>
