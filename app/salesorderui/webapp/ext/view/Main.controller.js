@@ -153,10 +153,20 @@ sap.ui.define(
                         }.bind(this));
                     }
 
-                    this._productValueHelpPromise.then(function (oDialog) {
-                        this._clearProductFilterFields();
-                        oDialog.open();
-                    }.bind(this));
+                    this._productValueHelpPromise
+                        .then(function (oDialog) {
+                            this._clearProductFilterFields();
+                            oDialog.open();
+                        }.bind(this))
+                        .catch(function (oError) {
+                            console.error(
+                                "Could not open product value help:",
+                                oError
+                            );
+                            MessageBox.error(
+                                "The product selection could not be opened."
+                            );
+                        });
                 },
 
                 onProductValueHelpSearch: function (oEvent) {
@@ -168,6 +178,7 @@ sap.ui.define(
                 onProductFilterChange: function () {
                     const oDialog = this.byId("productValueHelpDialog");
                     const oSearchField = oDialog &&
+                        typeof oDialog.getSearchField === "function" &&
                         oDialog.getSearchField();
 
                     this._applyProductFilters(
@@ -255,7 +266,11 @@ sap.ui.define(
                         oProductCategory.setValue("");
                     }
 
-                    if (oDialog && oDialog.getSearchField()) {
+                    if (
+                        oDialog &&
+                        typeof oDialog.getSearchField === "function" &&
+                        oDialog.getSearchField()
+                    ) {
                         oDialog.getSearchField().setValue("");
                     }
                 },
