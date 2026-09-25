@@ -2,7 +2,7 @@
 service SalesCloud {
     @readonly
     entity CorporateAccountCollection {
-        key ObjectID             : UUID;
+        key ObjectID             : String(40);
             AccountID            : String(40);
             Name                 : String(255);
             Address              : String(255);
@@ -12,7 +12,7 @@ service SalesCloud {
 
     @readonly
     entity ProductCollection {
-        key ObjectID : UUID;
+        key ObjectID : String(40);
             ID       : String(40);
             ProductID : String(40);
             Name     : String(255);
@@ -22,8 +22,8 @@ service SalesCloud {
 
     @readonly
     entity InternalPriceDiscountListItemsCollection {
-        key ObjectID      : UUID;
-            ParentObjectID : UUID;
+        key ObjectID      : String(40);
+            ParentObjectID : String(40);
             PriceDiscountListID : String(40);
             ProductID      : String(40);
             Amount         : Decimal(15, 3);
