@@ -22,7 +22,10 @@ service SalesCloud {
 
     @readonly
     entity InternalPriceDiscountListItemsCollection {
-        key ObjectID : UUID;
-            Price : Decimal(15, 3);
+        key ObjectID      : UUID;
+            ParentObjectID : UUID;
+            PriceDiscountListID : String(40);
+            ProductID      : String(40);
+            Amount         : Decimal(15, 3);
     }
 }

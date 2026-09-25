@@ -3,6 +3,8 @@ import { OrchestrationClient } from "@sap-ai-sdk/orchestration";
 
 // SELECT wird für Datenbankabfragen benötigt.
 const { INSERT, SELECT, UPDATE } = cds.ql;
+const BASE_PRICE_LIST_ID =
+    "0261F6BA4EDE1FE1AE97CB43E9EF5D85";
 
 // Implementierung des SalesOrderService.
 // Diese Datei wird automatisch mit der gleichnamigen CDS-Service-Datei verbunden.
@@ -25,27 +27,29 @@ export default cds.service.impl(async function () {
                 })
             ),
             salesCloud.run(
-                SELECT.from(InternalPriceDiscountListItemsCollection)
+                SELECT.from(InternalPriceDiscountListItemsCollection).where({
+                    ParentObjectID: BASE_PRICE_LIST_ID
+                })
             )
         ]);
 
         const pricesByProduct = new Map();
 
         for (const priceItem of priceItems) {
-            if (priceItem.ObjectID) {
+            if (priceItem.ProductID) {
                 pricesByProduct.set(
-                    priceItem.ObjectID,
-                    Number(priceItem.Price) || 0
+                    priceItem.ProductID,
+                    Number(priceItem.Amount) || 0
                 );
             }
         }
 
         return products.map((product) => ({
             ID: product.ObjectID,
-            productNumber: product.ID || product.ProductID,
+            productNumber: product.ProductID,
             name: product.Description || product.Name,
             description: product.Description || product.Name,
-            price: pricesByProduct.get(product.ObjectID) ??
+            price: pricesByProduct.get(product.ProductID) ??
                 0,
             unit: "EA"
         }));
@@ -177,10 +181,10 @@ export default cds.service.impl(async function () {
         try {
             /**
              * Schritt 1:
-             * Aktuelle Produkte aus der CAP-Datenbank lesen.
+             * Aktive Produkte aus der SAP Sales Cloud lesen.
              *
-             * Die Daten stammen bei dir ursprünglich aus der Products-CSV
-             * und wurden von CAP nach SQLite geladen.
+             * loadSalesCloudProducts liest ProductCollection mit Status 2
+             * und ergänzt den Preis aus der Basispreisliste.
              */
             const products = await loadSalesCloudProducts();
 
@@ -196,7 +200,8 @@ export default cds.service.impl(async function () {
 
             /**
              * Schritt 2:
-             * Produktkatalog für Sonnet in einen einfachen Text umwandeln.
+             * Den Sales-Cloud-Produktkatalog für Sonnet in einen einfachen
+             * Text umwandeln.
              *
              * Beispielzeile:
              * UUID | P1001 | Ferrero Rocher 16 Pieces
