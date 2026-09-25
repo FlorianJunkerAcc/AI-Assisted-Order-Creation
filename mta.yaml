@@ -9,6 +9,7 @@ modules:
   requires:
   - name: prototype_salesorderApp_ai-auth
   - name: prototype_salesorderApp_ai-db
+  - name: prototype_salesorderApp_ai-destination-service
   provides:
   - name: srv-api
     properties:

@@ -27,6 +27,13 @@
     "requires": {
       "[production]": {
         "auth": "xsuaa"
+      },
+      "SalesCloud": {
+        "kind": "odata-v2",
+        "model": "srv/external/sales-cloud",
+        "credentials": {
+          "destination": "SAP_Sales_Cloud_V1"
+        }
       }
     }
   },

@@ -2,14 +2,74 @@ import cds from "@sap/cds";
 import { OrchestrationClient } from "@sap-ai-sdk/orchestration";
 
 // SELECT wird für Datenbankabfragen benötigt.
-const { SELECT } = cds.ql;
+const { INSERT, SELECT, UPDATE } = cds.ql;
 
 // Implementierung des SalesOrderService.
 // Diese Datei wird automatisch mit der gleichnamigen CDS-Service-Datei verbunden.
 export default cds.service.impl(async function () {
 
     // Holt die Entity Products aus dem aktuellen SalesOrderService.
-    const { Products } = this.entities;
+    const { Customers, Products } = this.entities;
+    const salesCloud = await cds.connect.to("SalesCloud");
+    const { CorporateAccountCollection } = salesCloud.entities;
+
+    this.on("READ", Customers, async () => {
+        const customers = await salesCloud.run(
+            SELECT.from(CorporateAccountCollection).where({
+                LifeCycleStatusCode: "2",
+                RoleCode: "CRM000"
+            })
+        );
+
+        return customers.map((customer) => ({
+            ID: customer.ObjectID,
+            customerNumber: customer.AccountID,
+            name: customer.Name,
+            city: ""
+        }));
+    });
+
+    this.before("CREATE", "SalesOrders", async (req) => {
+        const customerId = req.data.customer_ID;
+
+        if (!customerId) {
+            return;
+        }
+
+        const [customer] = await salesCloud.run(
+            SELECT.from(CorporateAccountCollection).where({
+                ObjectID: customerId,
+                LifeCycleStatusCode: "2",
+                RoleCode: "CRM000"
+            })
+        );
+
+        if (!customer) {
+            return req.reject(
+                400,
+                "The selected customer is not an active Sales Cloud customer."
+            );
+        }
+
+        const localCustomer = await SELECT.one
+            .from(Customers)
+            .where({ ID: customer.ObjectID });
+
+        if (localCustomer) {
+            await UPDATE(Customers, customer.ObjectID).with({
+                customerNumber: customer.AccountID,
+                name: customer.Name,
+                city: ""
+            });
+        } else {
+            await INSERT.into(Customers).entries({
+                ID: customer.ObjectID,
+                customerNumber: customer.AccountID,
+                name: customer.Name,
+                city: ""
+            });
+        }
+    });
 
     /**
      * Handler für die CAP Action interpretOrderItems.

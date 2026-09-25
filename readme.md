@@ -30,6 +30,7 @@ OData V4 Action: interpretOrderItems
         ▼
 CAP Backend (Node.js)
   - Reads product catalog from the database
+        - Reads active customers from SAP Sales Cloud V1 via the `SAP_Sales_Cloud_V1` destination
   - Calls SAP AI Core (Orchestration Service)
         │
         ▼
@@ -75,6 +76,8 @@ cds watch --profile hybrid
 ```
 
 Requires a bound SAP AI Core service instance (see `.cdsrc-private.json`) with a deployed Claude Sonnet model in the Generative AI Hub.
+
+The `SAP_Sales_Cloud_V1` destination must point to the SAP Sales Cloud tenant. The application reads `CorporateAccountCollection` from `c4codataapi` and only includes customers with `LifeCycleStatusCode = 2` and `RoleCode = CRM000`.
 
 ## Status
 
