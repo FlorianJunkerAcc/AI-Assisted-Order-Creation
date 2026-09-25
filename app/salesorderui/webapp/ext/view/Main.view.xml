@@ -74,7 +74,10 @@
 <items>
 <ColumnListItem id="orderItemTemplate">
 <cells>
-<Input id="productSelect" width="100%" value="{order>productName}" placeholder="Select Product" showValueHelp="true" valueHelpOnly="true" valueHelpRequest=".onProductValueHelpRequest"/>
+<HBox id="productSelect" width="100%" alignItems="Center">
+<Input id="productSelectInput" width="100%" value="{order>productName}" placeholder="Select Product" editable="false"/>
+<Button id="productValueHelpButton" icon="sap-icon://value-help" type="Transparent" tooltip="Select Product" press=".onProductValueHelpRequest"/>
+</HBox>
 <Input id="quantityInput" type="Number" value="{order>quantity}" liveChange=".onQuantityChange"/>
 <ObjectNumber id="unitPriceText" number="{order>unitPrice}" unit="EUR"/>
 <ObjectNumber id="totalPriceText" number="{order>totalPrice}" unit="EUR"/>
