@@ -50,22 +50,13 @@
                         <Column>
                             <Text text="{i18n>productCategory}" />
                         </Column>
-                        <Column>
-                            <Text text="{i18n>status}" />
-                        </Column>
                     </columns>
                     <items>
-                        <ColumnListItem
-                            type="Active"
-                            highlight="{path: 'ID', formatter: '.formatProductHighlight'}">
+                        <ColumnListItem type="Active">
                             <cells>
                                 <Text text="{productNumber}" />
                                 <Text text="{name}" />
                                 <Text text="{productCategoryID}" />
-                                <ObjectStatus
-                                    text="{i18n>alreadyInOrder}"
-                                    state="Success"
-                                    visible="{path: 'ID', formatter: '.formatIsAlreadyInOrder'}" />
                             </cells>
                         </ColumnListItem>
                     </items>

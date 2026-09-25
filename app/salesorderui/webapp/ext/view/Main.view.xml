@@ -33,32 +33,6 @@
 <ToolbarSpacer/>
 <Button id="startAIAssistantButton" text="{i18n>aiAssistedEntry}" icon="sap-icon://ai" type="Transparent" press=".onStartAIAssistant" class="sapUiSmallMarginBottom"/>
 </Toolbar>
-<Table id="productEntryTable" width="100%" noDataText="{i18n>prepareProducts}" items="{productEntry>/items}">
-<columns>
-<Column id="entryProductColumn"><Text text="{i18n>product}"/></Column>
-<Column id="entryQuantityColumn" width="9rem"><Text text="{i18n>quantity}"/></Column>
-<Column id="entryPriceColumn" width="9rem"><Text text="{i18n>unitPrice}"/></Column>
-<Column id="entryActionsColumn" width="4rem"><Text text=""/></Column>
-</columns>
-<items>
-<ColumnListItem id="productEntryItem">
-<cells>
-<HBox id="productEntrySelect" width="100%" alignItems="Center">
-<Input id="productEntryProductInput" width="100%" value="{productEntry>productName}" editable="false" class="productDisplayField"/>
-<Button id="productEntryValueHelpButton" icon="sap-icon://value-help" type="Transparent" tooltip="Select Product" press=".onProductEntryValueHelpRequest"/>
-</HBox>
-<StepInput id="productEntryQuantity" width="100%" min="1" value="{productEntry>quantity}"/>
-<ObjectStatus id="productEntryPrice" text="{productEntry>unitPrice} EUR" state="Information"/>
-<Button id="deleteProductEntryButton" icon="sap-icon://delete" type="Transparent" tooltip="Remove product" press=".onDeleteProductEntry"/>
-</cells>
-</ColumnListItem>
-</items>
-</Table>
-<Toolbar id="productEntryActions" class="sapUiSmallMarginTop">
-<Button id="addProductEntryRowButton" text="{i18n>addProduct}" icon="sap-icon://add" type="Transparent" press=".onAddProductEntryRow"/>
-<ToolbarSpacer/>
-<Button id="addProductButton" text="{i18n>addToSalesOrder}" icon="sap-icon://add" type="Emphasized" enabled="{productEntry>/canAdd}" press=".onAddProduct"/>
-</Toolbar>
 <VBox id="aiAssistantArea" width="100%" visible="false" class="aiAssistantArea sapUiMediumMarginBottom">
 <Title id="aiOrderEntryTitle" text="{i18n>aiOrderEntry}" level="H2" class="sapUiSmallMarginBottom"/>
 <Button id="startVoiceInputButton" text="{i18n>startVoiceInput}" icon="sap-icon://microphone" press=".onStartVoiceInput" class="sapUiSmallMarginBottom voiceStartButton"/>
@@ -94,6 +68,11 @@
 </columns>
 <items>
 <ColumnListItem id="orderItemTemplate">
+<Toolbar id="orderSummaryToolbar" class="sapUiSmallMarginTop">
+<Button id="addProductButton" text="{i18n>addProduct}" icon="sap-icon://add" type="Transparent" press=".onAddProduct"/>
+<ToolbarSpacer/>
+<ObjectStatus id="orderTotal" title="{i18n>orderTotal}" text="{order>/orderTotal} EUR" state="Information"/>
+</Toolbar>
 <cells>
 <HBox id="productSelect" width="100%" alignItems="Center">
 <Input id="productSelectInput" width="100%" value="{order>productName}" placeholder="{i18n>selectProduct}" editable="false" class="productDisplayField"/>

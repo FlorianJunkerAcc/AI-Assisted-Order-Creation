@@ -58,147 +58,11 @@ sap.ui.define(
                         "ui"
                     );
 
-                    this.getView().setModel(
-                        new JSONModel({
-                            items: [{
-                                product_ID: "",
-                                productName: "",
-                                quantity: 1,
-                                unitPrice: "0.00"
-                            }],
-                            canAdd: false
-                        }),
-                        "productEntry"
-                    );
                 },
 
                 onAddProduct: function () {
-                    const oOrderModel =
-                        this.getView().getModel("order");
-                    const oProductEntryModel =
-                        this.getView().getModel("productEntry");
-                    const oProductEntry =
-                        oProductEntryModel.getData();
-                    const aDraftItems = oProductEntry.items.filter(
-                        function (oItem) {
-                            return Boolean(oItem.product_ID);
-                        }
-                    );
-
-                    if (!aDraftItems.length ||
-                        aDraftItems.length !== oProductEntry.items.length) {
-                        MessageBox.warning("Please select a product.");
-                        return;
-                    }
-
-                    const aItems = oOrderModel.getProperty("/items");
-                    const aNewItems = aDraftItems.map(function (oItem) {
-                        const iQuantity = Number(oItem.quantity) || 1;
-                        const fUnitPrice = Number(oItem.unitPrice) || 0;
-
-                        return {
-                            product_ID: oItem.product_ID,
-                            productName: oItem.productName,
-                            quantity: iQuantity,
-                            unitPrice: fUnitPrice.toFixed(2),
-                            totalPrice: (iQuantity * fUnitPrice).toFixed(2)
-                        };
-                    });
-
-                    const aMergedItems = aItems.slice();
-                    const aUpdatedProducts = [];
-
-                    aNewItems.forEach(function (oNewItem) {
-                        const oExistingItem = aMergedItems.find(
-                            function (oItem) {
-                                return oItem.product_ID === oNewItem.product_ID;
-                            }
-                        );
-
-                        if (oExistingItem) {
-                            oExistingItem.quantity += oNewItem.quantity;
-                            oExistingItem.totalPrice = (
-                                oExistingItem.quantity *
-                                Number(oExistingItem.unitPrice)
-                            ).toFixed(2);
-                            aUpdatedProducts.push(oExistingItem);
-                        } else {
-                            aMergedItems.push(oNewItem);
-                        }
-                    });
-
-                    oOrderModel.setProperty("/items", aMergedItems);
-                    oProductEntryModel.setData({
-                        items: [{
-                            product_ID: "",
-                            productName: "",
-                            quantity: 1,
-                            unitPrice: "0.00"
-                        }],
-                        canAdd: false
-                    });
-                    this._calculateOrderTotal();
-
-                    if (aUpdatedProducts.length) {
-                        MessageToast.show(
-                            `Quantity of ${aUpdatedProducts[0].productName} ` +
-                            `updated to ${aUpdatedProducts[0].quantity}.`
-                        );
-                    } else {
-                        MessageToast.show(
-                            `${aNewItems.length} product(s) added to the order`
-                        );
-                    }
-                },
-
-                onAddProductEntryRow: function () {
-                    const oProductEntryModel =
-                        this.getView().getModel("productEntry");
-                    const aItems = oProductEntryModel.getProperty("/items");
-
-                    aItems.push({
-                        product_ID: "",
-                        productName: "",
-                        quantity: 1,
-                        unitPrice: "0.00"
-                    });
-                    oProductEntryModel.setProperty("/items", aItems);
-                    oProductEntryModel.setProperty(
-                        "/canAdd",
-                        aItems.length > 0 && aItems.every(
-                            function (oItem) {
-                                return Boolean(oItem.product_ID);
-                            }
-                        )
-                    );
-                },
-
-                onDeleteProductEntry: function (oEvent) {
-                    const oContext =
-                        oEvent.getSource().getBindingContext("productEntry");
-                    const oModel = oContext.getModel();
-                    const aItems = oModel.getProperty("/items");
-                    const iIndex = Number(
-                        oContext.getPath().split("/").pop()
-                    );
-
-                    aItems.splice(iIndex, 1);
-                    oModel.setProperty("/items", aItems);
-                    oModel.setProperty(
-                        "/canAdd",
-                        aItems.length > 0 && aItems.every(
-                            function (oItem) {
-                                return Boolean(oItem.product_ID);
-                            }
-                        )
-                    );
-                },
-
-                onProductEntryValueHelpRequest: function (oEvent) {
-                    this._productEntryContext =
-                        oEvent.getSource().getBindingContext("productEntry");
-                    this._productOrderContext = null;
                     this._productEntryMode = true;
+                    this._productOrderContext = null;
                     this._openProductValueHelp();
                 },
 
@@ -313,22 +177,6 @@ sap.ui.define(
                                 "The product selection could not be opened."
                             );
                         });
-                },
-
-                formatIsAlreadyInOrder: function (sProductId) {
-                    const aItems = this.getView()
-                        .getModel("order")
-                        .getProperty("/items") || [];
-
-                    return aItems.some(function (oItem) {
-                        return oItem.product_ID === sProductId;
-                    });
-                },
-
-                formatProductHighlight: function (sProductId) {
-                    return this.formatIsAlreadyInOrder(sProductId)
-                        ? "Success"
-                        : "None";
                 },
 
                 onProductTableUpdateFinished: function (oEvent) {
@@ -492,49 +340,52 @@ sap.ui.define(
                                 await oProductContext.requestProperty("name");
                             const vPrice =
                                 await oProductContext.requestProperty("price");
-                            const oProductEntryContext =
-                                this._productEntryContext;
-                            const iQuantity =
-                                Number(oProductEntryContext.getProperty("quantity")) || 1;
+                            const oOrderModel =
+                                this.getView().getModel("order");
+                            const aItems =
+                                oOrderModel.getProperty("/items") || [];
+                            const sNormalizedProductID =
+                                String(sProductID).trim();
+                            const iExistingIndex = aItems.findIndex(
+                                function (oItem) {
+                                    return String(oItem.product_ID).trim() ===
+                                        sNormalizedProductID;
+                                }
+                            );
+                            const fUnitPrice = Number(vPrice || 0);
+                            let iFocusIndex;
 
-                            oProductEntryContext.setProperty(
-                                "product_ID",
-                                sProductID
-                            );
-                            oProductEntryContext.setProperty(
-                                "productName",
-                                sProductName
-                            );
-                            oProductEntryContext.setProperty(
-                                "unitPrice",
-                                Number(vPrice || 0).toFixed(2)
-                            );
-                            oProductEntryContext.setProperty(
-                                "totalPrice",
-                                (iQuantity * Number(vPrice || 0)).toFixed(2)
-                            );
-                            const aEntryItems =
-                                oProductEntryContext.getModel().getProperty("/items");
-                            oProductEntryContext.getModel().setProperty(
-                                "/canAdd",
-                                aEntryItems.every(
-                                    function (oItem) {
-                                        return Boolean(oItem.product_ID);
-                                    }
-                                )
-                            );
-
-                            const oEntryRow = this.byId(
-                                "productEntryTable"
-                            ).getItems().find(function (oItem) {
-                                return oItem.getBindingContext(
-                                    "productEntry"
-                                ) === oProductEntryContext;
-                            });
-
-                            if (oEntryRow) {
-                                oEntryRow.getCells()[1].focus();
+                            if (iExistingIndex >= 0) {
+                                const oExistingItem =
+                                    aItems[iExistingIndex];
+                                oExistingItem.quantity =
+                                    Number(oExistingItem.quantity) + 1;
+                                oExistingItem.totalPrice = (
+                                    oExistingItem.quantity *
+                                    Number(oExistingItem.unitPrice)
+                                ).toFixed(2);
+                                iFocusIndex = iExistingIndex;
+                                MessageToast.show(
+                                    `Quantity of ${oExistingItem.productName} ` +
+                                    `updated to ${oExistingItem.quantity}.`
+                                );
+                            } else {
+                                aItems.push({
+                                    product_ID: sProductID,
+                                    productName: sProductName,
+                                    quantity: 1,
+                                    unitPrice: fUnitPrice.toFixed(2),
+                                    totalPrice: fUnitPrice.toFixed(2)
+                                });
+                                iFocusIndex = aItems.length - 1;
+                                MessageToast.show(
+                                    `${sProductName} added to the order.`
+                                );
                             }
+
+                            oOrderModel.setProperty("/items", aItems);
+                            this._calculateOrderTotal();
+                            this._focusOrderQuantity(iFocusIndex);
                         } else {
                             await this._setSelectedProduct(
                                 oProductContext,
@@ -542,6 +393,7 @@ sap.ui.define(
                             );
                         }
                         this.byId("productValueHelpDialog").close();
+                        this._productOrderContext = null;
                         this._productEntryMode = false;
                     } catch (oError) {
                         console.error(
@@ -559,6 +411,20 @@ sap.ui.define(
                     this._productOrderContext = null;
                     this._productEntryMode = false;
                     this.byId("productValueHelpDialog").close();
+                },
+
+                _focusOrderQuantity: function (iIndex) {
+                    const oTable = this.byId("orderItemsTable");
+
+                    if (!oTable) {
+                        return;
+                    }
+
+                    const oRow = oTable.getItems()[iIndex];
+
+                    if (oRow) {
+                        oRow.getCells()[1].focus();
+                    }
                 },
 
                 _setSelectedProduct: async function (
@@ -1374,17 +1240,6 @@ MessageToast.show(
                             canCreate: false
                         });
 
-                    this.getView()
-                        .getModel("productEntry")
-                        .setData({
-                            items: [{
-                                product_ID: "",
-                                productName: "",
-                                quantity: 1,
-                                unitPrice: "0.00"
-                            }],
-                            canAdd: false
-                        });
                 }
 
             }
