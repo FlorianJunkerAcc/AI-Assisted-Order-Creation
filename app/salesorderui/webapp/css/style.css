@@ -76,12 +76,16 @@
 .productDisplayField .sapMInputBaseContentWrapper,
 .productDisplayField.sapMInputBaseReadonly .sapMInputBaseContentWrapper {
     background-color: #FFFFFF;
-    border-bottom: 0;
-    box-shadow: none;
+    border: 0 !important;
+    border-bottom: 0 !important;
+    box-shadow: none !important;
 }
 
 .productDisplayField .sapMInputBaseInner {
     color: #1D2D3E;
+    border: 0 !important;
+    border-bottom: 0 !important;
+    text-decoration: none;
 }
 
 @media (max-width: 64rem) {
