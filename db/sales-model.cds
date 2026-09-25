@@ -12,6 +12,7 @@ entity Customers : cuid, managed {
 entity Products : cuid, managed {
     productNumber : String(20);
     name          : String(100);
+    productCategoryID : String(40);
     description   : String(255);
     price         : Decimal(9,2);
     unit          : String(10);

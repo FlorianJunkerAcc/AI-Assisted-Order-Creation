@@ -2,12 +2,18 @@ sap.ui.define(
     [
         "sap/fe/core/PageController",
         "sap/ui/model/json/JSONModel",
+        "sap/ui/core/Fragment",
+        "sap/ui/model/Filter",
+        "sap/ui/model/FilterOperator",
         "sap/m/MessageToast",
         "sap/m/MessageBox"
     ],
     function (
         PageController,
         JSONModel,
+        Fragment,
+        Filter,
+        FilterOperator,
         MessageToast,
         MessageBox
     ) {
@@ -33,6 +39,7 @@ sap.ui.define(
                         items: [
                             {
                                 product_ID: "",
+                                productName: "",
                                 quantity: 1,
                                 unitPrice: "0.00",
                                 totalPrice: "0.00"
@@ -78,6 +85,7 @@ sap.ui.define(
 
                     aItems.push({
                         product_ID: "",
+                        productName: "",
                         quantity: 1,
                         unitPrice: "0.00",
                         totalPrice: "0.00"
@@ -130,76 +138,144 @@ sap.ui.define(
                     this._calculateOrderTotal();
                 },
 
-                /**
-                 * Wird ausgeführt, wenn der Benutzer ein Produkt
-                 * in einer Tabellenzeile auswählt.
-                 */
-                onProductChange: async function (oEvent) {
-                    const oComboBox = oEvent.getSource();
+                onProductValueHelpRequest: function (oEvent) {
+                    this._productOrderContext =
+                        oEvent.getSource().getBindingContext("order");
 
-                    const oSelectedItem =
-                        oComboBox.getSelectedItem();
+                    if (!this._productValueHelpPromise) {
+                        this._productValueHelpPromise = Fragment.load({
+                            id: this.getView().getId(),
+                            name: "com.prototype.salesorderai.salesorderui.ext.fragment.ProductValueHelp",
+                            controller: this
+                        }).then(function (oDialog) {
+                            this.getView().addDependent(oDialog);
+                            return oDialog;
+                        }.bind(this));
+                    }
 
-                    const oOrderContext =
-                        oComboBox.getBindingContext("order");
+                    this._productValueHelpPromise.then(function (oDialog) {
+                        this._clearProductFilterFields();
+                        oDialog.open();
+                    }.bind(this));
+                },
+
+                onProductValueHelpSearch: function (oEvent) {
+                    this._applyProductFilters(
+                        oEvent.getParameter("value") || ""
+                    );
+                },
+
+                onProductFilterChange: function () {
+                    const oDialog = this.byId("productValueHelpDialog");
+                    const oSearchField = oDialog &&
+                        oDialog.getSearchField();
+
+                    this._applyProductFilters(
+                        oSearchField ? oSearchField.getValue() : ""
+                    );
+                },
+
+                _applyProductFilters: function (sFreeText) {
+                    const oDialog = this.byId("productValueHelpDialog");
+
+                    if (!oDialog) {
+                        return;
+                    }
+
+                    const oBinding = oDialog.getBinding("items");
+                    const sProductNumber = this.byId(
+                        "productNumberFilter"
+                    ).getValue().trim();
+                    const sProductCategory = this.byId(
+                        "productCategoryFilter"
+                    ).getValue().trim();
+                    const aFilters = [];
+
+                    if (sFreeText) {
+                        aFilters.push(new Filter({
+                            filters: [
+                                new Filter(
+                                    "productNumber",
+                                    FilterOperator.Contains,
+                                    sFreeText
+                                ),
+                                new Filter(
+                                    "name",
+                                    FilterOperator.Contains,
+                                    sFreeText
+                                ),
+                                new Filter(
+                                    "productCategoryID",
+                                    FilterOperator.Contains,
+                                    sFreeText
+                                )
+                            ],
+                            and: false
+                        }));
+                    }
+
+                    if (sProductNumber) {
+                        aFilters.push(new Filter(
+                            "productNumber",
+                            FilterOperator.Contains,
+                            sProductNumber
+                        ));
+                    }
+
+                    if (sProductCategory) {
+                        aFilters.push(new Filter(
+                            "productCategoryID",
+                            FilterOperator.Contains,
+                            sProductCategory
+                        ));
+                    }
+
+                    oBinding.filter(aFilters);
+                },
+
+                onClearProductFilters: function () {
+                    this._clearProductFilterFields();
+                    this._applyProductFilters("");
+                },
+
+                _clearProductFilterFields: function () {
+                    const oProductNumber = this.byId(
+                        "productNumberFilter"
+                    );
+                    const oProductCategory = this.byId(
+                        "productCategoryFilter"
+                    );
+                    const oDialog = this.byId("productValueHelpDialog");
+
+                    if (oProductNumber) {
+                        oProductNumber.setValue("");
+                    }
+
+                    if (oProductCategory) {
+                        oProductCategory.setValue("");
+                    }
+
+                    if (oDialog && oDialog.getSearchField()) {
+                        oDialog.getSearchField().setValue("");
+                    }
+                },
+
+                onProductValueHelpConfirm: async function (oEvent) {
+                    const oSelectedItem = oEvent.getParameter("selectedItem");
+                    const oOrderContext = this._productOrderContext;
 
                     if (!oSelectedItem || !oOrderContext) {
                         return;
                     }
 
                     try {
-                        // OData-Kontext des ausgewählten Produkts.
                         const oProductContext =
                             oSelectedItem.getBindingContext();
 
-                        // Produkt-ID aus dem OData-Service lesen.
-                        const sProductID =
-                            await oProductContext.requestProperty(
-                                "ID"
-                            );
-
-                        // Preis aus dem OData-Service lesen.
-                        const vPrice =
-                            await oProductContext.requestProperty(
-                                "price"
-                            );
-
-                        const iQuantity =
-                            Number(
-                                oOrderContext.getProperty(
-                                    "quantity"
-                                )
-                            ) || 1;
-
-                        const fUnitPrice =
-                            Number(vPrice);
-
-                        const fTotalPrice =
-                            fUnitPrice * iQuantity;
-
-                        // Produkt-ID im lokalen Order-Modell speichern.
-                        oOrderContext.getModel().setProperty(
-                            oOrderContext.getPath() +
-                                "/product_ID",
-                            sProductID
+                        await this._setSelectedProduct(
+                            oProductContext,
+                            oOrderContext
                         );
-
-                        // Stückpreis im lokalen Order-Modell speichern.
-                        oOrderContext.getModel().setProperty(
-                            oOrderContext.getPath() +
-                                "/unitPrice",
-                            fUnitPrice.toFixed(2)
-                        );
-
-                        // Positionsgesamtpreis speichern.
-                        oOrderContext.getModel().setProperty(
-                            oOrderContext.getPath() +
-                                "/totalPrice",
-                            fTotalPrice.toFixed(2)
-                        );
-
-                        this._calculateOrderTotal();
-
                     } catch (oError) {
                         console.error(
                             "Could not read product:",
@@ -210,6 +286,42 @@ sap.ui.define(
                             "The product price could not be read."
                         );
                     }
+                },
+
+                onProductValueHelpCancel: function () {
+                    this._productOrderContext = null;
+                },
+
+                _setSelectedProduct: async function (
+                    oProductContext,
+                    oOrderContext
+                ) {
+                    const sProductID =
+                        await oProductContext.requestProperty("ID");
+                    const sProductName =
+                        await oProductContext.requestProperty("name");
+                    const vPrice =
+                        await oProductContext.requestProperty("price");
+                    const iQuantity =
+                        Number(oOrderContext.getProperty("quantity")) || 1;
+                    const fUnitPrice = Number(vPrice) || 0;
+                    const fTotalPrice = fUnitPrice * iQuantity;
+                    const sPath = oOrderContext.getPath();
+                    const oModel = oOrderContext.getModel();
+
+                    oModel.setProperty(sPath + "/product_ID", sProductID);
+                    oModel.setProperty(sPath + "/productName", sProductName);
+                    oModel.setProperty(
+                        sPath + "/unitPrice",
+                        fUnitPrice.toFixed(2)
+                    );
+                    oModel.setProperty(
+                        sPath + "/totalPrice",
+                        fTotalPrice.toFixed(2)
+                    );
+
+                    this._productOrderContext = null;
+                    this._calculateOrderTotal();
                 },
 
                 /**
@@ -260,6 +372,7 @@ sap.ui.define(
     const aAiItems = aResolvedItems.map(function (oItem) {
         return {
             product_ID: oItem.product_ID,
+            productName: oItem.productName || "",
             quantity: Number(oItem.quantity),
             unitPrice: Number(oItem.unitPrice).toFixed(2),
             totalPrice: Number(oItem.totalPrice).toFixed(2)
@@ -315,6 +428,7 @@ onSelectClarificationSuggestion: function (oEvent) {
 
                 this._addAiItemsToOrder([{
                     product_ID: oSuggestion.productId,
+                    productName: oSuggestion.productName,
                     quantity: iQuantity,
                     unitPrice: fUnitPrice,
                     totalPrice: fTotalPrice
@@ -872,6 +986,7 @@ MessageToast.show(
                             items: [
                                 {
                                     product_ID: "",
+                                    productName: "",
                                     quantity: 1,
                                     unitPrice: "0.00",
                                     totalPrice: "0.00"

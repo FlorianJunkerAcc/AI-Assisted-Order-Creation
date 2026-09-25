@@ -48,6 +48,7 @@ export default cds.service.impl(async function () {
             ID: product.ObjectID,
             productNumber: product.ProductID,
             name: product.Description || product.Name,
+            productCategoryID: product.ProductCategoryID,
             description: product.Description || product.Name,
             price: pricesByProduct.get(
                 String(product.ProductID).trim().toUpperCase()

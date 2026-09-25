@@ -74,9 +74,7 @@
 <items>
 <ColumnListItem id="orderItemTemplate">
 <cells>
-<ComboBox id="productSelect" width="100%" placeholder="Select Product" selectedKey="{order>product_ID}" items="{/Products}" selectionChange=".onProductChange">
-<core:Item id="productSelectItem" key="{ID}" text="{name}"/>
-</ComboBox>
+<Input id="productSelect" width="100%" value="{order>productName}" placeholder="Select Product" showValueHelp="true" valueHelpOnly="true" valueHelpRequest=".onProductValueHelpRequest"/>
 <Input id="quantityInput" type="Number" value="{order>quantity}" liveChange=".onQuantityChange"/>
 <ObjectNumber id="unitPriceText" number="{order>unitPrice}" unit="EUR"/>
 <ObjectNumber id="totalPriceText" number="{order>totalPrice}" unit="EUR"/>
