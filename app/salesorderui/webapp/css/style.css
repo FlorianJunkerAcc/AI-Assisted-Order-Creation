@@ -60,18 +60,35 @@
     color: #7D3C98;
 }
 
+.productDisplayField,
 .productDisplayField .sapMInputBaseContentWrapper,
 .productDisplayField.sapMInputBaseReadonly .sapMInputBaseContentWrapper {
     background-color: #FFFFFF;
+    background-image: none !important;
     border: 0 !important;
     border-bottom: 0 !important;
+    border-image: none !important;
     box-shadow: none !important;
+    outline: none !important;
 }
 .productDisplayField .sapMInputBaseInner {
     color: #1D2D3E;
+    background-image: none !important;
     border: 0 !important;
     border-bottom: 0 !important;
+    border-image: none !important;
     text-decoration: none;
+}
+/* Die Fiori-Themes zeichnen die gestrichelte Linie unter schreibgeschützten
+   Inputs teils über Pseudo-Elemente statt über die border-Eigenschaft.
+   Diese werden hier zusätzlich entfernt. */
+.productDisplayField .sapMInputBaseContentWrapper::before,
+.productDisplayField .sapMInputBaseContentWrapper::after,
+.productDisplayField .sapMInputBaseInner::before,
+.productDisplayField .sapMInputBaseInner::after {
+    content: none !important;
+    border: none !important;
+    background: none !important;
 }
 
 /* Grüne Markierung bereits enthaltener Produkte in der Produktauswahl.
@@ -87,10 +104,32 @@
     background-color: var(--sapSuccessBackgroundColor, #DFF0E3);
 }
 
-/* Table-Footer-Aktion "Add Product": leichte Trennung von der Tabelle,
-   damit die Aktion klar als eigenständiges Bedienelement erkennbar ist
-   und nicht mehr - wie zuvor - in die letzte Tabellenzeile hineinragt. */
-.orderItemsFooterToolbar {
-    border-top: 1px solid var(--sapList_BorderColor, #D9D9D9);
-    padding-top: 0.5rem;
+/* "+ Add Product" im Header der Sales-Order-Items-Sektion:
+   bewusst ohne jede Umrandung, rein textbasierter Transparent-Button. */
+.addProductButton,
+.addProductButton .sapMBtnInner {
+    border: none !important;
+    background-color: transparent !important;
+    background-image: none !important;
+    box-shadow: none !important;
+}
+
+/* "AI-Assisted Entry": lila Akzentfarbe, konsistent mit dem
+   Voice-Button und den KI-Rückfragen im gleichen Prototyp. */
+.aiAssistedEntryButton,
+.aiAssistedEntryButton .sapMBtnInner {
+    border: none !important;
+    background-color: transparent !important;
+    background-image: none !important;
+    box-shadow: none !important;
+}
+.aiAssistedEntryButton .sapMBtnInner .sapMBtnContent,
+.aiAssistedEntryButton .sapMBtnInner .sapMBtnText,
+.aiAssistedEntryButton .sapMBtnIcon {
+    color: #8E44AD !important;
+}
+.aiAssistedEntryButton:hover .sapMBtnInner .sapMBtnContent,
+.aiAssistedEntryButton:hover .sapMBtnInner .sapMBtnText,
+.aiAssistedEntryButton:hover .sapMBtnIcon {
+    color: #7D3C98 !important;
 }
