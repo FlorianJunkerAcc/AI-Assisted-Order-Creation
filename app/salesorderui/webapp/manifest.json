@@ -1,0 +1,116 @@
+{
+  "_version": "1.89.0",
+  "sap.app": {
+    "id": "com.prototype.salesorderai.salesorderui",
+    "type": "application",
+    "i18n": "i18n/i18n.properties",
+    "applicationVersion": {
+      "version": "0.0.1"
+    },
+    "title": "{{appTitle}}",
+    "description": "{{appDescription}}",
+    "resources": "resources.json",
+    "sourceTemplate": {
+      "id": "@sap/generator-fiori:fpm",
+      "version": "1.32.0",
+      "toolsId": "958ab7f8-c232-44ba-8cac-9943461f39d4"
+    },
+    "dataSources": {
+      "mainService": {
+        "uri": "/sales-order/",
+        "type": "OData",
+        "settings": {
+          "annotations": [],
+          "odataVersion": "4.0"
+        }
+      }
+    }
+  },
+  "sap.ui": {
+    "technology": "UI5",
+    "icons": {
+      "icon": "",
+      "favIcon": "",
+      "phone": "",
+      "phone@2": "",
+      "tablet": "",
+      "tablet@2": ""
+    },
+    "deviceTypes": {
+      "desktop": true,
+      "tablet": true,
+      "phone": true
+    }
+  },
+  "sap.ui5": {
+    "flexEnabled": true,
+    "dependencies": {
+      "minUI5Version": "1.152.0",
+      "libs": {
+        "sap.m": {},
+        "sap.ui.core": {},
+        "sap.fe.core": {},
+        "sap.fe.macros": {}
+      }
+    },
+    "contentDensities": {
+      "compact": true,
+      "cozy": true
+    },
+    "models": {
+      "i18n": {
+        "type": "sap.ui.model.resource.ResourceModel",
+        "settings": {
+          "bundleName": "com.prototype.salesorderai.salesorderui.i18n.i18n"
+        }
+      },
+      "": {
+        "dataSource": "mainService",
+        "preload": true,
+        "settings": {
+          "operationMode": "Server",
+          "autoExpandSelect": true,
+          "earlyRequests": true
+        }
+      },
+      "@i18n": {
+        "type": "sap.ui.model.resource.ResourceModel",
+        "uri": "i18n/i18n.properties"
+      }
+    },
+    "resources": {
+      "css": [{
+"uri": "css/style.css"
+}]
+    },
+    "routing": {
+      "config": {},
+      "routes": [
+        {
+          "name": "SalesOrdersMain",
+          "pattern": ":?query:",
+          "target": "SalesOrdersMain"
+        }
+      ],
+      "targets": {
+        "SalesOrdersMain": {
+          "type": "Component",
+          "id": "SalesOrdersMain",
+          "name": "sap.fe.core.fpm",
+          "options": {
+            "settings": {
+              "navigation": {},
+              "contextPath": "/SalesOrders",
+              "viewName": "com.prototype.salesorderai.salesorderui.ext.view.Main"
+            }
+          }
+        }
+      }
+    }
+  },
+  "sap.fe": {
+    "app": {
+      "enableLazyLoading": true
+    }
+  }
+}

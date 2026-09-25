@@ -1,0 +1,70 @@
+/* Pulsierende Animation für das Mikrofon während der Spracheingabe */
+.voiceListeningPulse {
+    animation: voicePulse 1.2s ease-in-out infinite;
+}
+
+@keyframes voicePulse {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    50% {
+        transform: scale(1.3);
+        opacity: 0.55;
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* Kompakter, komplett lila "Start Voice Input"-Button */
+#startVoiceInputButton,
+#startVoiceInputButton .sapMBtnInner {
+    background-color: #8E44AD !important;
+    background-image: none !important;
+    border: 1px solid #8E44AD !important;
+}
+
+#startVoiceInputButton .sapMBtnInner .sapMBtnContent,
+#startVoiceInputButton .sapMBtnInner .sapMBtnText,
+#startVoiceInputButton .sapMBtnIcon {
+    color: #FFFFFF !important;
+}
+
+#startVoiceInputButton .sapMBtnInner {
+    font-size: 0.875rem;
+    padding: 0.25rem 0.75rem;
+    min-height: 2.25rem;
+    height: 2.25rem;
+    border-radius: 0.25rem;
+}
+
+#startVoiceInputButton:hover .sapMBtnInner {
+    background-color: #7D3C98 !important;
+    border-color: #7D3C98 !important;
+}
+
+/* Lila Hinweis-Block für KI-Rückfragen */
+.clarificationBox {
+    background-color: #F1EAF7;
+    border: 1px solid #D2B4DE;
+    border-radius: 0.5rem;
+    padding: 0.75rem 1rem;
+}
+
+.clarificationIcon {
+    color: #6C3483;
+    font-size: 1.2rem;
+}
+
+.clarificationHeaderText {
+    font-weight: bold;
+    color: #6C3483;
+}
+
+.clarificationQuestionText {
+    color: #7D3C98;
+}
