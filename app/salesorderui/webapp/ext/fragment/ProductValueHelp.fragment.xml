@@ -28,25 +28,5 @@
                 </cells>
             </ColumnListItem>
         </items>
-        <subHeader>
-            <OverflowToolbar>
-                <Input
-                    id="productNumberFilter"
-                    width="11rem"
-                    placeholder="Product number"
-                    liveChange=".onProductFilterChange" />
-                <Input
-                    id="productCategoryFilter"
-                    width="11rem"
-                    placeholder="Product category"
-                    liveChange=".onProductFilterChange" />
-                <ToolbarSpacer />
-                <Button
-                    icon="sap-icon://clear-filter"
-                    type="Transparent"
-                    tooltip="Clear filters"
-                    press=".onClearProductFilters" />
-            </OverflowToolbar>
-        </subHeader>
     </TableSelectDialog>
 </core:FragmentDefinition>

@@ -5,6 +5,10 @@ sap.ui.define(
         "sap/ui/core/Fragment",
         "sap/ui/model/Filter",
         "sap/ui/model/FilterOperator",
+        "sap/m/OverflowToolbar",
+        "sap/m/Input",
+        "sap/m/Button",
+        "sap/m/ToolbarSpacer",
         "sap/m/MessageToast",
         "sap/m/MessageBox"
     ],
@@ -14,6 +18,10 @@ sap.ui.define(
         Fragment,
         Filter,
         FilterOperator,
+        OverflowToolbar,
+        Input,
+        Button,
+        ToolbarSpacer,
         MessageToast,
         MessageBox
     ) {
@@ -150,6 +158,46 @@ sap.ui.define(
                             controller: this
                         }).then(function (oDialog) {
                             this.getView().addDependent(oDialog);
+
+                            oDialog.setSubHeader(
+                                new OverflowToolbar({
+                                    content: [
+                                        new Input(
+                                            this.getView().createId(
+                                                "productNumberFilter"
+                                            ),
+                                            {
+                                                width: "11rem",
+                                                placeholder: "Product number",
+                                                liveChange:
+                                                    this.onProductFilterChange
+                                                        .bind(this)
+                                            }
+                                        ),
+                                        new Input(
+                                            this.getView().createId(
+                                                "productCategoryFilter"
+                                            ),
+                                            {
+                                                width: "11rem",
+                                                placeholder: "Product category",
+                                                liveChange:
+                                                    this.onProductFilterChange
+                                                        .bind(this)
+                                            }
+                                        ),
+                                        new ToolbarSpacer(),
+                                        new Button({
+                                            icon: "sap-icon://clear-filter",
+                                            type: "Transparent",
+                                            tooltip: "Clear filters",
+                                            press:
+                                                this.onClearProductFilters
+                                                    .bind(this)
+                                        })
+                                    ]
+                                })
+                            );
                             return oDialog;
                         }.bind(this));
                     }
@@ -195,12 +243,18 @@ sap.ui.define(
                     }
 
                     const oBinding = oDialog.getBinding("items");
-                    const sProductNumber = this.byId(
+                    const oProductNumber = this.byId(
                         "productNumberFilter"
-                    ).getValue().trim();
-                    const sProductCategory = this.byId(
+                    );
+                    const oProductCategory = this.byId(
                         "productCategoryFilter"
-                    ).getValue().trim();
+                    );
+                    const sProductNumber = oProductNumber
+                        ? oProductNumber.getValue().trim()
+                        : "";
+                    const sProductCategory = oProductCategory
+                        ? oProductCategory.getValue().trim()
+                        : "";
                     const aFilters = [];
 
                     if (sFreeText) {
