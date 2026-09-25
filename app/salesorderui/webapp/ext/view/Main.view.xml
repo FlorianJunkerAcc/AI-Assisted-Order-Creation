@@ -61,7 +61,6 @@
 <content>
 <VBox id="orderItemsContent" width="100%">
 <Title id="orderItemsTitle" text="Order Items" level="H2" class="sapUiMediumMarginTop sapUiSmallMarginBottom"/>
-<Table id="orderItemsTable" width="100%" items="{order>/items}">
 <Table id="orderItemsTable" width="100%" noDataText="No products added yet" items="{order>/items}">
 <columns>
 <Column id="productColumn" width="25rem">
