@@ -49,10 +49,7 @@ sap.ui.define(
 
                     this.getView().setModel(
                         new JSONModel({
-                            product_ID: "",
-                            productName: "",
-                            quantity: 1,
-                            unitPrice: "0.00"
+                            items: []
                         }),
                         "productEntry"
                     );
@@ -66,37 +63,63 @@ sap.ui.define(
                     const oProductEntry =
                         oProductEntryModel.getData();
 
-                    if (!oProductEntry.product_ID) {
+                    if (!oProductEntry.items.length) {
                         MessageBox.warning("Please select a product.");
                         return;
                     }
 
-                    const iQuantity =
-                        Number(oProductEntry.quantity) || 1;
-                    const fUnitPrice =
-                        Number(oProductEntry.unitPrice) || 0;
-                    const aItems =
-                        oOrderModel.getProperty("/items");
+                    const aItems = oOrderModel.getProperty("/items");
+                    const aNewItems = oProductEntry.items.map(function (oItem) {
+                        const iQuantity = Number(oItem.quantity) || 1;
+                        const fUnitPrice = Number(oItem.unitPrice) || 0;
 
-                    aItems.push({
-                        product_ID: oProductEntry.product_ID,
-                        productName: oProductEntry.productName,
-                        quantity: iQuantity,
-                        unitPrice: fUnitPrice.toFixed(2),
-                        totalPrice: (iQuantity * fUnitPrice).toFixed(2)
+                        return {
+                            product_ID: oItem.product_ID,
+                            productName: oItem.productName,
+                            quantity: iQuantity,
+                            unitPrice: fUnitPrice.toFixed(2),
+                            totalPrice: (iQuantity * fUnitPrice).toFixed(2)
+                        };
                     });
 
-                    oOrderModel.setProperty("/items", aItems);
-                    oProductEntryModel.setData({
+                    oOrderModel.setProperty(
+                        "/items",
+                        aItems.concat(aNewItems)
+                    );
+                    oProductEntryModel.setData({ items: [] });
+                    this._calculateOrderTotal();
+                },
+
+                onAddProductEntryRow: function () {
+                    const oProductEntryModel =
+                        this.getView().getModel("productEntry");
+                    const aItems = oProductEntryModel.getProperty("/items");
+
+                    aItems.push({
                         product_ID: "",
                         productName: "",
                         quantity: 1,
                         unitPrice: "0.00"
                     });
-                    this._calculateOrderTotal();
+                    oProductEntryModel.setProperty("/items", aItems);
                 },
 
-                onProductEntryValueHelpRequest: function () {
+                onDeleteProductEntry: function (oEvent) {
+                    const oContext =
+                        oEvent.getSource().getBindingContext("productEntry");
+                    const oModel = oContext.getModel();
+                    const aItems = oModel.getProperty("/items");
+                    const iIndex = Number(
+                        oContext.getPath().split("/").pop()
+                    );
+
+                    aItems.splice(iIndex, 1);
+                    oModel.setProperty("/items", aItems);
+                },
+
+                onProductEntryValueHelpRequest: function (oEvent) {
+                    this._productEntryContext =
+                        oEvent.getSource().getBindingContext("productEntry");
                     this._productOrderContext = null;
                     this._productEntryMode = true;
                     this._openProductValueHelp();
@@ -315,17 +338,27 @@ sap.ui.define(
                                 await oProductContext.requestProperty("name");
                             const vPrice =
                                 await oProductContext.requestProperty("price");
-                            const oProductEntryModel =
-                                this.getView().getModel("productEntry");
+                            const oProductEntryContext =
+                                this._productEntryContext;
                             const iQuantity =
-                                Number(oProductEntryModel.getProperty("/quantity")) || 1;
+                                Number(oProductEntryContext.getProperty("quantity")) || 1;
 
-                            oProductEntryModel.setData({
-                                product_ID: sProductID,
-                                productName: sProductName,
-                                quantity: iQuantity,
-                                unitPrice: Number(vPrice || 0).toFixed(2)
-                            });
+                            oProductEntryContext.setProperty(
+                                "product_ID",
+                                sProductID
+                            );
+                            oProductEntryContext.setProperty(
+                                "productName",
+                                sProductName
+                            );
+                            oProductEntryContext.setProperty(
+                                "unitPrice",
+                                Number(vPrice || 0).toFixed(2)
+                            );
+                            oProductEntryContext.setProperty(
+                                "totalPrice",
+                                (iQuantity * Number(vPrice || 0)).toFixed(2)
+                            );
                         } else {
                             await this._setSelectedProduct(
                                 oProductContext,
@@ -426,8 +459,8 @@ sap.ui.define(
                 },
                 _addAiItemsToOrder: function (aResolvedItems) {
 
-    const oOrderModel =
-        this.getView().getModel("order");
+    const oProductEntryModel =
+        this.getView().getModel("productEntry");
 
     const aAiItems = aResolvedItems.map(function (oItem) {
         return {
@@ -440,21 +473,12 @@ sap.ui.define(
     });
 
     const aExistingItems =
-        oOrderModel.getProperty("/items") || [];
+        oProductEntryModel.getProperty("/items") || [];
 
-    const bOnlyEmptyPlaceholder =
-        aExistingItems.length === 1 &&
-        !aExistingItems[0].product_ID;
-
-    const aBaseItems =
-        bOnlyEmptyPlaceholder ? [] : aExistingItems;
-
-    oOrderModel.setProperty(
+    oProductEntryModel.setProperty(
         "/items",
-        [...aBaseItems, ...aAiItems]
+        [...aExistingItems, ...aAiItems]
     );
-
-    this._calculateOrderTotal();
 },
 onSelectClarificationSuggestion: function (oEvent) {
 
@@ -1057,10 +1081,7 @@ MessageToast.show(
                     this.getView()
                         .getModel("productEntry")
                         .setData({
-                            product_ID: "",
-                            productName: "",
-                            quantity: 1,
-                            unitPrice: "0.00"
+                            items: []
                         });
                 }
 

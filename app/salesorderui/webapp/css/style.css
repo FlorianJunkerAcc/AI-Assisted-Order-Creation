@@ -73,6 +73,17 @@
     max-width: 32rem;
 }
 
+.productDisplayField .sapMInputBaseContentWrapper,
+.productDisplayField.sapMInputBaseReadonly .sapMInputBaseContentWrapper {
+    background-color: #FFFFFF;
+    border-bottom: 0;
+    box-shadow: none;
+}
+
+.productDisplayField .sapMInputBaseInner {
+    color: #1D2D3E;
+}
+
 @media (max-width: 64rem) {
     .productEntryField {
         max-width: 100%;

@@ -14,50 +14,11 @@
 <Input id="orderNumberInput" width="25rem" placeholder="Enter Order Number" class="sapUiSmallMarginBottom"/>
 <Label id="statusLabel" text="Status" labelFor="statusInput"/>
 <Input id="statusInput" width="25rem" value="Draft"/>
-<!--  Start AI Assistant  -->
-<Button id="startAIAssistantButton" text="Start AI Assistant" icon="sap-icon://ai" type="Emphasized" press=".onStartAIAssistant" class="sapUiMediumMarginTop sapUiSmallMarginBottom"/>
-<!-- 
-                    This area is initially hidden.
-                    It becomes visible when Start AI Assistant is pressed.
-                 -->
-<VBox id="aiAssistantArea" width="100%" visible="false" class="sapUiSmallMarginBottom">
-<Title id="aiOrderEntryTitle" text="AI-Assisted Order Entry" level="H2" class="sapUiSmallMarginBottom"/>
-<!--  Voice input  -->
-<Button id="startVoiceInputButton" text="Start Voice Input" icon="sap-icon://microphone" press=".onStartVoiceInput" class="sapUiSmallMarginBottom voiceStartButton"/>
-<!-- 
-                        Wird nur angezeigt, während die Spracheingabe aktiv ist.
-                        Der Controller schaltet visible später auf true/false.
-                     -->
-<VBox id="voiceListeningIndicator" visible="false" alignItems="Center" class="sapUiMediumMargin">
-<core:Icon id="voiceListeningIcon" src="sap-icon://microphone" size="2rem" color="#0070F2" class="voiceListeningPulse"/>
-<Text id="voiceListeningText" text="Listening..." class="sapUiSmallMarginTop"/>
-</VBox>
-<TextArea id="aiOrderInput" width="100%" rows="3" placeholder="For example: Add 5 Ferrero Rocher and 10 Kinder Bueno"/>
-<HBox id="aiConfirmationActions" width="100%" justifyContent="End" class="sapUiSmallMarginTop">
-<Button id="interpretOrderButton" text="Confirm and Add Items" type="Emphasized" press=".onInterpretOrderItems"/>
-</HBox>
-<!-- 
-                        Wird nur angezeigt, wenn Sonnet sich bei mindestens einem
-                        Produkt nicht sicher ist. Zeigt Rückfrage + klickbare Vorschläge.
-                     -->
-<VBox id="clarificationArea" visible="{clarification>/visible}" width="100%" class="sapUiMediumMarginTop">
-<VBox id="clarificationBox" class="clarificationBox sapUiSmallMarginBottom">
-<HBox id="clarificationHeaderBox" alignItems="Center" class="sapUiTinyMarginBottom">
-<core:Icon id="clarificationIcon" src="sap-icon://ai" class="clarificationIcon sapUiTinyMarginEnd"/>
-<Text id="clarificationHeaderText" text="The AI Assistant needs clarification" class="clarificationHeaderText"/>
-</HBox>
-<Text id="clarificationQuestionText" text="{clarification>/question}" class="clarificationQuestionText"/>
-</VBox>
-<FlexBox id="clarificationSuggestions" wrap="Wrap" items="{clarification>/suggestions}">
-<Button id="clarificationSuggestionButton" text="{clarification>productName}" type="Default" press=".onSelectClarificationSuggestion" class="sapUiTinyMarginEnd sapUiTinyMarginBottom"/>
-</FlexBox>
-</VBox>
-</VBox>
  </VBox>
 </content>
 </Panel>
 <!--  Order Items  -->
-<Panel id="orderItemsPanel" headerText="Products in Sales Order" width="100%" class="sapUiResponsiveMargin">
+<Panel id="orderItemsPanel" headerText="Products in Sales Order" expandable="true" expanded="true" width="100%" class="sapUiResponsiveMargin">
 <content>
 <VBox id="orderItemsContent" width="100%">
 <Title id="orderItemsTitle" text="Order Items" level="H2" class="sapUiMediumMarginTop sapUiSmallMarginBottom"/>
@@ -83,7 +44,7 @@
 <ColumnListItem id="orderItemTemplate">
 <cells>
 <HBox id="productSelect" width="100%" alignItems="Center">
-<Input id="productSelectInput" width="100%" value="{order>productName}" placeholder="Select Product" editable="false"/>
+<Input id="productSelectInput" width="100%" value="{order>productName}" placeholder="Select Product" editable="false" class="productDisplayField"/>
 <Button id="productValueHelpButton" icon="sap-icon://value-help" type="Transparent" tooltip="Select Product" press=".onProductValueHelpRequest"/>
 </HBox>
 <Input id="quantityInput" type="Number" value="{order>quantity}" liveChange=".onQuantityChange"/>
@@ -101,26 +62,59 @@
 </VBox>
 </content>
 </Panel>
-<Panel id="addProductsPanel" headerText="Add Products" width="100%" class="sapUiResponsiveMargin">
+<Panel id="addProductsPanel" headerText="Add Products" expandable="true" expanded="true" width="100%" class="sapUiResponsiveMargin">
 <content>
-<HBox id="productEntryToolbar" width="100%" alignItems="End" wrap="Wrap" class="sapUiSmallMargin">
-<VBox id="productEntryField" width="100%" class="productEntryField sapUiTinyMarginEnd">
-<Label id="productEntryLabel" text="Product" labelFor="productEntryProductInput"/>
+<Table id="productEntryTable" width="100%" noDataText="Add products to prepare the sales order" items="{productEntry>/items}">
+<columns>
+<Column id="entryProductColumn"><Text text="Product"/></Column>
+<Column id="entryQuantityColumn" width="9rem"><Text text="Quantity"/></Column>
+<Column id="entryPriceColumn" width="9rem"><Text text="Unit Price"/></Column>
+<Column id="entryActionsColumn" width="4rem"><Text text=""/></Column>
+</columns>
+<items>
+<ColumnListItem id="productEntryItem">
+<cells>
 <HBox id="productEntrySelect" width="100%" alignItems="Center">
-<Input id="productEntryProductInput" width="100%" value="{productEntry>/productName}" placeholder="Select Product" editable="false"/>
+<Input id="productEntryProductInput" width="100%" value="{productEntry>productName}" editable="false" class="productDisplayField"/>
 <Button id="productEntryValueHelpButton" icon="sap-icon://value-help" type="Transparent" tooltip="Select Product" press=".onProductEntryValueHelpRequest"/>
 </HBox>
-</VBox>
-<VBox id="productEntryQuantityField" width="8rem" class="sapUiTinyMarginEnd">
-<Label id="productEntryQuantityLabel" text="Quantity" labelFor="productEntryQuantity"/>
-<StepInput id="productEntryQuantity" width="100%" min="1" value="{productEntry>/quantity}"/>
-</VBox>
-<VBox id="productEntryPriceField" width="8rem" class="sapUiTinyMarginEnd">
-<Label id="productEntryPriceLabel" text="Unit Price"/>
-<ObjectStatus id="productEntryPrice" text="{productEntry>/unitPrice} EUR" state="Information"/>
-</VBox>
+<StepInput id="productEntryQuantity" width="100%" min="1" value="{productEntry>quantity}"/>
+<ObjectStatus id="productEntryPrice" text="{productEntry>unitPrice} EUR" state="Information"/>
+<Button id="deleteProductEntryButton" icon="sap-icon://delete" type="Transparent" tooltip="Remove product" press=".onDeleteProductEntry"/>
+</cells>
+</ColumnListItem>
+</items>
+</Table>
+<Toolbar id="productEntryActions" class="sapUiSmallMarginTop">
+<Button id="addProductEntryRowButton" text="Add Product" icon="sap-icon://add" type="Transparent" press=".onAddProductEntryRow"/>
+<ToolbarSpacer/>
 <Button id="addProductButton" text="Add to Sales Order" icon="sap-icon://add" type="Emphasized" press=".onAddProduct"/>
+</Toolbar>
+<VBox id="aiAssistantArea" width="100%" visible="false" class="aiAssistantArea sapUiMediumMarginTop">
+<Title id="aiOrderEntryTitle" text="AI-Assisted Order Entry" level="H2" class="sapUiSmallMarginBottom"/>
+<Button id="startVoiceInputButton" text="Start Voice Input" icon="sap-icon://microphone" press=".onStartVoiceInput" class="sapUiSmallMarginBottom voiceStartButton"/>
+<VBox id="voiceListeningIndicator" visible="false" alignItems="Center" class="sapUiMediumMargin">
+<core:Icon id="voiceListeningIcon" src="sap-icon://microphone" size="2rem" color="#0070F2" class="voiceListeningPulse"/>
+<Text id="voiceListeningText" text="Listening..." class="sapUiSmallMarginTop"/>
+</VBox>
+<TextArea id="aiOrderInput" width="100%" rows="3" placeholder="For example: Add 5 Ferrero Rocher and 10 Kinder Bueno"/>
+<HBox id="aiConfirmationActions" width="100%" justifyContent="End" class="sapUiSmallMarginTop">
+<Button id="interpretOrderButton" text="Confirm and Add Items" type="Emphasized" press=".onInterpretOrderItems"/>
 </HBox>
+<VBox id="clarificationArea" visible="{clarification>/visible}" width="100%" class="sapUiMediumMarginTop">
+<VBox id="clarificationBox" class="clarificationBox sapUiSmallMarginBottom">
+<HBox id="clarificationHeaderBox" alignItems="Center" class="sapUiTinyMarginBottom">
+<core:Icon id="clarificationIcon" src="sap-icon://ai" class="clarificationIcon sapUiTinyMarginEnd"/>
+<Text id="clarificationHeaderText" text="The AI Assistant needs clarification" class="clarificationHeaderText"/>
+</HBox>
+<Text id="clarificationQuestionText" text="{clarification>/question}" class="clarificationQuestionText"/>
+</VBox>
+<FlexBox id="clarificationSuggestions" wrap="Wrap" items="{clarification>/suggestions}">
+<Button id="clarificationSuggestionButton" text="{clarification>productName}" type="Default" press=".onSelectClarificationSuggestion" class="sapUiTinyMarginEnd sapUiTinyMarginBottom"/>
+</FlexBox>
+</VBox>
+</VBox>
+<Button id="startAIAssistantButton" text="AI-Assisted Entry" icon="sap-icon://ai" type="Transparent" press=".onStartAIAssistant" class="sapUiSmallMarginTop"/>
 </content>
 </Panel>
 </VBox>
