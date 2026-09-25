@@ -1,78 +1,59 @@
 <core:FragmentDefinition xmlns="sap.m" xmlns:core="sap.ui.core">
-    <Dialog
-        id="productValueHelpDialog"
-        title="Select Product"
-        contentWidth="60rem"
-        stretchOnPhone="true"
-        draggable="true"
-        resizable="true">
-        <content>
-            <VBox width="100%">
-                <OverflowToolbar>
-                    <SearchField
-                        id="productFreeTextFilter"
-                        width="18rem"
-                        placeholder="{i18n>searchProducts}"
-                        liveChange=".onProductValueHelpSearch" />
-                    <Input
-                        id="productNumberFilter"
-                        width="11rem"
-                        placeholder="{i18n>productNumber}"
-                        liveChange=".onProductFilterChange" />
-                    <Input
-                        id="productCategoryFilter"
-                        width="11rem"
-                        placeholder="{i18n>productCategory}"
-                        liveChange=".onProductFilterChange" />
-                    <ToolbarSpacer />
-                    <Button
-                        icon="sap-icon://clear-filter"
-                        type="Transparent"
-                        tooltip="{i18n>clearFilters}"
-                        press=".onClearProductFilters" />
-                </OverflowToolbar>
-                <Table
-                    id="productTable"
-                    class="productValueHelpTable"
-                    mode="SingleSelectMaster"
-                    growing="true"
-                    growingThreshold="20"
-                    noDataText="{i18n>noProductsFound}"
-                    updateFinished=".onProductTableUpdateFinished"
-                    items="{/Products}">
-                    <columns>
-                        <Column>
-                            <Text text="{i18n>productNumber}" />
-                        </Column>
-                        <Column>
-                            <Text text="{i18n>description}" />
-                        </Column>
-                        <Column>
-                            <Text text="{i18n>productCategory}" />
-                        </Column>
-                    </columns>
-                    <items>
-                        <ColumnListItem type="Active">
-                            <cells>
-                                <Text text="{productNumber}" />
-                                <Text text="{name}" />
-                                <Text text="{productCategoryID}" />
-                            </cells>
-                        </ColumnListItem>
-                    </items>
-                </Table>
-            </VBox>
-        </content>
-        <beginButton>
-            <Button
-                text="{i18n>cancel}"
-                press=".onProductValueHelpCancel" />
-        </beginButton>
-        <endButton>
-            <Button
-                text="{i18n>select}"
-                type="Emphasized"
-                press=".onProductValueHelpConfirm" />
-        </endButton>
-    </Dialog>
+<Dialog id="productValueHelpDialog" title="Select Product" contentWidth="60rem" stretchOnPhone="true" draggable="true" resizable="true">
+<content>
+<VBox width="100%" class="sapUiResponsiveContentPadding">
+<OverflowToolbar id="productValueHelpToolbar">
+<SearchField id="productFreeTextFilter" width="18rem" placeholder="{i18n>searchProducts}" liveChange=".onProductValueHelpSearch">
+<layoutData>
+<OverflowToolbarLayoutData priority="NeverOverflow" minWidth="12rem"/>
+</layoutData>
+</SearchField>
+<Input id="productNumberFilter" width="11rem" placeholder="{i18n>productNumber}" liveChange=".onProductFilterChange">
+<layoutData>
+<OverflowToolbarLayoutData priority="Low"/>
+</layoutData>
+</Input>
+<Input id="productCategoryFilter" width="11rem" placeholder="{i18n>productCategory}" liveChange=".onProductFilterChange">
+<layoutData>
+<OverflowToolbarLayoutData priority="Low"/>
+</layoutData>
+</Input>
+<ToolbarSpacer/>
+<Button icon="sap-icon://clear-filter" type="Transparent" tooltip="{i18n>clearFilters}" press=".onClearProductFilters">
+<layoutData>
+<OverflowToolbarLayoutData priority="High"/>
+</layoutData>
+</Button>
+</OverflowToolbar>
+<Table id="productTable" class="productValueHelpTable" mode="SingleSelectMaster" growing="true" growingThreshold="20" growingScrollToLoad="true" sticky="ColumnHeaders,HeaderToolbar" noDataText="{i18n>noProductsFound}" updateFinished=".onProductTableUpdateFinished" items="{/Products}">
+<columns>
+<Column id="productNumberColumn" width="20%">
+<Text text="{i18n>productNumber}"/>
+</Column>
+<Column id="productDescriptionColumn" width="50%">
+<Text text="{i18n>description}"/>
+</Column>
+<Column id="productCategoryColumn" width="30%" demandPopin="true" minScreenWidth="Tablet">
+<Text text="{i18n>productCategory}"/>
+</Column>
+</columns>
+<items>
+<ColumnListItem id="productValueHelpItemTemplate" type="Active">
+<cells>
+<Text text="{productNumber}"/>
+<Text text="{name}" wrapping="false"/>
+<Text text="{productCategoryID}"/>
+</cells>
+</ColumnListItem>
+</items>
+</Table>
+</VBox>
+</content>
+<beginButton>
+<Button text="{i18n>cancel}" press=".onProductValueHelpCancel"/>
+</beginButton>
+<endButton>
+<Button text="{i18n>select}" type="Emphasized" press=".onProductValueHelpConfirm"/>
+</endButton>
+</Dialog>
 </core:FragmentDefinition>
