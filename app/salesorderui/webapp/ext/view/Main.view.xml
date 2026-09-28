@@ -66,16 +66,19 @@
 <Column id="positionColumn" width="8%" hAlign="Center">
 <Text id="positionColumnText" text="{i18n>position}"/>
 </Column>
-<Column id="productColumn" width="37%">
+<Column id="productColumn" width="32%">
 <Text id="productColumnText" text="{i18n>product}"/>
 </Column>
-<Column id="quantityColumn" width="15%" hAlign="Center">
+<Column id="quantityColumn" width="14%" hAlign="Center">
 <Text id="quantityColumnText" text="{i18n>quantity}"/>
+</Column>
+<Column id="unitColumn" width="8%" hAlign="Center">
+<Text id="unitColumnText" text="{i18n>unit}"/>
 </Column>
 <Column id="unitPriceColumn" width="15%" hAlign="End" demandPopin="true" minScreenWidth="Tablet">
 <Text id="unitPriceColumnText" text="{i18n>unitPrice}"/>
 </Column>
-<Column id="totalPriceColumn" width="19%" hAlign="End" demandPopin="true" minScreenWidth="Tablet">
+<Column id="totalPriceColumn" width="17%" hAlign="End" demandPopin="true" minScreenWidth="Tablet">
 <Text id="totalPriceColumnText" text="{i18n>totalPrice}"/>
 </Column>
 <Column id="actionsColumn" width="6%" hAlign="End">
@@ -91,6 +94,7 @@
 <Button id="productValueHelpButton" icon="sap-icon://value-help" type="Transparent" tooltip="Select Product" press=".onProductValueHelpRequest"/>
 </HBox>
 <StepInput id="quantityInput" value="{order>quantity}" min="1" step="1" width="100%" change=".onQuantityChange"/>
+<Text id="unitText" text="{order>unit}"/>
 <ObjectNumber id="unitPriceText" number="{order>unitPrice}" unit="EUR"/>
 <ObjectNumber id="totalPriceText" number="{order>totalPrice}" unit="EUR" emphasized="true"/>
 <Button id="deleteOrderItemButton" icon="sap-icon://delete" type="Transparent" tooltip="Remove item" press=".onDeleteProduct"/>

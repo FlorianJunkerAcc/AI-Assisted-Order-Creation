@@ -290,6 +290,8 @@ sap.ui.define(
                                 await oProductContext.requestProperty("ID");
                             const sProductName =
                                 await oProductContext.requestProperty("name");
+                            const sUnit =
+                                await oProductContext.requestProperty("unit");
                             const vPrice =
                                 await oProductContext.requestProperty("price");
                             const oOrderModel =
@@ -324,6 +326,7 @@ sap.ui.define(
                                 aItems.push({
                                     product_ID: sProductID,
                                     productName: sProductName,
+                                    unit: sUnit,
                                     quantity: 1,
                                     unitPrice: fUnitPrice.toFixed(2),
                                     totalPrice: fUnitPrice.toFixed(2)
@@ -378,6 +381,8 @@ sap.ui.define(
                         await oProductContext.requestProperty("ID");
                     const sProductName =
                         await oProductContext.requestProperty("name");
+                    const sUnit =
+                        await oProductContext.requestProperty("unit");
                     const vPrice =
                         await oProductContext.requestProperty("price");
                     const iQuantity =
@@ -413,6 +418,7 @@ sap.ui.define(
                     }
                     oModel.setProperty(sPath + "/product_ID", sProductID);
                     oModel.setProperty(sPath + "/productName", sProductName);
+                    oModel.setProperty(sPath + "/unit", sUnit);
                     oModel.setProperty(
                         sPath + "/unitPrice",
                         fUnitPrice.toFixed(2)
@@ -463,6 +469,7 @@ sap.ui.define(
                         return {
                             product_ID: oItem.product_ID,
                             productName: oItem.productName || "",
+                            unit: oItem.unit || "",
                             quantity: Number(oItem.quantity),
                             unitPrice: Number(oItem.unitPrice).toFixed(2),
                             totalPrice: Number(oItem.totalPrice).toFixed(2)

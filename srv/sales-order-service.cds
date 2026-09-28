@@ -14,6 +14,7 @@ service SalesOrderService @(path: '/sales-order') {
     product_ID     : UUID;
     productNumber : String;
     productName   : String;
+    unit          : String;
     quantity      : Integer;
     unitPrice     : Decimal(9,2);
     totalPrice    : Decimal(9,2);

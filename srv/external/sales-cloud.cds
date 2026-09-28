@@ -17,6 +17,7 @@ service SalesCloud {
             ProductID : String(40);
             Name     : String(255);
             Description : String(255);
+            BaseUOMText : String(10);
             Status   : String(2);
     }
 

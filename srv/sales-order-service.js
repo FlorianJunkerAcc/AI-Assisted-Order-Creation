@@ -89,7 +89,7 @@ export default cds.service.impl(async function () {
                 String(product.ProductID).trim().toUpperCase()
             ) ??
                 0,
-            unit: "EA"
+            unit: product.BaseUOMText
         }));
     };
 
@@ -503,6 +503,7 @@ for (const item of parsedResponse.items) {
             product_ID: product.ID,
             productNumber: product.productNumber,
             productName: product.name,
+            unit: product.unit,
             quantity,
             unitPrice,
             totalPrice: Number((unitPrice * quantity).toFixed(2)),
