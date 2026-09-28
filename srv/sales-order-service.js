@@ -3,8 +3,10 @@ import { OrchestrationClient } from "@sap-ai-sdk/orchestration";
 
 // SELECT wird für Datenbankabfragen benötigt.
 const { INSERT, SELECT, UPDATE } = cds.ql;
+
 const BASE_PRICE_LIST_NAME =
     "Z_BASISPREISLISTE_FLORIANJUNKER";
+
 const ENABLE_AI_RECOMMENDATION_REASONS =
     process.env.ENABLE_AI_RECOMMENDATION_REASONS === "true";
 
@@ -65,6 +67,7 @@ async function generateRecommendationReasonsWithAI(recommendations) {
             }
         }
     });
+
     const response = await client.chatCompletion({
         messages: [
             {
@@ -85,10 +88,13 @@ async function generateRecommendationReasonsWithAI(recommendations) {
             }
         ]
     });
+
     const parsedResponse = JSON.parse(response.getContent());
+
     if (!Array.isArray(parsedResponse.recommendations)) {
         throw new Error("AI response did not contain a recommendations array.");
     }
+
     const reasonsByProductNumber = new Map(
         parsedResponse.recommendations
             .filter((item) =>
@@ -101,6 +107,7 @@ async function generateRecommendationReasonsWithAI(recommendations) {
                 item.reason.trim()
             ])
     );
+
     return recommendations.map((item) => ({
         ...item,
         reason: reasonsByProductNumber.get(
@@ -202,7 +209,6 @@ function evaluateProductFilter(tokens, product) {
             index += 1;
             return evaluateProductFilter(token.xpr, product);
         }
-
         index += 1;
         const left = evaluateProductFilterValue(token, product);
         const operator = tokens[index];
@@ -247,8 +253,9 @@ function evaluateProductFilter(tokens, product) {
 // Diese Datei wird automatisch mit der gleichnamigen CDS-Service-Datei verbunden.
 export default cds.service.impl(async function () {
 
-    // Holt die Entity Products aus dem aktuellen SalesOrderService.
+    // Holt die Entities Customers und Products aus dem aktuellen SalesOrderService.
     const { Customers, Products } = this.entities;
+
     const salesCloud = await cds.connect.to("SalesCloud");
     const {
         CorporateAccountCollection,
@@ -273,7 +280,6 @@ export default cds.service.impl(async function () {
         ]);
 
         const pricesByProduct = new Map();
-
         for (const priceItem of priceItems) {
             if (priceItem.ProductID) {
                 pricesByProduct.set(
@@ -304,7 +310,6 @@ export default cds.service.impl(async function () {
                 RoleCode: "CRM000"
             })
         );
-
         return customers.map((customer) => ({
             ID: customer.ObjectID,
             customerNumber: customer.AccountID,
@@ -336,7 +341,6 @@ export default cds.service.impl(async function () {
         if (!customerId) {
             return req.reject(400, "A customer must be selected.");
         }
-
         if (!orderItems.length) {
             return req.reject(
                 400,
@@ -372,18 +376,15 @@ export default cds.service.impl(async function () {
 
         for (const item of positionedOrderItems) {
             const product = productById.get(item.product_ID);
-
             if (!product) {
                 return req.reject(
                     400,
                     "The selected product is not an active Sales Cloud product."
                 );
             }
-
             const localProduct = await SELECT.one
                 .from(Products)
                 .where({ ID: product.ID });
-
             if (localProduct) {
                 await UPDATE(Products, product.ID).with(product);
             } else {
@@ -394,7 +395,6 @@ export default cds.service.impl(async function () {
         const localCustomer = await SELECT.one
             .from(Customers)
             .where({ ID: customer.ObjectID });
-
         if (localCustomer) {
             await UPDATE(Customers, customer.ObjectID).with({
                 customerNumber: customer.AccountID,
@@ -416,6 +416,7 @@ export default cds.service.impl(async function () {
             BuyerPartyID: customer.AccountID,
             SalesUnitPartyID: "US1100"
         };
+
         let createdOrder;
         try {
             createdOrder = await salesCloud.run(
@@ -436,8 +437,10 @@ export default cds.service.impl(async function () {
                 createdOrder?.d ||
                 createdOrder?.value?.[0] ||
                 createdOrder;
+
         const salesOrderID =
             createdOrderEntity?.ID || createdOrderEntity?.id;
+
         if (!salesOrderID) {
             return req.reject(
                 502,
@@ -447,6 +450,7 @@ export default cds.service.impl(async function () {
         }
 
         req.data.orderNumber = String(salesOrderID);
+
         const itemPayloads = positionedOrderItems.map((item) => {
             const product = productById.get(item.product_ID);
             return {
@@ -475,6 +479,7 @@ export default cds.service.impl(async function () {
                     getSalesCloudErrorMessage(error)
             );
         }
+
         req.data.salesCloudOrderPayload = JSON.stringify(orderPayload);
         req.data.salesCloudItemPayloads = JSON.stringify(itemPayloads);
     });
@@ -484,7 +489,7 @@ export default cds.service.impl(async function () {
      *
      * Die Action:
      * 1. empfängt einen natürlichsprachlichen Bestelltext,
-     * 2. liest den Produktkatalog aus SQLite,
+     * 2. liest den Produktkatalog aus der SAP Sales Cloud,
      * 3. sendet Text und Produktkatalog an SAP AI Core,
      * 4. validiert die AI-Antwort,
      * 5. ergänzt echte Preise aus der Produktdatenbank,
@@ -493,7 +498,6 @@ export default cds.service.impl(async function () {
      * Die Action speichert keinen Sales Order.
      */
     this.on("interpretOrderItems", async (req) => {
-
         // Liest den Parameter orderRequest aus dem Request.
         //
         // Beispiel:
@@ -576,7 +580,7 @@ export default cds.service.impl(async function () {
                 messages: [
                     {
                         role: "system",
-                       content: `You extract order items from a sales representative's input.
+                        content: `You extract order items from a sales representative's input.
 
 You must match every requested product against the following product catalog:
 
@@ -635,18 +639,6 @@ Return exactly this structure:
             /**
              * Schritt 5:
              * Antwort von Sonnet als Text auslesen.
-             *
-             * Erwartete Antwort:
-             *
-             * {
-             *   "items": [
-             *     {
-             *       "productId": "...",
-             *       "productName": "Ferrero Rocher 16 Pieces",
-             *       "quantity": 5
-             *     }
-             *   ]
-             * }
              */
             const aiResponse = response.getContent();
 
@@ -688,108 +680,108 @@ Return exactly this structure:
              * - echten Preis
              * - Gesamtpreis
              */
-const validatedItems = [];
-const clarifications = [];
+            const validatedItems = [];
+            const clarifications = [];
 
-for (const item of parsedResponse.items) {
+            for (const item of parsedResponse.items) {
 
-    // Fall 1: Sonnet ist sich sicher
-    if (item.status === "resolved") {
+                // Fall 1: Sonnet ist sich sicher
+                if (item.status === "resolved") {
 
-        const product = products.find(
-            (candidate) => candidate.ID === item.productId
-        );
+                    const product = products.find(
+                        (candidate) => candidate.ID === item.productId
+                    );
 
-        if (!product) {
-            throw new Error(
-                `Unknown product returned by AI: ${item.productName}`
-            );
-        }
+                    if (!product) {
+                        throw new Error(
+                            `Unknown product returned by AI: ${item.productName}`
+                        );
+                    }
 
-        const quantity = Number(item.quantity);
-        const unitPrice = Number(product.price);
+                    const quantity = Number(item.quantity);
+                    const unitPrice = Number(product.price);
 
-        if (!Number.isInteger(quantity) || quantity <= 0) {
-            throw new Error(
-                `Invalid quantity for product: ${product.name}`
-            );
-        }
+                    if (!Number.isInteger(quantity) || quantity <= 0) {
+                        throw new Error(
+                            `Invalid quantity for product: ${product.name}`
+                        );
+                    }
 
-        validatedItems.push({
-            product_ID: product.ID,
-            productNumber: product.productNumber,
-            productName: product.name,
-            unit: product.unit,
-            quantity,
-            unitPrice,
-            totalPrice: Number((unitPrice * quantity).toFixed(2)),
-            confidence: 1,
-            message: ""
-        });
+                    validatedItems.push({
+                        product_ID: product.ID,
+                        productNumber: product.productNumber,
+                        productName: product.name,
+                        unit: product.unit,
+                        quantity,
+                        unitPrice,
+                        totalPrice: Number((unitPrice * quantity).toFixed(2)),
+                        confidence: 1,
+                        message: ""
+                    });
 
-    // Fall 2: Sonnet ist sich nicht sicher
-    } else if (item.status === "clarification_required") {
+                // Fall 2: Sonnet ist sich nicht sicher
+                } else if (item.status === "clarification_required") {
 
-        const validatedSuggestions = (item.suggestions || []).map((suggestion) => {
-            const product = products.find(
-                (candidate) => candidate.ID === suggestion.productId
-            );
+                    const validatedSuggestions = (item.suggestions || []).map((suggestion) => {
+                        const product = products.find(
+                            (candidate) => candidate.ID === suggestion.productId
+                        );
 
-            if (!product) {
-                throw new Error(
-                    `Unknown suggested product returned by AI: ${suggestion.productName}`
-                );
+                        if (!product) {
+                            throw new Error(
+                                `Unknown suggested product returned by AI: ${suggestion.productName}`
+                            );
+                        }
+
+                        return {
+                            productId: product.ID,
+                            productName: product.name
+                        };
+                    });
+
+                    clarifications.push({
+                        question: item.question,
+                        quantity: Number(item.quantity) || 1,
+                        suggestions: validatedSuggestions
+                    });
+
+                } else {
+                    throw new Error(
+                        `Unknown item status returned by AI: ${item.status}`
+                    );
+                }
             }
-
-            return {
-                productId: product.ID,
-                productName: product.name
-            };
-        });
-
-        clarifications.push({
-            question: item.question,
-            quantity: Number(item.quantity) || 1,
-            suggestions: validatedSuggestions
-        });
-
-    } else {
-        throw new Error(
-            `Unknown item status returned by AI: ${item.status}`
-        );
-    }
-}
 
             console.log(
                 "Validated order items:",
                 validatedItems
             );
-console.log("Clarifications needed:", clarifications);
+            console.log("Clarifications needed:", clarifications);
+
             /**
              * Schritt 8:
              * Validierte Positionen an die Fiori-App zurückgeben.
              *
              * Es wird weiterhin kein Sales Order gespeichert.
              */
-           const hasClarifications = clarifications.length > 0;
+            const hasClarifications = clarifications.length > 0;
+            let message;
 
-let message;
+            if (validatedItems.length > 0 && hasClarifications) {
+                message = `${validatedItems.length} product(s) identified. ` +
+                           `${clarifications.length} product(s) need clarification.`;
+            } else if (hasClarifications) {
+                message = `${clarifications.length} product(s) need clarification.`;
+            } else {
+                message = `${validatedItems.length} product(s) successfully identified.`;
+            }
 
-if (validatedItems.length > 0 && hasClarifications) {
-    message = `${validatedItems.length} product(s) identified. ` +
-               `${clarifications.length} product(s) need clarification.`;
-} else if (hasClarifications) {
-    message = `${clarifications.length} product(s) need clarification.`;
-} else {
-    message = `${validatedItems.length} product(s) successfully identified.`;
-}
-
-return {
-    success: true,
-    message,
-    items: validatedItems,
-    clarifications
-};
+            return {
+                success: true,
+                message,
+                items: validatedItems,
+                clarifications
+            };
 
         } catch (error) {
             /**
@@ -813,11 +805,29 @@ return {
     });
 
     /**
-     * Reads customer order history and returns catalog products ranked by
-     * distinct order count, without creating or changing any orders.
+     * Reads customer order history from SAP Sales Cloud and returns catalog
+     * products ranked by distinct order count, without creating or changing
+     * any orders.
+     *
+     * WICHTIGE KORREKTUR:
+     * Zuvor wurde die LOKALE Products-Tabelle als primäre Quelle für Name,
+     * Einheit und Preis verwendet (SELECT.from(Products)). Diese Tabelle
+     * wird aber nur befüllt, wenn über DIESE App bereits ein Sales Order für
+     * genau dieses Produkt angelegt wurde (siehe "before CREATE SalesOrders"
+     * oben). Historische Sales-Cloud-Aufträge, die nicht über diese App
+     * erstellt wurden, enthalten deshalb häufig Produkte, die lokal noch nie
+     * gespeichert wurden — sie wurden dadurch fälschlicherweise
+     * übersprungen und es kamen keine Empfehlungen zustande.
+     *
+     * Die Korrektur macht den SAP-Sales-Cloud-Produktkatalog
+     * (loadSalesCloudProducts) zur PRIMÄREN Quelle für jedes historisch
+     * gekaufte Produkt. Die lokale Products-Tabelle wird nur noch optional
+     * verwendet, um Name/Einheit/Preis zu überschreiben, falls dort bereits
+     * ein (z. B. manuell gepflegter) Eintrag existiert.
      */
     this.on("recommendProducts", async (req) => {
         const { customerId, excludedProductIDs = "[]" } = req.data;
+
         if (!customerId) {
             return req.reject(400, "A customer must be selected.");
         }
@@ -831,6 +841,7 @@ return {
                 "The excluded product ID list must be valid JSON."
             );
         }
+
         if (!Array.isArray(excludedProductIDsList) ||
             excludedProductIDsList.some((id) => typeof id !== "string")) {
             return req.reject(
@@ -838,12 +849,14 @@ return {
                 "The excluded product IDs must be a JSON array of strings."
             );
         }
+
         const excludedProductIDsSet = new Set(excludedProductIDsList);
 
         try {
             let customer = await SELECT.one
                 .from(Customers)
                 .where({ ID: customerId });
+
             if (!customer?.customerNumber) {
                 let salesCloudCustomer;
                 try {
@@ -864,12 +877,14 @@ return {
                     lookupError.statusCode = 502;
                     throw lookupError;
                 }
+
                 customer = salesCloudCustomer
                     ? {
                         customerNumber: salesCloudCustomer.AccountID
                     }
                     : customer;
             }
+
             if (!customer?.customerNumber) {
                 return req.reject(
                     404,
@@ -908,6 +923,7 @@ return {
             const orderIDs = [...new Set(historicalOrders
                 .map((order) => order.ID)
                 .filter((id) => typeof id === "string" && id.length > 0))];
+
             if (orderIDs.length === 0) {
                 return {
                     success: false,
@@ -957,16 +973,21 @@ return {
                 };
             }
 
+            // Aggregiert pro Produktnummer: Anzahl unterschiedlicher Aufträge
+            // (orderCount) und Gesamtmenge (totalQuantity) aus der
+            // Sales-Cloud-Historie.
             const aggregatesByProductNumber = new Map();
             for (const { salesOrderID, item } of historicalItems) {
                 const productNumber = String(item.ProductID || "")
                     .trim()
                     .toUpperCase();
                 const quantity = Number(item.Quantity);
+
                 if (!productNumber || !Number.isFinite(quantity) ||
                     quantity <= 0) {
                     continue;
                 }
+
                 let aggregate = aggregatesByProductNumber.get(productNumber);
                 if (!aggregate) {
                     aggregate = {
@@ -976,17 +997,16 @@ return {
                     };
                     aggregatesByProductNumber.set(productNumber, aggregate);
                 }
+
                 aggregate.orderIDs.add(salesOrderID);
                 aggregate.totalQuantity += quantity;
             }
 
-            const localProducts = await SELECT.from(Products);
-            const localProductsByNumber = new Map(
-                localProducts.map((product) => [
-                    String(product.productNumber || "").trim().toUpperCase(),
-                    product
-                ])
-            );
+            /**
+             * PRIMÄRE Quelle: der aktive Produktkatalog aus SAP Sales Cloud.
+             * Jedes historisch gekaufte Produkt muss hier gefunden werden
+             * können, unabhängig davon, ob es lokal je gecacht wurde.
+             */
             let salesCloudProducts;
             try {
                 salesCloudProducts = await loadSalesCloudProducts();
@@ -1008,21 +1028,30 @@ return {
                     product
                 ])
             );
+
+            /**
+             * OPTIONALE lokale Ergänzung: nur zum Überschreiben von
+             * Name/Einheit/Preis, falls bereits ein lokaler Datensatz
+             * existiert (z. B. weil dieses Produkt schon einmal über diese
+             * App bestellt wurde). Fehlt der lokale Datensatz, wird
+             * ausschließlich mit den Sales-Cloud-Daten weitergearbeitet.
+             */
+            const localProducts = await SELECT.from(Products);
+            const localProductsByNumber = new Map(
+                localProducts.map((product) => [
+                    String(product.productNumber || "").trim().toUpperCase(),
+                    product
+                ])
+            );
+
             const recommendations = [];
             for (const aggregate of aggregatesByProductNumber.values()) {
-                const localProduct = localProductsByNumber.get(
-                    aggregate.productNumber
-                );
-                if (!localProduct) {
-                    console.warn(
-                        "Skipping historical product absent from local catalog:",
-                        aggregate.productNumber
-                    );
-                    continue;
-                }
+
+                // Primäre Quelle: aktiver Sales-Cloud-Katalog.
                 const salesCloudProduct = salesCloudProductsByNumber.get(
                     aggregate.productNumber
                 );
+
                 if (!salesCloudProduct) {
                     console.warn(
                         "Skipping historical product absent from active " +
@@ -1031,22 +1060,40 @@ return {
                     );
                     continue;
                 }
+
                 if (excludedProductIDsSet.has(String(salesCloudProduct.ID))) {
                     continue;
                 }
-                const unitPrice = Number(localProduct.price);
+
+                // Optionale lokale Anreicherung (Fallback auf Sales Cloud).
+                const localProduct = localProductsByNumber.get(
+                    aggregate.productNumber
+                );
+
+                const productName =
+                    localProduct?.name || salesCloudProduct.name;
+
+                const unit =
+                    localProduct?.unit || salesCloudProduct.unit || "";
+
+                const unitPrice = Number(
+                    localProduct?.price ?? salesCloudProduct.price
+                );
+
                 if (!Number.isFinite(unitPrice)) {
                     console.warn(
                         "Skipping recommended product without a catalog price:",
-                        localProduct.productNumber
+                        aggregate.productNumber
                     );
                     continue;
                 }
+
                 const orderCount = aggregate.orderIDs.size;
+
                 recommendations.push({
                     product_ID: salesCloudProduct.ID,
-                    productNumber: localProduct.productNumber,
-                    productName: localProduct.name,
+                    productNumber: salesCloudProduct.productNumber,
+                    productName,
                     orderCount,
                     totalQuantity: Math.round(aggregate.totalQuantity),
                     reason:
@@ -1054,7 +1101,7 @@ return {
                         `(total ${aggregate.totalQuantity} units) in this ` +
                         "customer's order history.",
                     unitPrice,
-                    unit: localProduct.unit || ""
+                    unit
                 });
             }
 
@@ -1063,8 +1110,8 @@ return {
                     success: false,
                     message: aggregatesByProductNumber.size === 0
                         ? "No products could be aggregated from the order history."
-                        : "No historical products matched the local catalog " +
-                            "or all matching products are already in the draft.",
+                        : "No historical products matched the active Sales Cloud " +
+                            "catalog, or all matching products are already in the draft.",
                     recommendations: []
                 };
             }
@@ -1073,7 +1120,9 @@ return {
                 right.orderCount - left.orderCount ||
                 right.totalQuantity - left.totalQuantity
             );
+
             let topRecommendations = recommendations.slice(0, 5);
+
             if (ENABLE_AI_RECOMMENDATION_REASONS) {
                 try {
                     topRecommendations =
@@ -1094,6 +1143,7 @@ return {
                 message: "Product recommendations are based on this customer's order history.",
                 recommendations: topRecommendations
             };
+
         } catch (error) {
             const statusCode = Number(
                 error.statusCode || error.status || error.code
