@@ -3,11 +3,11 @@
 <content>
 <VBox width="100%" class="sapUiResponsiveContentPadding">
 <OverflowToolbar id="productValueHelpToolbar">
-<SearchField id="productFreeTextFilter" width="18rem" placeholder="{i18n>searchProducts}">
+<Input id="productFreeTextFilter" width="18rem" placeholder="{i18n>searchProducts}">
 <layoutData>
 <OverflowToolbarLayoutData priority="NeverOverflow" minWidth="12rem"/>
 </layoutData>
-</SearchField>
+</Input>
 <Input id="productNumberFilter" width="11rem" placeholder="{i18n>productNumber}">
 <layoutData>
 <OverflowToolbarLayoutData priority="Low"/>
