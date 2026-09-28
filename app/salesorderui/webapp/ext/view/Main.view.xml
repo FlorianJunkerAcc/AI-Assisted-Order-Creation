@@ -18,7 +18,7 @@
 </VBox>
 <VBox id="salesUnitField" width="100%">
 <Label id="salesUnitLabel" text="{i18n>salesUnit}" labelFor="salesUnitInput"/>
-<Input id="salesUnitInput" width="100%" value="US1100 - Sales Unit US" editable="false" class="sapUiSmallMarginBottom"/>
+<ObjectStatus id="salesUnitInput" text="US1100 - Sales Unit US" state="Information" class="sapUiSmallMarginBottom"/>
 </VBox>
 </l:Grid>
 </content>
