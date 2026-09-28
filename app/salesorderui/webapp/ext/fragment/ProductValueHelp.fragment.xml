@@ -3,21 +3,26 @@
 <content>
 <VBox width="100%" class="sapUiResponsiveContentPadding">
 <OverflowToolbar id="productValueHelpToolbar">
-<SearchField id="productFreeTextFilter" width="18rem" placeholder="{i18n>searchProducts}" liveChange=".onProductValueHelpSearch">
+<SearchField id="productFreeTextFilter" width="18rem" placeholder="{i18n>searchProducts}">
 <layoutData>
 <OverflowToolbarLayoutData priority="NeverOverflow" minWidth="12rem"/>
 </layoutData>
 </SearchField>
-<Input id="productNumberFilter" width="11rem" placeholder="{i18n>productNumber}" liveChange=".onProductFilterChange">
+<Input id="productNumberFilter" width="11rem" placeholder="{i18n>productNumber}">
 <layoutData>
 <OverflowToolbarLayoutData priority="Low"/>
 </layoutData>
 </Input>
-<Input id="productCategoryFilter" width="11rem" placeholder="{i18n>productCategory}" liveChange=".onProductFilterChange">
+<Input id="productCategoryFilter" width="11rem" placeholder="{i18n>productCategory}">
 <layoutData>
 <OverflowToolbarLayoutData priority="Low"/>
 </layoutData>
 </Input>
+<Button icon="sap-icon://search" type="Transparent" tooltip="{i18n>searchProducts}" press=".onApplyProductFilters">
+<layoutData>
+<OverflowToolbarLayoutData priority="High"/>
+</layoutData>
+</Button>
 <ToolbarSpacer/>
 <Button icon="sap-icon://clear-filter" type="Transparent" tooltip="{i18n>clearFilters}" press=".onClearProductFilters">
 <layoutData>

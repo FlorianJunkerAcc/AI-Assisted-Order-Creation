@@ -174,22 +174,10 @@ sap.ui.define(
                         );
                     });
                 },
-                onProductValueHelpSearch: function (oEvent) {
-                    this._applyProductFilters(
-                        oEvent.getParameter("newValue") ||
-                        oEvent.getParameter("query") ||
-                        ""
-                    );
+                onApplyProductFilters: function () {
+                    this._applyProductFilters();
                 },
-                onProductFilterChange: function () {
-                    const oSearchField = this.byId(
-                        "productFreeTextFilter"
-                    );
-                    this._applyProductFilters(
-                        oSearchField ? oSearchField.getValue() : ""
-                    );
-                },
-                _applyProductFilters: function (sFreeText) {
+                _applyProductFilters: function () {
                     const oDialog = this.byId("productValueHelpDialog");
                     if (!oDialog) {
                         return;
@@ -203,11 +191,17 @@ sap.ui.define(
                     const oProductCategory = this.byId(
                         "productCategoryFilter"
                     );
+                    const oSearchField = this.byId(
+                        "productFreeTextFilter"
+                    );
                     const sProductNumber = oProductNumber
                         ? oProductNumber.getValue().trim()
                         : "";
                     const sProductCategory = oProductCategory
                         ? oProductCategory.getValue().trim()
+                        : "";
+                    const sFreeText = oSearchField
+                        ? oSearchField.getValue().trim()
                         : "";
                     const aFilters = [];
                     if (sFreeText) {
@@ -259,7 +253,7 @@ sap.ui.define(
                 },
                 onClearProductFilters: function () {
                     this._clearProductFilterFields();
-                    this._applyProductFilters("");
+                    this._applyProductFilters();
                 },
                 _clearProductFilterFields: function () {
                     const oProductNumber = this.byId(
