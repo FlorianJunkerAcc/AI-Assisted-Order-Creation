@@ -157,11 +157,34 @@ export default cds.service.impl(async function () {
             });
         }
 
-        await salesCloud.run(
-            INSERT.into(CustomerOrderCollection).entries({
-                BuyerPartyID: customer.ObjectID
-            })
-        );
+        try {
+            await salesCloud.run(
+                INSERT.into(CustomerOrderCollection).entries({
+                    BuyerPartyID: customer.AccountID
+                })
+            );
+        } catch (error) {
+            const remoteError = error.reason || error.innererror || error;
+            const status =
+                remoteError.response?.status ||
+                remoteError.status ||
+                remoteError.statusCode ||
+                error.statusCode;
+            const responseData = remoteError.response?.data;
+            const message =
+                typeof responseData === "string"
+                    ? responseData
+                    : responseData?.error?.message?.value ||
+                        remoteError.message ||
+                        error.message ||
+                        "Unknown Sales Cloud error";
+
+            console.error("Sales Cloud order creation failed:", error);
+            return req.reject(
+                502,
+                `SALES_CLOUD_HTTP_${status || "ERROR"}: ${message}`
+            );
+        }
     });
 
     /**

@@ -866,6 +866,13 @@ sap.ui.define(
                             await oCustomerContext.requestProperty(
                                 "ID"
                             );
+                        const sCustomerNumber =
+                            await oCustomerContext.requestProperty(
+                                "customerNumber"
+                            );
+                        const oSalesCloudPayload = {
+                            BuyerPartyID: sCustomerNumber
+                        };
                         const aOrderItems =
                             aUiItems.map(
                                 function (oItem) {
@@ -906,8 +913,17 @@ sap.ui.define(
                                 oSalesOrder
                             );
                         await oContext.created();
-                        MessageToast.show(
-                            "Sales Order created successfully"
+                        MessageBox.success(
+                            "Sales Order created successfully.\n\n" +
+                            "Payload sent to SAP Sales Cloud:\n" +
+                            JSON.stringify(
+                                oSalesCloudPayload,
+                                null,
+                                2
+                            ),
+                            {
+                                title: "Sales Order Created"
+                            }
                         );
                         this._resetOrderForm();
                     } catch (oError) {
@@ -916,8 +932,11 @@ sap.ui.define(
                             oError
                         );
                         MessageBox.error(
-                            "The Sales Order could not be created: " +
-                            (oError.message || String(oError))
+                            "The Sales Order could not be created.\n\n" +
+                            (oError.message || String(oError)),
+                            {
+                                title: "Sales Order Creation Failed"
+                            }
                         );
                     } finally {
                         this._isCreatingOrder = false;
