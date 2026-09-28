@@ -39,7 +39,7 @@ service SalesCloud {
         key ObjectID   : String(70);
             SalesOrderID : String(35);
             ProductID    : String(40);
-            Position     : Integer;
+            ID           : String(35);
             Quantity     : Decimal(15, 3);
     }
 }

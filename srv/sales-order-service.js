@@ -236,7 +236,7 @@ export default cds.service.impl(async function () {
             return {
                 SalesOrderID: String(salesOrderID),
                 ProductID: product.productNumber,
-                Position: item.position,
+                ID: String(item.position),
                 Quantity: Number(item.quantity)
             };
         });

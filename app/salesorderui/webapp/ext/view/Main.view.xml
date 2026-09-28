@@ -63,11 +63,11 @@
 <!--  Single source of truth: the order items table  -->
 <Table id="orderItemsTable" width="100%" growing="true" growingThreshold="10" sticky="ColumnHeaders,HeaderToolbar" noDataText="{i18n>noProductsAdded}" items="{order>/items}">
 <columns>
-<Column id="productColumn" width="37%">
-<Text id="productColumnText" text="{i18n>product}"/>
-</Column>
 <Column id="positionColumn" width="8%" hAlign="Center">
 <Text id="positionColumnText" text="{i18n>position}"/>
+</Column>
+<Column id="productColumn" width="37%">
+<Text id="productColumnText" text="{i18n>product}"/>
 </Column>
 <Column id="quantityColumn" width="15%" hAlign="Center">
 <Text id="quantityColumnText" text="{i18n>quantity}"/>
@@ -85,11 +85,11 @@
 <items>
 <ColumnListItem id="orderItemTemplate">
 <cells>
+<Text id="positionText" text="{order>position}"/>
 <HBox id="productSelect" width="100%" alignItems="Center">
 <Input id="productSelectInput" width="100%" value="{order>productName}" placeholder="{i18n>selectProduct}" editable="false" class="productDisplayField"/>
 <Button id="productValueHelpButton" icon="sap-icon://value-help" type="Transparent" tooltip="Select Product" press=".onProductValueHelpRequest"/>
 </HBox>
-<Text id="positionText" text="{order>position}"/>
 <StepInput id="quantityInput" value="{order>quantity}" min="1" step="1" width="100%" change=".onQuantityChange"/>
 <ObjectNumber id="unitPriceText" number="{order>unitPrice}" unit="EUR"/>
 <ObjectNumber id="totalPriceText" number="{order>totalPrice}" unit="EUR" emphasized="true"/>
