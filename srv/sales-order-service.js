@@ -138,8 +138,8 @@ async function generateRecommendationReasonsWithAI(recommendations) {
                 role: "system",
                 content: "Write one short, friendly reason for each product " +
                     "recommendation using its product name, order count, " +
-                    "relative order frequency (as a percentage), and total " +
-                    "quantity. Return only JSON in the form " +
+                    "relative order frequency (as a percentage), and average " +
+                    "quantity per order. Return only JSON in the form " +
                     '{"recommendations":[{"productNumber":"...","reason":"..."}]}.'
             },
             {
@@ -152,6 +152,7 @@ async function generateRecommendationReasonsWithAI(recommendations) {
                     relativeFrequencyPercent: Math.round(
                         item.relativeFrequency * 100
                     ),
+                    averageQuantity: item.averageQuantity,
                     totalQuantity: item.totalQuantity
                 })))
             }
@@ -888,6 +889,13 @@ Return exactly this structure:
      * (loadSalesCloudProducts), nicht die lokale Products-Tabelle, da diese
      * nur Produkte enthält, die bereits über diese App bestellt wurden.
      * Die lokale Tabelle wird nur optional zur Anreicherung verwendet.
+     *
+     * Zusätzlich wird pro empfohlenem Produkt eine "averageQuantity"
+     * berechnet: der Mittelwert der historisch bestellten Mengen
+     * (totalQuantity / orderCount, gerundet, mindestens 1). Diese Menge
+     * wird im Frontend angezeigt und beim Hinzufügen einer Empfehlung
+     * automatisch als Bestellmenge übernommen, statt immer nur 1 Stück
+     * vorzuschlagen.
      */
     this.on("recommendProducts", async (req) => {
         const { customerId, excludedProductIDs = "[]" } = req.data;
@@ -1159,12 +1167,23 @@ Return exactly this structure:
 
                 const orderCount = aggregate.orderIDs.size;
 
+                // Empfohlene Menge = Mittelwert der historischen Mengen
+                // (Gesamtmenge über alle Aufträge / Anzahl der Aufträge,
+                // in denen das Produkt vorkam). Auf ganze Einheiten
+                // gerundet und nach unten auf mindestens 1 begrenzt, damit
+                // niemals "0 Stück" vorgeschlagen wird.
+                const averageQuantity = Math.max(
+                    1,
+                    Math.round(aggregate.totalQuantity / orderCount)
+                );
+
                 candidateRecommendations.push({
                     product_ID: salesCloudProduct.ID,
                     productNumber: salesCloudProduct.productNumber,
                     productName,
                     orderCount,
                     totalQuantity: Math.round(aggregate.totalQuantity),
+                    averageQuantity,
                     unitPrice,
                     unit
                 });
@@ -1203,7 +1222,7 @@ Return exactly this structure:
                     reason:
                         `Ordered in ${item.orderCount} of ${item.totalOrders} ` +
                         `orders (${Math.round(item.relativeFrequency * 100)}%), ` +
-                        `${item.totalQuantity} units total.`
+                        `avg. ${item.averageQuantity} units per order.`
                 }));
 
             if (ENABLE_AI_RECOMMENDATION_REASONS) {

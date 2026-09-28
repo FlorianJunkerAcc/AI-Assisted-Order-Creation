@@ -65,6 +65,7 @@
 </FlexBox>
 </VBox>
 </VBox>
+<!--  AI product recommendations (based on customer order history)  -->
 <VBox id="recommendationArea" visible="{recommendation>/visible}" width="100%" class="sapUiMediumMarginTop">
 <VBox id="recommendationBox" class="clarificationBox sapUiSmallMarginBottom">
 <HBox id="recommendationHeaderBox" alignItems="Center" class="sapUiTinyMarginBottom">
@@ -75,7 +76,12 @@
 </VBox>
 <FlexBox id="productRecommendations" wrap="Wrap" items="{recommendation>/recommendations}">
 <VBox id="productRecommendation" width="14rem" class="sapUiSmallMarginEnd sapUiSmallMarginBottom">
-<Button id="recommendedProductButton" text="{recommendation>productName}" type="Default" press=".onSelectRecommendedProduct" class="sapUiTinyMarginBottom"/>
+<!-- 
+    Der Button zeigt Produktname UND die empfohlene Menge
+    (Mittelwert der historischen Bestellmengen) direkt an,
+    damit der Nutzer vor dem Klick sieht, was übernommen wird.
+ -->
+<Button id="recommendedProductButton" text="{= ${recommendation>productName} + ' (Qty ' + ${recommendation>averageQuantity} + ')'}" type="Default" press=".onSelectRecommendedProduct" class="sapUiTinyMarginBottom"/>
 <Text id="recommendedProductReason" text="{recommendation>reason}" wrapping="true" class="recommendationReasonText"/>
 </VBox>
 </FlexBox>

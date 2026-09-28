@@ -1,3 +1,4 @@
+
 sap.ui.define(
     [
         "sap/fe/core/PageController",
@@ -666,6 +667,10 @@ sap.ui.define(
                 /**
                  * Requests read-only product recommendations for the selected
                  * customer, excluding products already in the current draft.
+                 * Recommendations are ranked by SAP CAP using a combined
+                 * score of relative and absolute order frequency, and each
+                 * recommendation includes an averageQuantity (mean of the
+                 * historical order quantities for that product).
                  */
                 onStartProductRecommendations: async function () {
                     const oCustomerItem =
@@ -676,7 +681,6 @@ sap.ui.define(
                         );
                         return;
                     }
-
                     const oButton = this.byId(
                         "startProductRecommendationsButton"
                     );
@@ -693,7 +697,6 @@ sap.ui.define(
                         this.getView().getModel().bindContext(
                             "/recommendProducts(...)"
                         );
-
                     try {
                         const oCustomerContext =
                             oCustomerItem.getBindingContext();
@@ -757,6 +760,13 @@ sap.ui.define(
                 /**
                  * Adds the selected recommendation to the draft and removes
                  * only that product from the displayed recommendations.
+                 *
+                 * Die Menge wird NICHT mehr fest auf 1 gesetzt, sondern aus
+                 * der vom Backend berechneten "averageQuantity" übernommen
+                 * (Mittelwert der historischen Bestellmengen dieses
+                 * Produkts). Fällt averageQuantity aus irgendeinem Grund
+                 * aus (z. B. älteres Backend ohne dieses Feld), wird
+                 * defensiv auf 1 zurückgefallen.
                  */
                 onSelectRecommendedProduct: function (oEvent) {
                     const oContext =
@@ -769,15 +779,25 @@ sap.ui.define(
                         return;
                     }
                     const fUnitPrice = Number(oRecommendation.unitPrice);
+
+                    // Empfohlene Menge = Mittelwert der historischen
+                    // Bestellmengen dieses Produkts (vom Backend berechnet).
+                    // Fallback auf 1, falls averageQuantity fehlt oder
+                    // ungültig ist.
+                    const iRecommendedQuantity = Number.isInteger(
+                        oRecommendation.averageQuantity
+                    ) && oRecommendation.averageQuantity > 0
+                        ? oRecommendation.averageQuantity
+                        : 1;
+
                     this._addAiItemsToOrder([{
                         product_ID: oRecommendation.product_ID,
                         productName: oRecommendation.productName,
                         unit: oRecommendation.unit || "",
-                        quantity: 1,
+                        quantity: iRecommendedQuantity,
                         unitPrice: fUnitPrice,
-                        totalPrice: fUnitPrice
+                        totalPrice: fUnitPrice * iRecommendedQuantity
                     }]);
-
                     const oRecommendationModel =
                         this.getView().getModel("recommendation");
                     const aRemainingRecommendations =
@@ -793,7 +813,7 @@ sap.ui.define(
                         recommendations: aRemainingRecommendations
                     });
                     MessageToast.show(
-                        `${oRecommendation.productName} added to the order draft.`
+                        `${oRecommendation.productName} (Qty ${iRecommendedQuantity}) added to the order draft.`
                     );
                 },
                 onStartVoiceInput: function () {
