@@ -915,6 +915,8 @@ sap.ui.define(
                                 oSalesOrder
                             );
                         await oContext.created();
+                        const sOrderNumber =
+                            await oContext.requestProperty("orderNumber");
                         const sOrderPayload =
                             await oContext.requestProperty(
                                 "salesCloudOrderPayload"
@@ -924,7 +926,8 @@ sap.ui.define(
                                 "salesCloudItemPayloads"
                             );
                         MessageBox.success(
-                            "Sales Order created successfully.\n\n" +
+                            "Sales Order " + sOrderNumber +
+                            " created successfully.\n\n" +
                             "Order payload:\n" +
                             JSON.stringify(JSON.parse(sOrderPayload), null, 2) +
                             "\n\nOrder item payloads:\n" +
