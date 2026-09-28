@@ -343,7 +343,8 @@ export default cds.service.impl(async function () {
         }
 
         const orderPayload = {
-            BuyerPartyID: customer.AccountID
+            BuyerPartyID: customer.AccountID,
+            SalesUnitPartyID: "US1100"
         };
         let createdOrder;
         try {
