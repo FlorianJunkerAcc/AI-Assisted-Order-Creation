@@ -79,6 +79,8 @@ Requires a bound SAP AI Core service instance (see `.cdsrc-private.json`) with a
 
 The `SAP_Sales_Cloud_V1` destination must point to the SAP Sales Cloud tenant. The application reads `CorporateAccountCollection` from `c4codataapi` and only includes customers with `LifeCycleStatusCode = 2` and `RoleCode = CRM000`. CSRF token fetching is enabled for the remote service so write requests, such as creating a customer order, include the token and session cookie required by SAP Sales Cloud.
 
+Creating an order first posts its header to `CustomerOrderCollection` using the customer's account number as `BuyerPartyID`. The returned order number is then used to post each item to `CustomerOrderItemCollection`; item positions start at 10 and increase in steps of 10.
+
 ## Status
 
 This is a functional proof-of-concept, not production-hardened. Authentication, error handling, and deployment configuration are simplified for demonstration purposes.

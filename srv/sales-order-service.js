@@ -6,6 +6,39 @@ const { INSERT, SELECT, UPDATE } = cds.ql;
 const BASE_PRICE_LIST_NAME =
     "Z_BASISPREISLISTE_FLORIANJUNKER";
 
+function getSalesCloudErrorCode(error) {
+    const remoteError = error.reason || error.innererror || error;
+    const status =
+        remoteError.response?.status ||
+        remoteError.status ||
+        remoteError.statusCode ||
+        error.statusCode;
+    const responseData = remoteError.response?.data;
+    const responseCode =
+        responseData?.error?.code ||
+        responseData?.code;
+    return responseCode || (status ? `HTTP_${status}` : "REMOTE_ERROR");
+}
+
+function getSalesCloudErrorMessage(error) {
+    const remoteError = error.reason || error.innererror || error;
+    let responseData = remoteError.response?.data;
+    if (typeof responseData === "string") {
+        try {
+            responseData = JSON.parse(responseData);
+        } catch {
+            return responseData;
+        }
+    }
+    return (
+        responseData?.error?.message?.value ||
+        responseData?.error?.message ||
+        remoteError.message ||
+        error.message ||
+        "Unknown Sales Cloud error"
+    );
+}
+
 // Implementierung des SalesOrderService.
 // Diese Datei wird automatisch mit der gleichnamigen CDS-Service-Datei verbunden.
 export default cds.service.impl(async function () {
@@ -17,7 +50,8 @@ export default cds.service.impl(async function () {
         CorporateAccountCollection,
         ProductCollection,
         InternalPriceDiscountListItemsCollection,
-        CustomerOrderCollection
+        CustomerOrderCollection,
+        CustomerOrderItemCollection
     } = salesCloud.entities;
 
     const loadSalesCloudProducts = async () => {
@@ -115,7 +149,13 @@ export default cds.service.impl(async function () {
             products.map((product) => [product.ID, product])
         );
 
-        for (const item of orderItems) {
+        const positionedOrderItems = orderItems.map((item, index) => ({
+            ...item,
+            position: (index + 1) * 10
+        }));
+        req.data.items = positionedOrderItems;
+
+        for (const item of positionedOrderItems) {
             const product = productById.get(item.product_ID);
 
             if (!product) {
@@ -157,34 +197,70 @@ export default cds.service.impl(async function () {
             });
         }
 
+        const orderPayload = {
+            BuyerPartyID: customer.AccountID
+        };
+        let createdOrder;
         try {
-            await salesCloud.run(
-                INSERT.into(CustomerOrderCollection).entries({
-                    BuyerPartyID: customer.AccountID
-                })
+            createdOrder = await salesCloud.run(
+                INSERT.into(CustomerOrderCollection).entries(orderPayload)
             );
         } catch (error) {
-            const remoteError = error.reason || error.innererror || error;
-            const status =
-                remoteError.response?.status ||
-                remoteError.status ||
-                remoteError.statusCode ||
-                error.statusCode;
-            const responseData = remoteError.response?.data;
-            const message =
-                typeof responseData === "string"
-                    ? responseData
-                    : responseData?.error?.message?.value ||
-                        remoteError.message ||
-                        error.message ||
-                        "Unknown Sales Cloud error";
-
             console.error("Sales Cloud order creation failed:", error);
             return req.reject(
                 502,
-                `SALES_CLOUD_HTTP_${status || "ERROR"}: ${message}`
+                `SALES_CLOUD_ORDER_CREATE_${getSalesCloudErrorCode(error)}: ` +
+                    getSalesCloudErrorMessage(error)
             );
         }
+
+        const createdOrderEntity = Array.isArray(createdOrder)
+            ? createdOrder[0]
+            : createdOrder?.d?.results?.[0] ||
+                createdOrder?.d ||
+                createdOrder?.value?.[0] ||
+                createdOrder;
+        const salesOrderID =
+            createdOrderEntity?.ID || createdOrderEntity?.id;
+        if (!salesOrderID) {
+            return req.reject(
+                502,
+                "SALES_CLOUD_ORDER_ID_MISSING: SAP created the order but " +
+                    "did not return its order number; order items were not sent."
+            );
+        }
+
+        req.data.orderNumber = String(salesOrderID);
+        const itemPayloads = positionedOrderItems.map((item) => {
+            const product = productById.get(item.product_ID);
+            return {
+                SalesOrderID: String(salesOrderID),
+                ProductID: product.productNumber,
+                Position: item.position,
+                Quantity: Number(item.quantity)
+            };
+        });
+
+        try {
+            for (const itemPayload of itemPayloads) {
+                await salesCloud.run(
+                    INSERT.into(CustomerOrderItemCollection).entries(
+                        itemPayload
+                    )
+                );
+            }
+        } catch (error) {
+            console.error("Sales Cloud order item creation failed:", error);
+            return req.reject(
+                502,
+                `SALES_CLOUD_ORDER_ITEMS_CREATE_${getSalesCloudErrorCode(error)}: ` +
+                    `Order ${salesOrderID} was created, but item transfer failed; ` +
+                    "the header and any earlier items may already exist. " +
+                    getSalesCloudErrorMessage(error)
+            );
+        }
+        req.data.salesCloudOrderPayload = JSON.stringify(orderPayload);
+        req.data.salesCloudItemPayloads = JSON.stringify(itemPayloads);
     });
 
     /**

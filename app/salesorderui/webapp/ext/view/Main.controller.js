@@ -367,7 +367,7 @@ sap.ui.define(
                     }
                     const oRow = oTable.getItems()[iIndex];
                     if (oRow) {
-                        oRow.getCells()[1].focus();
+                        oRow.getCells()[2].focus();
                     }
                 },
                 _setSelectedProduct: async function (
@@ -568,6 +568,10 @@ sap.ui.define(
                         this.getView().getModel("order");
                     const aItems =
                         oOrderModel.getProperty("/items") || [];
+                    aItems.forEach(function (oItem, iIndex) {
+                        oItem.position = (iIndex + 1) * 10;
+                    });
+                    oOrderModel.setProperty("/items", aItems);
                     const fOrderTotal = aItems.reduce(
                         function (fSum, oItem) {
                             return (
@@ -866,13 +870,6 @@ sap.ui.define(
                             await oCustomerContext.requestProperty(
                                 "ID"
                             );
-                        const sCustomerNumber =
-                            await oCustomerContext.requestProperty(
-                                "customerNumber"
-                            );
-                        const oSalesCloudPayload = {
-                            BuyerPartyID: sCustomerNumber
-                        };
                         const aOrderItems =
                             aUiItems.map(
                                 function (oItem) {
@@ -883,6 +880,8 @@ sap.ui.define(
                                             Number(
                                                 oItem.quantity
                                             ),
+                                        position:
+                                            Number(oItem.position),
                                         price:
                                             Number(
                                                 oItem.unitPrice
@@ -913,14 +912,20 @@ sap.ui.define(
                                 oSalesOrder
                             );
                         await oContext.created();
+                        const sOrderPayload =
+                            await oContext.requestProperty(
+                                "salesCloudOrderPayload"
+                            );
+                        const sItemPayloads =
+                            await oContext.requestProperty(
+                                "salesCloudItemPayloads"
+                            );
                         MessageBox.success(
                             "Sales Order created successfully.\n\n" +
-                            "Payload sent to SAP Sales Cloud:\n" +
-                            JSON.stringify(
-                                oSalesCloudPayload,
-                                null,
-                                2
-                            ),
+                            "Order payload:\n" +
+                            JSON.stringify(JSON.parse(sOrderPayload), null, 2) +
+                            "\n\nOrder item payloads:\n" +
+                            JSON.stringify(JSON.parse(sItemPayloads), null, 2),
                             {
                                 title: "Sales Order Created"
                             }

@@ -31,6 +31,15 @@ service SalesCloud {
 
     entity CustomerOrderCollection {
         key ObjectID     : String(70);
+            ID           : String(35);
             BuyerPartyID : String(60);
+    }
+
+    entity CustomerOrderItemCollection {
+        key ObjectID   : String(70);
+            SalesOrderID : String(35);
+            ProductID    : String(40);
+            Position     : Integer;
+            Quantity     : Decimal(15, 3);
     }
 }

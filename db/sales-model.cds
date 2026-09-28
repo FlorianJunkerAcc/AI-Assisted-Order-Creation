@@ -19,9 +19,11 @@ entity Products : cuid, managed {
 }
 
 entity SalesOrders : cuid, managed {
-    orderNumber : String(20);
+    orderNumber : String(35);
     customer    : Association to Customers;
     status      : String(20);
+    salesCloudOrderPayload : LargeString;
+    salesCloudItemPayloads : LargeString;
     items       : Composition of many SalesOrderItems
                     on items.order = $self;
 }
@@ -29,6 +31,7 @@ entity SalesOrders : cuid, managed {
 entity SalesOrderItems : cuid, managed {
     order    : Association to SalesOrders;
     product  : Association to Products;
+    position : Integer;
     quantity : Integer;
     price    : Decimal(9,2);
 }
