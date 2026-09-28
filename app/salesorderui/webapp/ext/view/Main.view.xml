@@ -34,6 +34,7 @@
 <Button id="addProductButton" text="{i18n>addProduct}" icon="sap-icon://add" type="Transparent" press=".onAddProduct" class="addProductButton sapUiSmallMarginEnd"/>
 <Button id="startAIAssistantButton" text="{i18n>aiAssistedEntry}" icon="sap-icon://ai" type="Transparent" press=".onStartAIAssistant" class="aiAssistedEntryButton"/>
 <Button id="startProductRecommendationsButton" text="{i18n>aiProductRecommendations}" icon="sap-icon://ai" type="Transparent" press=".onStartProductRecommendations" class="aiAssistedEntryButton"/>
+<Button id="startOrderValidationButton" text="{i18n>aiOrderValidation}" icon="sap-icon://ai" type="Transparent" press=".onStartOrderValidation" class="aiAssistedEntryButton"/>
 </Toolbar>
 </headerToolbar>
 <content>
@@ -85,6 +86,26 @@
 <Text id="recommendedProductReason" text="{recommendation>reason}" wrapping="true" class="recommendationReasonText"/>
 </VBox>
 </FlexBox>
+</VBox>
+<!--  AI order validation (checks current draft against customer order history)  -->
+<VBox id="validationArea" visible="{validation>/visible}" width="100%" class="sapUiMediumMarginTop">
+<VBox id="validationBox" class="clarificationBox sapUiSmallMarginBottom">
+<HBox id="validationHeaderBox" alignItems="Center" class="sapUiTinyMarginBottom">
+<core:Icon id="validationIcon" src="sap-icon://ai" class="clarificationIcon sapUiTinyMarginEnd"/>
+<Text id="validationHeaderText" text="{i18n>aiOrderValidation}" class="clarificationHeaderText"/>
+</HBox>
+<Text id="validationSummaryText" text="{validation>/message}" class="clarificationQuestionText"/>
+</VBox>
+<!-- 
+    Jede Warnung referenziert explizit ihre Position im Auftrag.
+    Die Liste ist rein informativ; ein Klick verändert nichts.
+ -->
+<VBox id="validationWarnings" items="{validation>/warnings}" width="100%">
+<VBox class="validationWarningItem">
+<Text text="{= 'Position ' + ${validation>position} + ' \u2014 ' + ${validation>productName}}" class="validationWarningTitle"/>
+<Text text="{validation>message}" wrapping="true" class="validationWarningMessage"/>
+</VBox>
+</VBox>
 </VBox>
 <!--  Single source of truth: the order items table  -->
 <Table id="orderItemsTable" width="100%" growing="true" growingThreshold="10" sticky="ColumnHeaders,HeaderToolbar" noDataText="{i18n>noProductsAdded}" items="{order>/items}">

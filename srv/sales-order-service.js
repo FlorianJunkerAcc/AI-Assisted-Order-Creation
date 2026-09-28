@@ -10,15 +10,43 @@ const BASE_PRICE_LIST_NAME =
 const ENABLE_AI_RECOMMENDATION_REASONS =
     process.env.ENABLE_AI_RECOMMENDATION_REASONS === "true";
 
-// Gewichtung für den kombinierten Empfehlungs-Score.
-// RELATIVE_FREQUENCY_WEIGHT: wie stark der Anteil an allen Aufträgen zählt
-//   (z. B. "in 60% aller Aufträge dieses Kunden enthalten").
+// ---------------------------------------------------------------------
+// Gewichtung für den kombinierten Empfehlungs-Score (recommendProducts).
+// RELATIVE_FREQUENCY_WEIGHT: wie stark der Anteil an allen Aufträgen zählt.
 // ABSOLUTE_FREQUENCY_WEIGHT: wie stark die reine Anzahl an Aufträgen zählt
-//   (z. B. "in 6 Aufträgen enthalten"), normalisiert relativ zum am
-//   häufigsten bestellten Produkt in diesem Kandidatenset.
+//   (normalisiert relativ zum häufigsten Produkt im Kandidatenset).
 // Beide Gewichte müssen sich zu 1 addieren.
+// ---------------------------------------------------------------------
 const RELATIVE_FREQUENCY_WEIGHT = 0.5;
 const ABSOLUTE_FREQUENCY_WEIGHT = 0.5;
+
+// ---------------------------------------------------------------------
+// Schwellenwerte für validateOrderItems (AI Order Validation).
+//
+// MIN_ORDERS_FOR_VALIDATION: Mindestanzahl historischer Aufträge, die für
+//   diesen Kunden vorliegen muss, damit überhaupt geprüft wird. Bei
+//   weniger Aufträgen wäre jede Aussage statistisch nicht belastbar.
+//
+// RARE_CATEGORY_THRESHOLD: Eine Produktkategorie gilt als "selten
+//   bestellt", wenn sie in weniger als diesem Anteil aller historischen
+//   Aufträge vorkam (0.15 = 15%). Kam sie in KEINEM Auftrag vor (0%),
+//   wird das gesondert als "nie bestellt" ausgewiesen.
+//
+// QUANTITY_HIGH_FACTOR / QUANTITY_LOW_FACTOR: Eine Bestellmenge gilt als
+//   ungewöhnlich hoch, wenn sie mindestens das 2,0-fache des historischen
+//   Mittelwerts beträgt, bzw. als ungewöhnlich niedrig, wenn sie höchstens
+//   das 0,5-fache beträgt.
+//
+// MIN_AVERAGE_FOR_LOW_CHECK: Die "ungewöhnlich niedrig"-Prüfung wird nur
+//   angewendet, wenn der historische Mittelwert mindestens 2 Einheiten
+//   beträgt. Das verhindert Fehlalarme bei ohnehin sehr kleinen
+//   Durchschnittsmengen (z. B. Ø 1 Stück, wo 0,5 kaum aussagekräftig ist).
+// ---------------------------------------------------------------------
+const MIN_ORDERS_FOR_VALIDATION = 3;
+const RARE_CATEGORY_THRESHOLD = 0.15;
+const QUANTITY_HIGH_FACTOR = 2.0;
+const QUANTITY_LOW_FACTOR = 0.5;
+const MIN_AVERAGE_FOR_LOW_CHECK = 2;
 
 function getSalesCloudErrorCode(error) {
     const remoteError = error.reason || error.innererror || error;
@@ -67,6 +95,10 @@ function getResultRows(result) {
         return [result.d];
     }
     return [];
+}
+
+function average(numbers) {
+    return numbers.reduce((sum, value) => sum + value, 0) / numbers.length;
 }
 
 /**
@@ -373,6 +405,90 @@ export default cds.service.impl(async function () {
         }));
     };
 
+    /**
+     * Resolves a customer's Sales Cloud customer number (BuyerPartyID),
+     * falling back to a live Sales Cloud lookup if the customer is not
+     * (yet) cached in the local Customers table. Shared by
+     * recommendProducts and validateOrderItems.
+     */
+    const resolveCustomerNumber = async (customerId) => {
+        let customer = await SELECT.one
+            .from(Customers)
+            .where({ ID: customerId });
+
+        if (!customer?.customerNumber) {
+            let salesCloudCustomer;
+            try {
+                [salesCloudCustomer] = await salesCloud.run(
+                    SELECT.from(CorporateAccountCollection).where({
+                        ObjectID: customerId
+                    })
+                );
+            } catch (error) {
+                console.error(
+                    "Could not resolve customer in SAP Sales Cloud:",
+                    error
+                );
+                const lookupError = new Error(
+                    `SALES_CLOUD_CUSTOMER_LOOKUP_${getSalesCloudErrorCode(error)}: ` +
+                        getSalesCloudErrorMessage(error)
+                );
+                lookupError.statusCode = 502;
+                throw lookupError;
+            }
+
+            customer = salesCloudCustomer
+                ? { customerNumber: salesCloudCustomer.AccountID }
+                : customer;
+        }
+
+        return customer?.customerNumber || null;
+    };
+
+    /**
+     * Loads a customer's full historical order line items from SAP Sales
+     * Cloud (CustomerOrderCollection + batched CustomerOrderItemCollection
+     * reads). Shared by recommendProducts and validateOrderItems.
+     *
+     * Returns { totalOrders, historicalItems }.
+     */
+    const loadCustomerOrderHistory = async (customerNumber) => {
+        const historicalOrders = getResultRows(await salesCloud.run(
+            SELECT.from(CustomerOrderCollection).where({
+                BuyerPartyID: customerNumber
+            })
+        ));
+
+        const orderIDs = [...new Set(historicalOrders
+            .map((order) => order.ID)
+            .filter((id) => typeof id === "string" && id.length > 0))];
+
+        const totalOrders = orderIDs.length;
+        const historicalItems = [];
+
+        for (let start = 0; start < orderIDs.length; start += 8) {
+            const batch = orderIDs.slice(start, start + 8);
+            const batchItems = await Promise.all(
+                batch.map(async (salesOrderID) => ({
+                    salesOrderID,
+                    items: getResultRows(
+                        await salesCloud.run(
+                            SELECT.from(CustomerOrderItemCollection)
+                                .where({ SalesOrderID: salesOrderID })
+                        )
+                    )
+                }))
+            );
+            historicalItems.push(
+                ...batchItems.flatMap(({ salesOrderID, items }) =>
+                    items.map((item) => ({ salesOrderID, item }))
+                )
+            );
+        }
+
+        return { totalOrders, historicalItems };
+    };
+
     this.on("READ", Customers, async () => {
         const customers = await salesCloud.run(
             SELECT.from(CorporateAccountCollection).where({
@@ -568,13 +684,8 @@ export default cds.service.impl(async function () {
      * Die Action speichert keinen Sales Order.
      */
     this.on("interpretOrderItems", async (req) => {
-        // Liest den Parameter orderRequest aus dem Request.
-        //
-        // Beispiel:
-        // "Add 5 Ferrero Rocher and 10 Kinder Bueno"
         const { orderRequest } = req.data;
 
-        // Prüft, ob überhaupt eine Eingabe vorhanden ist.
         if (!orderRequest?.trim()) {
             return req.reject(
                 400,
@@ -585,16 +696,8 @@ export default cds.service.impl(async function () {
         console.log("Order request received:", orderRequest);
 
         try {
-            /**
-             * Schritt 1:
-             * Aktive Produkte aus der SAP Sales Cloud lesen.
-             *
-             * loadSalesCloudProducts liest ProductCollection mit Status 2
-             * und ergänzt den Preis aus der Basispreisliste.
-             */
             const products = await loadSalesCloudProducts();
 
-            // Abbruch, falls der Produktkatalog leer ist.
             if (!products.length) {
                 return req.reject(
                     500,
@@ -604,17 +707,6 @@ export default cds.service.impl(async function () {
 
             console.log("Available products:", products);
 
-            /**
-             * Schritt 2:
-             * Den Sales-Cloud-Produktkatalog für Sonnet in einen einfachen
-             * Text umwandeln.
-             *
-             * Beispielzeile:
-             * UUID | P1001 | Ferrero Rocher 16 Pieces
-             *
-             * Preise werden bewusst nicht an Sonnet übergeben.
-             * Preise kommen später ausschließlich aus der Datenbank.
-             */
             const productCatalog = products
                 .map(
                     (product) =>
@@ -622,14 +714,6 @@ export default cds.service.impl(async function () {
                 )
                 .join("\n");
 
-            /**
-             * Schritt 3:
-             * Verbindung zum Orchestration Service von SAP AI Core
-             * konfigurieren.
-             *
-             * Verwendetes Modell:
-             * Anthropic Claude 4.6 Sonnet
-             */
             const client = new OrchestrationClient({
                 promptTemplating: {
                     model: {
@@ -638,14 +722,6 @@ export default cds.service.impl(async function () {
                 }
             });
 
-            /**
-             * Schritt 4:
-             * Eingabetext und erlaubten Produktkatalog an Sonnet senden.
-             *
-             * Der System Prompt grenzt die Aufgabe bewusst ein:
-             * Sonnet darf nur Produkte aus dem übergebenen Katalog verwenden.
-             * Sonnet darf keinen Auftrag speichern oder Preise erfinden.
-             */
             const response = await client.chatCompletion({
                 messages: [
                     {
@@ -706,28 +782,18 @@ Return exactly this structure:
                 ]
             });
 
-            /**
-             * Schritt 5:
-             * Antwort von Sonnet als Text auslesen.
-             */
             const aiResponse = response.getContent();
 
             console.log("Raw AI response:", aiResponse);
 
-            /**
-             * Schritt 6:
-             * JSON-Text in ein JavaScript-Objekt umwandeln.
-             */
             const parsedResponse = JSON.parse(aiResponse);
 
-            // Prüft, ob die erwartete items-Liste vorhanden ist.
             if (!Array.isArray(parsedResponse.items)) {
                 throw new Error(
                     "The AI response does not contain a valid items array."
                 );
             }
 
-            // Es muss mindestens eine Position erkannt worden sein.
             if (parsedResponse.items.length === 0) {
                 return {
                     success: false,
@@ -736,26 +802,11 @@ Return exactly this structure:
                 };
             }
 
-            /**
-             * Schritt 7:
-             * Jedes AI-Ergebnis gegen die echte Produktdatenbank prüfen.
-             *
-             * Sonnet liefert nur:
-             * - Produkt-ID
-             * - Produktname
-             * - Menge
-             *
-             * CAP ergänzt anschließend:
-             * - Produktnummer
-             * - echten Preis
-             * - Gesamtpreis
-             */
             const validatedItems = [];
             const clarifications = [];
 
             for (const item of parsedResponse.items) {
 
-                // Fall 1: Sonnet ist sich sicher
                 if (item.status === "resolved") {
 
                     const product = products.find(
@@ -789,7 +840,6 @@ Return exactly this structure:
                         message: ""
                     });
 
-                // Fall 2: Sonnet ist sich nicht sicher
                 } else if (item.status === "clarification_required") {
 
                     const validatedSuggestions = (item.suggestions || []).map((suggestion) => {
@@ -822,18 +872,9 @@ Return exactly this structure:
                 }
             }
 
-            console.log(
-                "Validated order items:",
-                validatedItems
-            );
+            console.log("Validated order items:", validatedItems);
             console.log("Clarifications needed:", clarifications);
 
-            /**
-             * Schritt 8:
-             * Validierte Positionen an die Fiori-App zurückgeben.
-             *
-             * Es wird weiterhin kein Sales Order gespeichert.
-             */
             const hasClarifications = clarifications.length > 0;
             let message;
 
@@ -854,19 +895,7 @@ Return exactly this structure:
             };
 
         } catch (error) {
-            /**
-             * Fehler können beispielsweise entstehen durch:
-             * - SAP-AI-Core-Verbindungsfehler
-             * - ungültiges JSON
-             * - unbekannte Produkt-ID
-             * - ungültige Menge
-             * - fehlenden Produktpreis
-             */
-            console.error(
-                "Order item interpretation failed:",
-                error
-            );
-
+            console.error("Order item interpretation failed:", error);
             return req.reject(
                 500,
                 `Order item interpretation failed: ${error.message}`
@@ -881,21 +910,12 @@ Return exactly this structure:
      *
      * Ranking (see rankRecommendationsByFrequency):
      * - relativeFrequency = orderCount / totalOrders
-     *   (Anteil an ALLEN historischen Aufträgen des Kunden)
      * - normalized absolute frequency = orderCount / max(orderCount im Set)
-     * - score = gewichtete Kombination aus beidem (siehe Konstanten oben)
-     *
-     * Primäre Produktquelle ist der aktive SAP-Sales-Cloud-Katalog
-     * (loadSalesCloudProducts), nicht die lokale Products-Tabelle, da diese
-     * nur Produkte enthält, die bereits über diese App bestellt wurden.
-     * Die lokale Tabelle wird nur optional zur Anreicherung verwendet.
+     * - score = gewichtete Kombination aus beidem
      *
      * Zusätzlich wird pro empfohlenem Produkt eine "averageQuantity"
      * berechnet: der Mittelwert der historisch bestellten Mengen
-     * (totalQuantity / orderCount, gerundet, mindestens 1). Diese Menge
-     * wird im Frontend angezeigt und beim Hinzufügen einer Empfehlung
-     * automatisch als Bestellmenge übernommen, statt immer nur 1 Stück
-     * vorzuschlagen.
+     * (totalQuantity / orderCount, gerundet, mindestens 1).
      */
     this.on("recommendProducts", async (req) => {
         const { customerId, excludedProductIDs = "[]" } = req.data;
@@ -925,39 +945,9 @@ Return exactly this structure:
         const excludedProductIDsSet = new Set(excludedProductIDsList);
 
         try {
-            let customer = await SELECT.one
-                .from(Customers)
-                .where({ ID: customerId });
+            const customerNumber = await resolveCustomerNumber(customerId);
 
-            if (!customer?.customerNumber) {
-                let salesCloudCustomer;
-                try {
-                    [salesCloudCustomer] = await salesCloud.run(
-                        SELECT.from(CorporateAccountCollection).where({
-                            ObjectID: customerId
-                        })
-                    );
-                } catch (error) {
-                    console.error(
-                        "Could not resolve customer in SAP Sales Cloud:",
-                        error
-                    );
-                    const lookupError = new Error(
-                        `SALES_CLOUD_CUSTOMER_LOOKUP_${getSalesCloudErrorCode(error)}: ` +
-                            getSalesCloudErrorMessage(error)
-                    );
-                    lookupError.statusCode = 502;
-                    throw lookupError;
-                }
-
-                customer = salesCloudCustomer
-                    ? {
-                        customerNumber: salesCloudCustomer.AccountID
-                    }
-                    : customer;
-            }
-
-            if (!customer?.customerNumber) {
+            if (!customerNumber) {
                 return req.reject(
                     404,
                     "The selected customer could not be found in the local " +
@@ -965,13 +955,11 @@ Return exactly this structure:
                 );
             }
 
-            let historicalOrders;
+            let totalOrders;
+            let historicalItems;
             try {
-                historicalOrders = getResultRows(await salesCloud.run(
-                    SELECT.from(CustomerOrderCollection).where({
-                        BuyerPartyID: customer.customerNumber
-                    })
-                ));
+                ({ totalOrders, historicalItems } =
+                    await loadCustomerOrderHistory(customerNumber));
             } catch (error) {
                 console.error(
                     "Could not read SAP Sales Cloud order history:",
@@ -984,62 +972,12 @@ Return exactly this structure:
                 );
             }
 
-            if (historicalOrders.length === 0) {
+            if (totalOrders === 0) {
                 return {
                     success: false,
                     message: "No order history was found for this customer.",
                     recommendations: []
                 };
-            }
-
-            const orderIDs = [...new Set(historicalOrders
-                .map((order) => order.ID)
-                .filter((id) => typeof id === "string" && id.length > 0))];
-
-            // Gesamtzahl der distinkten historischen Aufträge dieses Kunden.
-            // Wird als Nenner für die RELATIVE Bestellhäufigkeit benötigt
-            // (z. B. "Produkt X kam in 6 von 10 Aufträgen vor" = 60%).
-            const totalOrders = orderIDs.length;
-
-            if (totalOrders === 0) {
-                return {
-                    success: false,
-                    message: "The customer's order history contains no order IDs.",
-                    recommendations: []
-                };
-            }
-
-            const historicalItems = [];
-            try {
-                for (let start = 0; start < orderIDs.length; start += 8) {
-                    const batch = orderIDs.slice(start, start + 8);
-                    const batchItems = await Promise.all(
-                        batch.map(async (salesOrderID) => ({
-                            salesOrderID,
-                            items: getResultRows(
-                                await salesCloud.run(
-                                    SELECT.from(CustomerOrderItemCollection)
-                                        .where({ SalesOrderID: salesOrderID })
-                                )
-                            )
-                        }))
-                    );
-                    historicalItems.push(
-                        ...batchItems.flatMap(({ salesOrderID, items }) =>
-                            items.map((item) => ({ salesOrderID, item }))
-                        )
-                    );
-                }
-            } catch (error) {
-                console.error(
-                    "Could not read SAP Sales Cloud order items:",
-                    error
-                );
-                return req.reject(
-                    502,
-                    `SALES_CLOUD_ORDER_ITEMS_HISTORY_${getSalesCloudErrorCode(error)}: ` +
-                        getSalesCloudErrorMessage(error)
-                );
             }
 
             if (historicalItems.length === 0) {
@@ -1050,9 +988,6 @@ Return exactly this structure:
                 };
             }
 
-            // Aggregiert pro Produktnummer: Anzahl unterschiedlicher Aufträge
-            // (orderCount) und Gesamtmenge (totalQuantity) aus der
-            // Sales-Cloud-Historie.
             const aggregatesByProductNumber = new Map();
             for (const { salesOrderID, item } of historicalItems) {
                 const productNumber = String(item.ProductID || "")
@@ -1079,11 +1014,6 @@ Return exactly this structure:
                 aggregate.totalQuantity += quantity;
             }
 
-            /**
-             * PRIMÄRE Quelle: der aktive Produktkatalog aus SAP Sales Cloud.
-             * Jedes historisch gekaufte Produkt muss hier gefunden werden
-             * können, unabhängig davon, ob es lokal je gecacht wurde.
-             */
             let salesCloudProducts;
             try {
                 salesCloudProducts = await loadSalesCloudProducts();
@@ -1106,13 +1036,6 @@ Return exactly this structure:
                 ])
             );
 
-            /**
-             * OPTIONALE lokale Ergänzung: nur zum Überschreiben von
-             * Name/Einheit/Preis, falls bereits ein lokaler Datensatz
-             * existiert (z. B. weil dieses Produkt schon einmal über diese
-             * App bestellt wurde). Fehlt der lokale Datensatz, wird
-             * ausschließlich mit den Sales-Cloud-Daten weitergearbeitet.
-             */
             const localProducts = await SELECT.from(Products);
             const localProductsByNumber = new Map(
                 localProducts.map((product) => [
@@ -1124,7 +1047,6 @@ Return exactly this structure:
             const candidateRecommendations = [];
             for (const aggregate of aggregatesByProductNumber.values()) {
 
-                // Primäre Quelle: aktiver Sales-Cloud-Katalog.
                 const salesCloudProduct = salesCloudProductsByNumber.get(
                     aggregate.productNumber
                 );
@@ -1142,7 +1064,6 @@ Return exactly this structure:
                     continue;
                 }
 
-                // Optionale lokale Anreicherung (Fallback auf Sales Cloud).
                 const localProduct = localProductsByNumber.get(
                     aggregate.productNumber
                 );
@@ -1170,8 +1091,7 @@ Return exactly this structure:
                 // Empfohlene Menge = Mittelwert der historischen Mengen
                 // (Gesamtmenge über alle Aufträge / Anzahl der Aufträge,
                 // in denen das Produkt vorkam). Auf ganze Einheiten
-                // gerundet und nach unten auf mindestens 1 begrenzt, damit
-                // niemals "0 Stück" vorgeschlagen wird.
+                // gerundet und nach unten auf mindestens 1 begrenzt.
                 const averageQuantity = Math.max(
                     1,
                     Math.round(aggregate.totalQuantity / orderCount)
@@ -1200,21 +1120,11 @@ Return exactly this structure:
                 };
             }
 
-            /**
-             * Ranking: kombiniert relative Bestellhäufigkeit (Anteil an
-             * allen Aufträgen dieses Kunden) und absolute Bestellhäufigkeit
-             * (normalisierte Anzahl an Aufträgen) zu einem Score und
-             * sortiert danach absteigend. totalQuantity dient nur als
-             * zusätzlicher Tie-Breaker.
-             */
             const rankedRecommendations = rankRecommendationsByFrequency(
                 candidateRecommendations,
                 totalOrders
             );
 
-            // Reason-Text erklärt sowohl absolute als auch relative
-            // Häufigkeit in Klartext, bevor optional die AI-Formulierung
-            // greift.
             let topRecommendations = rankedRecommendations
                 .slice(0, 5)
                 .map((item) => ({
@@ -1258,6 +1168,324 @@ Return exactly this structure:
             return req.reject(
                 500,
                 `PRODUCT_RECOMMENDATIONS_FAILED: ${error.message}`
+            );
+        }
+    });
+
+    /**
+     * AI Order Validation.
+     *
+     * Prüft die aktuell im Fiori-Entwurf enthaltenen Auftragspositionen
+     * gegen die SAP-Sales-Cloud-Bestellhistorie desselben Kunden. Es
+     * werden ausschließlich Informationen zurückgegeben — es wird nie ein
+     * Auftrag angelegt, geändert oder gesendet.
+     *
+     * Zwei unabhängige Prüfungen pro Position:
+     *
+     * 1. SELTENE / NIE BESTELLTE PRODUKTGRUPPE
+     *    categoryRelativeFrequency = Anzahl unterschiedlicher historischer
+     *    Aufträge, die IRGENDEIN Produkt aus dieser Kategorie enthalten,
+     *    geteilt durch die Gesamtzahl aller historischen Aufträge.
+     *    - "nie bestellt", wenn categoryOrderCount === 0.
+     *    - "selten bestellt", wenn categoryRelativeFrequency unter
+     *      RARE_CATEGORY_THRESHOLD (15%) liegt.
+     *
+     * 2. UNGEWÖHNLICHE MENGE
+     *    Vergleichswert ist der Mittelwert der historisch bestellten
+     *    Mengen für GENAU dieses Produkt. Wurde das Produkt selbst noch
+     *    nie bestellt, wird ersatzweise der Mittelwert aller Produkte der
+     *    gleichen Kategorie verwendet (explizit als Fallback ausgewiesen).
+     *    - "ungewöhnlich hoch", wenn Menge >= Mittelwert * QUANTITY_HIGH_FACTOR.
+     *    - "ungewöhnlich niedrig", wenn Menge <= Mittelwert * QUANTITY_LOW_FACTOR
+     *      UND Mittelwert >= MIN_AVERAGE_FOR_LOW_CHECK.
+     *
+     * Voraussetzung für beide Prüfungen: mindestens MIN_ORDERS_FOR_VALIDATION
+     * historische Aufträge. Andernfalls wird dies transparent gemeldet und
+     * es werden keine Warnungen erzeugt.
+     */
+    this.on("validateOrderItems", async (req) => {
+        const { customerId, items: itemsJson } = req.data;
+
+        if (!customerId) {
+            return req.reject(400, "A customer must be selected.");
+        }
+
+        let items;
+        try {
+            items = JSON.parse(itemsJson || "[]");
+        } catch {
+            return req.reject(
+                400,
+                "The items parameter must be valid JSON."
+            );
+        }
+
+        if (!Array.isArray(items) || items.length === 0) {
+            return req.reject(
+                400,
+                "At least one order item must be provided for validation."
+            );
+        }
+
+        try {
+            const customerNumber = await resolveCustomerNumber(customerId);
+
+            if (!customerNumber) {
+                return req.reject(
+                    404,
+                    "The selected customer could not be found in the local " +
+                        "customer catalog or SAP Sales Cloud."
+                );
+            }
+
+            let totalOrders;
+            let historicalItems;
+            try {
+                ({ totalOrders, historicalItems } =
+                    await loadCustomerOrderHistory(customerNumber));
+            } catch (error) {
+                console.error(
+                    "Could not read SAP Sales Cloud order history:",
+                    error
+                );
+                return req.reject(
+                    502,
+                    `SALES_CLOUD_ORDER_HISTORY_${getSalesCloudErrorCode(error)}: ` +
+                        getSalesCloudErrorMessage(error)
+                );
+            }
+
+            if (totalOrders < MIN_ORDERS_FOR_VALIDATION) {
+                return {
+                    success: true,
+                    message:
+                        `Insufficient order history (${totalOrders} of ` +
+                        `${MIN_ORDERS_FOR_VALIDATION} required historical orders) ` +
+                        "to reliably validate this order. No checks were performed.",
+                    warnings: []
+                };
+            }
+
+            let salesCloudProducts;
+            try {
+                salesCloudProducts = await loadSalesCloudProducts();
+            } catch (error) {
+                console.error(
+                    "Could not load the active SAP Sales Cloud product catalog:",
+                    error
+                );
+                return req.reject(
+                    502,
+                    `SALES_CLOUD_PRODUCT_CATALOG_${getSalesCloudErrorCode(error)}: ` +
+                        getSalesCloudErrorMessage(error)
+                );
+            }
+
+            const salesCloudProductsById = new Map(
+                salesCloudProducts.map((product) => [
+                    String(product.ID),
+                    product
+                ])
+            );
+            const salesCloudProductsByNumber = new Map(
+                salesCloudProducts.map((product) => [
+                    String(product.productNumber || "").trim().toUpperCase(),
+                    product
+                ])
+            );
+
+            // Aggregiert historische Mengen PRO PRODUKT und PRO KATEGORIE.
+            const productStats = new Map();
+            const categoryStats = new Map();
+
+            for (const { salesOrderID, item } of historicalItems) {
+                const productNumber = String(item.ProductID || "")
+                    .trim()
+                    .toUpperCase();
+                const quantity = Number(item.Quantity);
+
+                if (!productNumber || !Number.isFinite(quantity) ||
+                    quantity <= 0) {
+                    continue;
+                }
+
+                let productStat = productStats.get(productNumber);
+                if (!productStat) {
+                    productStat = { orderIDs: new Set(), quantities: [] };
+                    productStats.set(productNumber, productStat);
+                }
+                productStat.orderIDs.add(salesOrderID);
+                productStat.quantities.push(quantity);
+
+                const historicalProduct =
+                    salesCloudProductsByNumber.get(productNumber);
+                const categoryID =
+                    historicalProduct?.productCategoryID || "UNCATEGORIZED";
+
+                let categoryStat = categoryStats.get(categoryID);
+                if (!categoryStat) {
+                    categoryStat = { orderIDs: new Set(), quantities: [] };
+                    categoryStats.set(categoryID, categoryStat);
+                }
+                categoryStat.orderIDs.add(salesOrderID);
+                categoryStat.quantities.push(quantity);
+            }
+
+            const warnings = [];
+
+            for (const line of items) {
+                const position = Number(line.position);
+                const quantity = Number(line.quantity);
+
+                if (!Number.isFinite(position) || !line.product_ID ||
+                    !Number.isFinite(quantity) || quantity <= 0) {
+                    // Fehlerhafte Eingabezeile wird defensiv übersprungen,
+                    // statt die gesamte Validierung abzubrechen.
+                    continue;
+                }
+
+                const product = salesCloudProductsById.get(
+                    String(line.product_ID)
+                );
+
+                if (!product) {
+                    warnings.push({
+                        position,
+                        productName: "Unknown product",
+                        warningType: "unknown_product",
+                        message:
+                            `Position ${position}: this product could not be ` +
+                            "found in the active SAP Sales Cloud catalog and " +
+                            "could not be validated."
+                    });
+                    continue;
+                }
+
+                const productNumber =
+                    String(product.productNumber || "").trim().toUpperCase();
+                const categoryID = product.productCategoryID || "UNCATEGORIZED";
+
+                // --- Prüfung 1: seltene / nie bestellte Produktgruppe ---
+                const categoryStat = categoryStats.get(categoryID);
+                const categoryOrderCount = categoryStat
+                    ? categoryStat.orderIDs.size
+                    : 0;
+                const categoryRelativeFrequency =
+                    categoryOrderCount / totalOrders;
+
+                if (categoryOrderCount === 0) {
+                    warnings.push({
+                        position,
+                        productName: product.name,
+                        warningType: "rare_category",
+                        message:
+                            `Position ${position} (${product.name}): belongs to ` +
+                            `product category "${categoryID}", which this ` +
+                            `customer has never ordered from before (0 of ` +
+                            `${totalOrders} historical orders, 0.0% vs. the ` +
+                            `${Math.round(RARE_CATEGORY_THRESHOLD * 100)}% ` +
+                            "rarity threshold used to flag uncommon categories)."
+                    });
+                } else if (categoryRelativeFrequency < RARE_CATEGORY_THRESHOLD) {
+                    warnings.push({
+                        position,
+                        productName: product.name,
+                        warningType: "rare_category",
+                        message:
+                            `Position ${position} (${product.name}): belongs to ` +
+                            `category "${categoryID}", ordered in only ` +
+                            `${categoryOrderCount} of ${totalOrders} historical ` +
+                            `orders (${Math.round(categoryRelativeFrequency * 100)}%), ` +
+                            `which is below the ` +
+                            `${Math.round(RARE_CATEGORY_THRESHOLD * 100)}% threshold ` +
+                            "used to flag uncommon categories."
+                    });
+                }
+
+                // --- Prüfung 2: ungewöhnliche Menge ---
+                let baseline = productStats.get(productNumber);
+                let baselineSource = `this exact product (${product.name})`;
+
+                if (!baseline || baseline.quantities.length === 0) {
+                    // Fallback: Mittelwert der Kategorie, da dieses Produkt
+                    // selbst noch nie bestellt wurde. Wird im Text explizit
+                    // als Fallback ausgewiesen.
+                    baseline = categoryStats.get(categoryID);
+                    baselineSource =
+                        `products in category "${categoryID}" (this exact ` +
+                        "product has no order history)";
+                }
+
+                if (baseline && baseline.quantities.length > 0) {
+                    const avgQuantity = average(baseline.quantities);
+                    const highThreshold = avgQuantity * QUANTITY_HIGH_FACTOR;
+                    const lowThreshold = avgQuantity * QUANTITY_LOW_FACTOR;
+
+                    if (quantity >= highThreshold) {
+                        warnings.push({
+                            position,
+                            productName: product.name,
+                            warningType: "unusual_quantity_high",
+                            message:
+                                `Position ${position} (${product.name}): ordered ` +
+                                `quantity ${quantity} is ` +
+                                `${(quantity / avgQuantity).toFixed(1)}x the ` +
+                                `historical average of ${avgQuantity.toFixed(1)} ` +
+                                `units for ${baselineSource} (based on ` +
+                                `${baseline.quantities.length} past order ` +
+                                "line(s)). Threshold: quantities at or above " +
+                                `${QUANTITY_HIGH_FACTOR}x the average ` +
+                                `(${highThreshold.toFixed(1)}) are flagged as ` +
+                                "unusually high."
+                        });
+                    } else if (
+                        avgQuantity >= MIN_AVERAGE_FOR_LOW_CHECK &&
+                        quantity <= lowThreshold
+                    ) {
+                        warnings.push({
+                            position,
+                            productName: product.name,
+                            warningType: "unusual_quantity_low",
+                            message:
+                                `Position ${position} (${product.name}): ordered ` +
+                                `quantity ${quantity} is only ` +
+                                `${(quantity / avgQuantity).toFixed(1)}x the ` +
+                                `historical average of ${avgQuantity.toFixed(1)} ` +
+                                `units for ${baselineSource} (based on ` +
+                                `${baseline.quantities.length} past order ` +
+                                "line(s)). Threshold: quantities at or below " +
+                                `${QUANTITY_LOW_FACTOR}x the average ` +
+                                `(${lowThreshold.toFixed(1)}) are flagged as ` +
+                                "unusually low."
+                        });
+                    }
+                }
+            }
+
+            warnings.sort((left, right) => left.position - right.position);
+
+            return {
+                success: true,
+                message: warnings.length > 0
+                    ? `${warnings.length} potential issue(s) found across ` +
+                        `${items.length} order position(s).`
+                    : `No issues found. All ${items.length} position(s) are ` +
+                        "consistent with this customer's order history " +
+                        `(${totalOrders} orders analyzed).`,
+                warnings
+            };
+
+        } catch (error) {
+            const statusCode = Number(
+                error.statusCode || error.status || error.code
+            );
+            if (statusCode >= 400 && statusCode < 600) {
+                return req.reject(statusCode, error.message);
+            }
+            console.error("Order validation failed:", error);
+            return req.reject(
+                500,
+                `ORDER_VALIDATION_FAILED: ${error.message}`
             );
         }
     });

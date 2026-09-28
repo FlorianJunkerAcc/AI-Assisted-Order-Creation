@@ -65,4 +65,35 @@ action recommendProducts(
     customerId : UUID,
     excludedProductIDs : LargeString
 ) returns RecommendationResult;
+
+// ---------------------------------------------------------------------
+// AI Order Validation — bitte in deine bestehende sales-order-service.cds
+// innerhalb des "service SalesOrderService { ... }" Blocks ergänzen,
+// z. B. direkt neben den bestehenden Recommendation-Typen.
+//
+// Hinweis: "items" wird bewusst als JSON-String übergeben (analog zum
+// bereits vorhandenen Parameter "excludedProductIDs" bei
+// recommendProducts), nicht als "many"-Collection-Parameter. Das folgt
+// eurem bestehenden Muster und vermeidet mögliche Kompatibilitätsprobleme
+// mit komplexen Collection-Parametern bei OData-V4-Actions.
+// ---------------------------------------------------------------------
+
+type OrderValidationWarning {
+    position    : Integer;
+    productName : String;
+    warningType : String;
+    message     : String;
+}
+
+type OrderValidationResult {
+    success  : Boolean;
+    message  : String;
+    warnings : many OrderValidationWarning;
+}
+
+action validateOrderItems(
+    customerId : UUID;
+    // JSON-kodiertes Array von { position, product_ID, quantity }
+    items      : String
+) returns OrderValidationResult;
 }

@@ -55,6 +55,14 @@ sap.ui.define(
                     );
                     this.getView().setModel(
                         new JSONModel({
+                            visible: false,
+                            message: "",
+                            warnings: []
+                        }),
+                        "validation"
+                    );
+                    this.getView().setModel(
+                        new JSONModel({
                             recognizedCommand: "",
                             isAiProcessing: false,
                             canSubmitAiCommand: false
@@ -74,6 +82,15 @@ sap.ui.define(
                         oRecommendationModel.setData({
                             visible: false,
                             recommendations: []
+                        });
+                    }
+                    const oValidationModel =
+                        this.getView().getModel("validation");
+                    if (oValidationModel) {
+                        oValidationModel.setData({
+                            visible: false,
+                            message: "",
+                            warnings: []
                         });
                     }
                     this._updateCreateEnabled();
@@ -761,12 +778,10 @@ sap.ui.define(
                  * Adds the selected recommendation to the draft and removes
                  * only that product from the displayed recommendations.
                  *
-                 * Die Menge wird NICHT mehr fest auf 1 gesetzt, sondern aus
-                 * der vom Backend berechneten "averageQuantity" übernommen
-                 * (Mittelwert der historischen Bestellmengen dieses
-                 * Produkts). Fällt averageQuantity aus irgendeinem Grund
-                 * aus (z. B. älteres Backend ohne dieses Feld), wird
-                 * defensiv auf 1 zurückgefallen.
+                 * Die Menge wird aus der vom Backend berechneten
+                 * "averageQuantity" übernommen (Mittelwert der historischen
+                 * Bestellmengen dieses Produkts). Fällt averageQuantity aus
+                 * irgendeinem Grund aus, wird defensiv auf 1 zurückgefallen.
                  */
                 onSelectRecommendedProduct: function (oEvent) {
                     const oContext =
@@ -780,10 +795,6 @@ sap.ui.define(
                     }
                     const fUnitPrice = Number(oRecommendation.unitPrice);
 
-                    // Empfohlene Menge = Mittelwert der historischen
-                    // Bestellmengen dieses Produkts (vom Backend berechnet).
-                    // Fallback auf 1, falls averageQuantity fehlt oder
-                    // ungültig ist.
                     const iRecommendedQuantity = Number.isInteger(
                         oRecommendation.averageQuantity
                     ) && oRecommendation.averageQuantity > 0
@@ -815,6 +826,115 @@ sap.ui.define(
                     MessageToast.show(
                         `${oRecommendation.productName} (Qty ${iRecommendedQuantity}) added to the order draft.`
                     );
+                },
+                /**
+                 * Requests a read-only validation of the current order draft
+                 * against the selected customer's SAP Sales Cloud order
+                 * history (rare/never ordered product categories and
+                 * unusually high/low quantities). Never modifies the order.
+                 */
+                onStartOrderValidation: async function () {
+                    const oCustomerItem =
+                        this.byId("customerSelect").getSelectedItem();
+                    if (!oCustomerItem) {
+                        MessageBox.warning(
+                            "Please select a customer before validating the order."
+                        );
+                        return;
+                    }
+
+                    const aOrderItems =
+                        this.getView().getModel("order")
+                            .getProperty("/items") || [];
+                    const aValidItems = aOrderItems.filter(
+                        (item) => item.product_ID && Number(item.quantity) > 0
+                    );
+
+                    if (aValidItems.length === 0) {
+                        MessageBox.warning(
+                            "Please add at least one product before validating the order."
+                        );
+                        return;
+                    }
+
+                    const oButton = this.byId("startOrderValidationButton");
+                    const oValidationModel =
+                        this.getView().getModel("validation");
+                    oValidationModel.setData({
+                        visible: false,
+                        message: "",
+                        warnings: []
+                    });
+
+                    const oActionBinding =
+                        this.getView().getModel().bindContext(
+                            "/validateOrderItems(...)"
+                        );
+
+                    try {
+                        const oCustomerContext =
+                            oCustomerItem.getBindingContext();
+                        const sCustomerID =
+                            await oCustomerContext.requestProperty("ID");
+
+                        oActionBinding.setParameter(
+                            "customerId",
+                            sCustomerID
+                        );
+                        oActionBinding.setParameter(
+                            "items",
+                            JSON.stringify(
+                                aValidItems.map((item) => ({
+                                    position: Number(item.position),
+                                    product_ID: item.product_ID,
+                                    quantity: Number(item.quantity)
+                                }))
+                            )
+                        );
+
+                        oButton.setBusy(true);
+                        await oActionBinding.execute();
+
+                        const oResultContext =
+                            oActionBinding.getBoundContext();
+                        if (!oResultContext) {
+                            throw new Error(
+                                "The validation service returned no result."
+                            );
+                        }
+
+                        const oResult =
+                            await oResultContext.requestObject();
+
+                        const aWarnings = Array.isArray(oResult.warnings)
+                            ? oResult.warnings
+                            : [];
+
+                        oValidationModel.setData({
+                            visible: true,
+                            message: oResult.message || "",
+                            warnings: aWarnings
+                        });
+
+                        if (aWarnings.length === 0) {
+                            MessageToast.show(
+                                oResult.message ||
+                                    "No issues found in this order."
+                            );
+                        }
+
+                    } catch (oError) {
+                        console.error(
+                            "Order validation failed:",
+                            oError
+                        );
+                        MessageBox.error(
+                            "Order validation could not be completed: " +
+                                (oError.message || String(oError))
+                        );
+                    } finally {
+                        oButton.setBusy(false);
+                    }
                 },
                 onStartVoiceInput: function () {
                     const SpeechRecognition =
@@ -1161,6 +1281,19 @@ sap.ui.define(
                             .getResourceBundle()
                             .getText("aiAssistedEntry")
                     );
+                    this.getView()
+                        .getModel("recommendation")
+                        .setData({
+                            visible: false,
+                            recommendations: []
+                        });
+                    this.getView()
+                        .getModel("validation")
+                        .setData({
+                            visible: false,
+                            message: "",
+                            warnings: []
+                        });
                     this.getView()
                         .getModel("order")
                         .setData({
