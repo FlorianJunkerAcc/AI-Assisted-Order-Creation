@@ -39,6 +39,140 @@ function getSalesCloudErrorMessage(error) {
     );
 }
 
+function evaluateProductFilterValue(token, product) {
+    if (Array.isArray(token)) {
+        return evaluateProductFilter(token, product);
+    }
+    if (!token || typeof token !== "object") {
+        return token;
+    }
+    if (token.xpr) {
+        return evaluateProductFilter(token.xpr, product);
+    }
+    if (token.ref) {
+        const property = token.ref[token.ref.length - 1];
+        if (!["productNumber", "name", "productCategoryID"].includes(property)) {
+            throw new Error(`Unsupported product filter property: ${property}`);
+        }
+        return product[property];
+    }
+    if (Object.prototype.hasOwnProperty.call(token, "val")) {
+        return token.val;
+    }
+    if (token.func) {
+        const args = token.args.map((arg) =>
+            evaluateProductFilterValue(arg, product)
+        );
+        const value = String(args[0] ?? "");
+        const search = String(args[1] ?? "");
+        switch (token.func.toLowerCase()) {
+        case "contains":
+            return value.includes(search);
+        case "startswith":
+            return value.startsWith(search);
+        case "endswith":
+            return value.endsWith(search);
+        case "tolower":
+            return value.toLowerCase();
+        case "toupper":
+            return value.toUpperCase();
+        case "substringof":
+            return search.includes(value);
+        default:
+            throw new Error(`Unsupported product filter function: ${token.func}`);
+        }
+    }
+    throw new Error("Unsupported product filter expression.");
+}
+
+function evaluateProductComparison(left, operator, right) {
+    const normalizedOperator = operator.toLowerCase();
+    if (normalizedOperator === "=" || normalizedOperator === "==") {
+        return left === right;
+    }
+    if (normalizedOperator === "!=" || normalizedOperator === "<>") {
+        return left !== right;
+    }
+    const value = String(left ?? "");
+    const search = String(right ?? "");
+    if (normalizedOperator === "contains") {
+        return value.includes(search);
+    }
+    if (normalizedOperator === "startswith") {
+        return value.startsWith(search);
+    }
+    if (normalizedOperator === "endswith") {
+        return value.endsWith(search);
+    }
+    if (normalizedOperator === "like") {
+        const pattern = search
+            .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+            .replace(/%/g, ".*")
+            .replace(/_/g, ".");
+        return new RegExp(`^${pattern}$`).test(value);
+    }
+    throw new Error(`Unsupported product filter operator: ${operator}`);
+}
+
+function evaluateProductFilter(tokens, product) {
+    let index = 0;
+
+    const parsePrimary = () => {
+        const token = tokens[index];
+        if (token === "(") {
+            index += 1;
+            const result = parseOr();
+            if (tokens[index] !== ")") {
+                throw new Error("Invalid product filter expression.");
+            }
+            index += 1;
+            return result;
+        }
+        if (token?.xpr) {
+            index += 1;
+            return evaluateProductFilter(token.xpr, product);
+        }
+
+        index += 1;
+        const left = evaluateProductFilterValue(token, product);
+        const operator = tokens[index];
+        if (typeof operator === "string" &&
+            !["and", "or", ")"].includes(operator.toLowerCase())) {
+            index += 1;
+            const right = evaluateProductFilterValue(tokens[index], product);
+            index += 1;
+            return evaluateProductComparison(left, operator, right);
+        }
+        return Boolean(left);
+    };
+
+    const parseAnd = () => {
+        let result = parsePrimary();
+        while (String(tokens[index]).toLowerCase() === "and") {
+            index += 1;
+            const next = parsePrimary();
+            result = result && next;
+        }
+        return result;
+    };
+
+    const parseOr = () => {
+        let result = parseAnd();
+        while (String(tokens[index]).toLowerCase() === "or") {
+            index += 1;
+            const next = parseAnd();
+            result = result || next;
+        }
+        return result;
+    };
+
+    const matches = parseOr();
+    if (index !== tokens.length) {
+        throw new Error("Invalid product filter expression.");
+    }
+    return matches;
+}
+
 // Implementierung des SalesOrderService.
 // Diese Datei wird automatisch mit der gleichnamigen CDS-Service-Datei verbunden.
 export default cds.service.impl(async function () {
@@ -110,8 +244,19 @@ export default cds.service.impl(async function () {
         }));
     });
 
-    this.on("READ", Products, async () => {
-        return loadSalesCloudProducts();
+    this.on("READ", Products, async (req) => {
+        const products = await loadSalesCloudProducts();
+        const filters = req.query?.SELECT?.where;
+        if (!filters?.length) {
+            return products;
+        }
+        try {
+            return products.filter((product) =>
+                evaluateProductFilter(filters, product)
+            );
+        } catch (error) {
+            return req.reject(400, error.message);
+        }
     });
 
     this.before("CREATE", "SalesOrders", async (req) => {

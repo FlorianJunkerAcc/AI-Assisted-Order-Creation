@@ -233,11 +233,20 @@ sap.ui.define(
                         }));
                     }
                     if (sProductNumber) {
-                        aFilters.push(new Filter(
-                            "productNumber",
-                            FilterOperator.Contains,
-                            sProductNumber
-                        ));
+                        const bPrefixSearch =
+                            sProductNumber.endsWith("*");
+                        const sProductNumberQuery = bPrefixSearch
+                            ? sProductNumber.slice(0, -1)
+                            : sProductNumber;
+                        if (sProductNumberQuery) {
+                            aFilters.push(new Filter(
+                                "productNumber",
+                                bPrefixSearch
+                                    ? FilterOperator.StartsWith
+                                    : FilterOperator.Contains,
+                                sProductNumberQuery
+                            ));
+                        }
                     }
                     if (sProductCategory) {
                         aFilters.push(new Filter(
