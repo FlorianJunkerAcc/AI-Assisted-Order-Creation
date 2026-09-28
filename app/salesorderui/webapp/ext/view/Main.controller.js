@@ -901,6 +901,9 @@ sap.ui.define(
                             "Sales Order payload:",
                             oSalesOrder
                         );
+                        const oView = this.getView();
+                        oView.setBusyIndicatorDelay(0);
+                        oView.setBusy(true);
                         this._isCreatingOrder = true;
                         this._updateCreateEnabled();
                         const oListBinding =
@@ -944,6 +947,7 @@ sap.ui.define(
                             }
                         );
                     } finally {
+                        this.getView().setBusy(false);
                         this._isCreatingOrder = false;
                         this._updateCreateEnabled();
                     }
