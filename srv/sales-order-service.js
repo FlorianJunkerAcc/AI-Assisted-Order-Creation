@@ -10,6 +10,16 @@ const BASE_PRICE_LIST_NAME =
 const ENABLE_AI_RECOMMENDATION_REASONS =
     process.env.ENABLE_AI_RECOMMENDATION_REASONS === "true";
 
+// Gewichtung für den kombinierten Empfehlungs-Score.
+// RELATIVE_FREQUENCY_WEIGHT: wie stark der Anteil an allen Aufträgen zählt
+//   (z. B. "in 60% aller Aufträge dieses Kunden enthalten").
+// ABSOLUTE_FREQUENCY_WEIGHT: wie stark die reine Anzahl an Aufträgen zählt
+//   (z. B. "in 6 Aufträgen enthalten"), normalisiert relativ zum am
+//   häufigsten bestellten Produkt in diesem Kandidatenset.
+// Beide Gewichte müssen sich zu 1 addieren.
+const RELATIVE_FREQUENCY_WEIGHT = 0.5;
+const ABSOLUTE_FREQUENCY_WEIGHT = 0.5;
+
 function getSalesCloudErrorCode(error) {
     const remoteError = error.reason || error.innererror || error;
     const status =
@@ -59,6 +69,60 @@ function getResultRows(result) {
     return [];
 }
 
+/**
+ * Berechnet für eine Liste von Produkt-Aggregaten einen kombinierten
+ * Ranking-Score aus relativer und absoluter Bestellhäufigkeit.
+ *
+ * - relativeFrequency = orderCount / totalOrders
+ *   (Anteil an ALLEN historischen Aufträgen dieses Kunden, in denen das
+ *   Produkt vorkam; Wertebereich bereits 0..1)
+ *
+ * - normalizedAbsoluteFrequency = orderCount / maxOrderCountInCandidateSet
+ *   (orderCount wird relativ zum häufigsten Produkt in diesem konkreten
+ *   Vorschlags-Set auf 0..1 normalisiert, damit es mit relativeFrequency
+ *   vergleichbar gewichtet werden kann)
+ *
+ * - score = relativeFrequency * RELATIVE_FREQUENCY_WEIGHT
+ *         + normalizedAbsoluteFrequency * ABSOLUTE_FREQUENCY_WEIGHT
+ *
+ * totalQuantity dient nur als zusätzlicher Tie-Breaker beim Sortieren,
+ * nicht als Bestandteil des Scores selbst.
+ */
+function rankRecommendationsByFrequency(recommendations, totalOrders) {
+    const maxOrderCount = Math.max(
+        ...recommendations.map((item) => item.orderCount),
+        1
+    );
+
+    const ranked = recommendations.map((item) => {
+        const relativeFrequency = totalOrders > 0
+            ? item.orderCount / totalOrders
+            : 0;
+
+        const normalizedAbsoluteFrequency =
+            item.orderCount / maxOrderCount;
+
+        const score =
+            (relativeFrequency * RELATIVE_FREQUENCY_WEIGHT) +
+            (normalizedAbsoluteFrequency * ABSOLUTE_FREQUENCY_WEIGHT);
+
+        return {
+            ...item,
+            totalOrders,
+            relativeFrequency: Number(relativeFrequency.toFixed(4)),
+            score: Number(score.toFixed(4))
+        };
+    });
+
+    ranked.sort((left, right) =>
+        right.score - left.score ||
+        right.orderCount - left.orderCount ||
+        right.totalQuantity - left.totalQuantity
+    );
+
+    return ranked;
+}
+
 async function generateRecommendationReasonsWithAI(recommendations) {
     const client = new OrchestrationClient({
         promptTemplating: {
@@ -73,8 +137,9 @@ async function generateRecommendationReasonsWithAI(recommendations) {
             {
                 role: "system",
                 content: "Write one short, friendly reason for each product " +
-                    "recommendation using only its product name, order count, " +
-                    "and total quantity. Return only JSON in the form " +
+                    "recommendation using its product name, order count, " +
+                    "relative order frequency (as a percentage), and total " +
+                    "quantity. Return only JSON in the form " +
                     '{"recommendations":[{"productNumber":"...","reason":"..."}]}.'
             },
             {
@@ -83,6 +148,10 @@ async function generateRecommendationReasonsWithAI(recommendations) {
                     productNumber: item.productNumber,
                     productName: item.productName,
                     orderCount: item.orderCount,
+                    totalOrders: item.totalOrders,
+                    relativeFrequencyPercent: Math.round(
+                        item.relativeFrequency * 100
+                    ),
                     totalQuantity: item.totalQuantity
                 })))
             }
@@ -806,24 +875,19 @@ Return exactly this structure:
 
     /**
      * Reads customer order history from SAP Sales Cloud and returns catalog
-     * products ranked by distinct order count, without creating or changing
-     * any orders.
+     * products ranked by a combined score of RELATIVE and ABSOLUTE order
+     * frequency, without creating or changing any orders.
      *
-     * WICHTIGE KORREKTUR:
-     * Zuvor wurde die LOKALE Products-Tabelle als primäre Quelle für Name,
-     * Einheit und Preis verwendet (SELECT.from(Products)). Diese Tabelle
-     * wird aber nur befüllt, wenn über DIESE App bereits ein Sales Order für
-     * genau dieses Produkt angelegt wurde (siehe "before CREATE SalesOrders"
-     * oben). Historische Sales-Cloud-Aufträge, die nicht über diese App
-     * erstellt wurden, enthalten deshalb häufig Produkte, die lokal noch nie
-     * gespeichert wurden — sie wurden dadurch fälschlicherweise
-     * übersprungen und es kamen keine Empfehlungen zustande.
+     * Ranking (see rankRecommendationsByFrequency):
+     * - relativeFrequency = orderCount / totalOrders
+     *   (Anteil an ALLEN historischen Aufträgen des Kunden)
+     * - normalized absolute frequency = orderCount / max(orderCount im Set)
+     * - score = gewichtete Kombination aus beidem (siehe Konstanten oben)
      *
-     * Die Korrektur macht den SAP-Sales-Cloud-Produktkatalog
-     * (loadSalesCloudProducts) zur PRIMÄREN Quelle für jedes historisch
-     * gekaufte Produkt. Die lokale Products-Tabelle wird nur noch optional
-     * verwendet, um Name/Einheit/Preis zu überschreiben, falls dort bereits
-     * ein (z. B. manuell gepflegter) Eintrag existiert.
+     * Primäre Produktquelle ist der aktive SAP-Sales-Cloud-Katalog
+     * (loadSalesCloudProducts), nicht die lokale Products-Tabelle, da diese
+     * nur Produkte enthält, die bereits über diese App bestellt wurden.
+     * Die lokale Tabelle wird nur optional zur Anreicherung verwendet.
      */
     this.on("recommendProducts", async (req) => {
         const { customerId, excludedProductIDs = "[]" } = req.data;
@@ -924,7 +988,12 @@ Return exactly this structure:
                 .map((order) => order.ID)
                 .filter((id) => typeof id === "string" && id.length > 0))];
 
-            if (orderIDs.length === 0) {
+            // Gesamtzahl der distinkten historischen Aufträge dieses Kunden.
+            // Wird als Nenner für die RELATIVE Bestellhäufigkeit benötigt
+            // (z. B. "Produkt X kam in 6 von 10 Aufträgen vor" = 60%).
+            const totalOrders = orderIDs.length;
+
+            if (totalOrders === 0) {
                 return {
                     success: false,
                     message: "The customer's order history contains no order IDs.",
@@ -1044,7 +1113,7 @@ Return exactly this structure:
                 ])
             );
 
-            const recommendations = [];
+            const candidateRecommendations = [];
             for (const aggregate of aggregatesByProductNumber.values()) {
 
                 // Primäre Quelle: aktiver Sales-Cloud-Katalog.
@@ -1090,22 +1159,18 @@ Return exactly this structure:
 
                 const orderCount = aggregate.orderIDs.size;
 
-                recommendations.push({
+                candidateRecommendations.push({
                     product_ID: salesCloudProduct.ID,
                     productNumber: salesCloudProduct.productNumber,
                     productName,
                     orderCount,
                     totalQuantity: Math.round(aggregate.totalQuantity),
-                    reason:
-                        `Ordered in ${orderCount} distinct orders ` +
-                        `(total ${aggregate.totalQuantity} units) in this ` +
-                        "customer's order history.",
                     unitPrice,
                     unit
                 });
             }
 
-            if (recommendations.length === 0) {
+            if (candidateRecommendations.length === 0) {
                 return {
                     success: false,
                     message: aggregatesByProductNumber.size === 0
@@ -1116,12 +1181,30 @@ Return exactly this structure:
                 };
             }
 
-            recommendations.sort((left, right) =>
-                right.orderCount - left.orderCount ||
-                right.totalQuantity - left.totalQuantity
+            /**
+             * Ranking: kombiniert relative Bestellhäufigkeit (Anteil an
+             * allen Aufträgen dieses Kunden) und absolute Bestellhäufigkeit
+             * (normalisierte Anzahl an Aufträgen) zu einem Score und
+             * sortiert danach absteigend. totalQuantity dient nur als
+             * zusätzlicher Tie-Breaker.
+             */
+            const rankedRecommendations = rankRecommendationsByFrequency(
+                candidateRecommendations,
+                totalOrders
             );
 
-            let topRecommendations = recommendations.slice(0, 5);
+            // Reason-Text erklärt sowohl absolute als auch relative
+            // Häufigkeit in Klartext, bevor optional die AI-Formulierung
+            // greift.
+            let topRecommendations = rankedRecommendations
+                .slice(0, 5)
+                .map((item) => ({
+                    ...item,
+                    reason:
+                        `Ordered in ${item.orderCount} of ${item.totalOrders} ` +
+                        `orders (${Math.round(item.relativeFrequency * 100)}%), ` +
+                        `${item.totalQuantity} units total.`
+                }));
 
             if (ENABLE_AI_RECOMMENDATION_REASONS) {
                 try {
@@ -1140,7 +1223,8 @@ Return exactly this structure:
 
             return {
                 success: true,
-                message: "Product recommendations are based on this customer's order history.",
+                message: "Product recommendations are ranked by this " +
+                    "customer's relative and absolute order frequency.",
                 recommendations: topRecommendations
             };
 
