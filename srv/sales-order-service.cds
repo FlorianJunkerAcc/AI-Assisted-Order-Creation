@@ -92,7 +92,7 @@ type OrderValidationResult {
 }
 
 action validateOrderItems(
-    customerId : UUID;
+    customerId : UUID,
     // JSON-kodiertes Array von { position, product_ID, quantity }
     items      : String
 ) returns OrderValidationResult;
