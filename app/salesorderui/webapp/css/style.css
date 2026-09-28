@@ -59,6 +59,11 @@
 .clarificationQuestionText {
     color: #7D3C98;
 }
+.recommendationReasonText {
+    color: #7D3C98;
+    font-size: 0.875rem;
+    font-weight: normal;
+}
 
 .productDisplayField,
 .productDisplayField .sapMInputBaseContentWrapper,

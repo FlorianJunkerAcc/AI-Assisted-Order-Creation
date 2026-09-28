@@ -33,6 +33,7 @@
 <ToolbarSpacer/>
 <Button id="addProductButton" text="{i18n>addProduct}" icon="sap-icon://add" type="Transparent" press=".onAddProduct" class="addProductButton sapUiSmallMarginEnd"/>
 <Button id="startAIAssistantButton" text="{i18n>aiAssistedEntry}" icon="sap-icon://ai" type="Transparent" press=".onStartAIAssistant" class="aiAssistedEntryButton"/>
+<Button id="startProductRecommendationsButton" text="{i18n>aiProductRecommendations}" icon="sap-icon://ai" type="Transparent" press=".onStartProductRecommendations" class="aiAssistedEntryButton"/>
 </Toolbar>
 </headerToolbar>
 <content>
@@ -63,6 +64,21 @@
 <Button id="clarificationSuggestionButton" text="{clarification>productName}" type="Default" press=".onSelectClarificationSuggestion" class="sapUiTinyMarginEnd sapUiTinyMarginBottom"/>
 </FlexBox>
 </VBox>
+</VBox>
+<VBox id="recommendationArea" visible="{recommendation>/visible}" width="100%" class="sapUiMediumMarginTop">
+<VBox id="recommendationBox" class="clarificationBox sapUiSmallMarginBottom">
+<HBox id="recommendationHeaderBox" alignItems="Center" class="sapUiTinyMarginBottom">
+<core:Icon id="recommendationIcon" src="sap-icon://ai" class="clarificationIcon sapUiTinyMarginEnd"/>
+<Text id="recommendationHeaderText" text="{i18n>aiProductRecommendations}" class="clarificationHeaderText"/>
+</HBox>
+<Text id="recommendationDescription" text="{i18n>recommendationDescription}" class="clarificationQuestionText"/>
+</VBox>
+<FlexBox id="productRecommendations" wrap="Wrap" items="{recommendation>/recommendations}">
+<VBox id="productRecommendation" width="14rem" class="sapUiSmallMarginEnd sapUiSmallMarginBottom">
+<Button id="recommendedProductButton" text="{recommendation>productName}" type="Default" press=".onSelectRecommendedProduct" class="sapUiTinyMarginBottom"/>
+<Text id="recommendedProductReason" text="{recommendation>reason}" wrapping="true" class="recommendationReasonText"/>
+</VBox>
+</FlexBox>
 </VBox>
 <!--  Single source of truth: the order items table  -->
 <Table id="orderItemsTable" width="100%" growing="true" growingThreshold="10" sticky="ColumnHeaders,HeaderToolbar" noDataText="{i18n>noProductsAdded}" items="{order>/items}">

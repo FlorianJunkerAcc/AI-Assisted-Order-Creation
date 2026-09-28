@@ -40,7 +40,29 @@ type InterpretationResult {
     clarifications: many ClarificationRequest;
 }
 
+type ProductRecommendation {
+    product_ID    : UUID;
+    productNumber : String;
+    productName   : String;
+    orderCount    : Integer;
+    totalQuantity : Integer;
+    reason        : String;
+    unitPrice     : Decimal(9,2);
+    unit          : String;
+}
+
+type RecommendationResult {
+    success          : Boolean;
+    message          : String;
+    recommendations  : many ProductRecommendation;
+}
+
 action interpretOrderItems(
     orderRequest : String
 ) returns InterpretationResult;
+
+action recommendProducts(
+    customerId : UUID,
+    excludedProductIDs : LargeString
+) returns RecommendationResult;
 }

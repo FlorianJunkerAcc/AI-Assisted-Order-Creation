@@ -47,6 +47,13 @@ sap.ui.define(
                     );
                     this.getView().setModel(
                         new JSONModel({
+                            visible: false,
+                            recommendations: []
+                        }),
+                        "recommendation"
+                    );
+                    this.getView().setModel(
+                        new JSONModel({
                             recognizedCommand: "",
                             isAiProcessing: false,
                             canSubmitAiCommand: false
@@ -60,6 +67,14 @@ sap.ui.define(
                     this._openProductValueHelp();
                 },
                 onHeaderChange: function () {
+                    const oRecommendationModel =
+                        this.getView().getModel("recommendation");
+                    if (oRecommendationModel) {
+                        oRecommendationModel.setData({
+                            visible: false,
+                            recommendations: []
+                        });
+                    }
                     this._updateCreateEnabled();
                 },
                 onAIInputChange: function () {
@@ -647,6 +662,139 @@ sap.ui.define(
                     if (!bVisible) {
                         this.byId("aiOrderInput").focus();
                     }
+                },
+                /**
+                 * Requests read-only product recommendations for the selected
+                 * customer, excluding products already in the current draft.
+                 */
+                onStartProductRecommendations: async function () {
+                    const oCustomerItem =
+                        this.byId("customerSelect").getSelectedItem();
+                    if (!oCustomerItem) {
+                        MessageBox.warning(
+                            "Please select a customer to get product recommendations."
+                        );
+                        return;
+                    }
+
+                    const oButton = this.byId(
+                        "startProductRecommendationsButton"
+                    );
+                    const oRecommendationModel =
+                        this.getView().getModel("recommendation");
+                    oRecommendationModel.setData({
+                        visible: false,
+                        recommendations: []
+                    });
+                    const aOrderItems =
+                        this.getView().getModel("order")
+                            .getProperty("/items") || [];
+                    const oActionBinding =
+                        this.getView().getModel().bindContext(
+                            "/recommendProducts(...)"
+                        );
+
+                    try {
+                        const oCustomerContext =
+                            oCustomerItem.getBindingContext();
+                        const sCustomerID =
+                            await oCustomerContext.requestProperty("ID");
+                        oActionBinding.setParameter(
+                            "customerId",
+                            sCustomerID
+                        );
+                        oActionBinding.setParameter(
+                            "excludedProductIDs",
+                            JSON.stringify(
+                                [...new Set(aOrderItems
+                                    .map((item) => item.product_ID)
+                                    .filter(Boolean))]
+                            )
+                        );
+                        oButton.setBusy(true);
+                        await oActionBinding.execute();
+                        const oResultContext =
+                            oActionBinding.getBoundContext();
+                        if (!oResultContext) {
+                            throw new Error(
+                                "The recommendation service returned no result."
+                            );
+                        }
+                        const oResult =
+                            await oResultContext.requestObject();
+                        const aRecommendations =
+                            Array.isArray(oResult.recommendations)
+                                ? oResult.recommendations
+                                : [];
+                        if (!oResult.success || aRecommendations.length === 0) {
+                            oRecommendationModel.setData({
+                                visible: false,
+                                recommendations: []
+                            });
+                            MessageToast.show(
+                                oResult.message ||
+                                    "No product recommendations were found."
+                            );
+                            return;
+                        }
+                        oRecommendationModel.setData({
+                            visible: true,
+                            recommendations: aRecommendations
+                        });
+                    } catch (oError) {
+                        console.error(
+                            "Could not load product recommendations:",
+                            oError
+                        );
+                        MessageBox.error(
+                            "Product recommendations could not be loaded: " +
+                                (oError.message || String(oError))
+                        );
+                    } finally {
+                        oButton.setBusy(false);
+                    }
+                },
+                /**
+                 * Adds the selected recommendation to the draft and removes
+                 * only that product from the displayed recommendations.
+                 */
+                onSelectRecommendedProduct: function (oEvent) {
+                    const oContext =
+                        oEvent.getSource().getBindingContext("recommendation");
+                    const oRecommendation = oContext?.getObject();
+                    if (!oRecommendation?.product_ID) {
+                        MessageBox.error(
+                            "The selected product recommendation is invalid."
+                        );
+                        return;
+                    }
+                    const fUnitPrice = Number(oRecommendation.unitPrice);
+                    this._addAiItemsToOrder([{
+                        product_ID: oRecommendation.product_ID,
+                        productName: oRecommendation.productName,
+                        unit: oRecommendation.unit || "",
+                        quantity: 1,
+                        unitPrice: fUnitPrice,
+                        totalPrice: fUnitPrice
+                    }]);
+
+                    const oRecommendationModel =
+                        this.getView().getModel("recommendation");
+                    const aRemainingRecommendations =
+                        (oRecommendationModel.getProperty(
+                            "/recommendations"
+                        ) || []).filter(
+                            (item) =>
+                                item.product_ID !==
+                                oRecommendation.product_ID
+                        );
+                    oRecommendationModel.setData({
+                        visible: aRemainingRecommendations.length > 0,
+                        recommendations: aRemainingRecommendations
+                    });
+                    MessageToast.show(
+                        `${oRecommendation.productName} added to the order draft.`
+                    );
                 },
                 onStartVoiceInput: function () {
                     const SpeechRecognition =

@@ -60,7 +60,7 @@ Fiori order draft → user review → Create Order
 ```
 ├── db/                         # CDS data model + CSV master data
 ├── srv/                        # CAP service definitions & business logic
-│   ├── sales-order-service.cds # Service + interpretOrderItems action
+│   ├── sales-order-service.cds # Service + AI interpretation/recommendation actions
 │   └── sales-order-service.js  # AI Core integration & validation logic
 └── app/salesorderui/webapp/    # Fiori custom page
     ├── ext/view/Main.view.xml       # UI layout
@@ -80,6 +80,8 @@ Requires a bound SAP AI Core service instance (see `.cdsrc-private.json`) with a
 The `SAP_Sales_Cloud_V1` destination must point to the SAP Sales Cloud tenant. The application reads `CorporateAccountCollection` from `c4codataapi` and only includes customers with `LifeCycleStatusCode = 2` and `RoleCode = CRM000`. CSRF token fetching is enabled for the remote service so write requests, such as creating a customer order, include the token and session cookie required by SAP Sales Cloud.
 
 Creating an order first posts its header to `CustomerOrderCollection` using the customer's account number as `BuyerPartyID`. The returned order number is then used to post each item to `CustomerOrderItemCollection`; item positions start at 10 and increase in steps of 10.
+
+The read-only `recommendProducts` action uses the selected customer's Sales Cloud order history to suggest up to five catalog products that are not already in the current order draft. Deterministic history-based reasons are used by default; set `ENABLE_AI_RECOMMENDATION_REASONS=true` to optionally generate friendlier reason text through SAP AI Core.
 
 ## Status
 

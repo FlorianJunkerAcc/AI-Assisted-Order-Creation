@@ -5,6 +5,8 @@ import { OrchestrationClient } from "@sap-ai-sdk/orchestration";
 const { INSERT, SELECT, UPDATE } = cds.ql;
 const BASE_PRICE_LIST_NAME =
     "Z_BASISPREISLISTE_FLORIANJUNKER";
+const ENABLE_AI_RECOMMENDATION_REASONS =
+    process.env.ENABLE_AI_RECOMMENDATION_REASONS === "true";
 
 function getSalesCloudErrorCode(error) {
     const remoteError = error.reason || error.innererror || error;
@@ -37,6 +39,74 @@ function getSalesCloudErrorMessage(error) {
         error.message ||
         "Unknown Sales Cloud error"
     );
+}
+
+function getResultRows(result) {
+    if (Array.isArray(result)) {
+        return result;
+    }
+    if (Array.isArray(result?.value)) {
+        return result.value;
+    }
+    if (Array.isArray(result?.d?.results)) {
+        return result.d.results;
+    }
+    if (result?.d && typeof result.d === "object") {
+        return [result.d];
+    }
+    return [];
+}
+
+async function generateRecommendationReasonsWithAI(recommendations) {
+    const client = new OrchestrationClient({
+        promptTemplating: {
+            model: {
+                name: "anthropic--claude-4.6-sonnet"
+            }
+        }
+    });
+    const response = await client.chatCompletion({
+        messages: [
+            {
+                role: "system",
+                content: "Write one short, friendly reason for each product " +
+                    "recommendation using only its product name, order count, " +
+                    "and total quantity. Return only JSON in the form " +
+                    '{"recommendations":[{"productNumber":"...","reason":"..."}]}.'
+            },
+            {
+                role: "user",
+                content: JSON.stringify(recommendations.map((item) => ({
+                    productNumber: item.productNumber,
+                    productName: item.productName,
+                    orderCount: item.orderCount,
+                    totalQuantity: item.totalQuantity
+                })))
+            }
+        ]
+    });
+    const parsedResponse = JSON.parse(response.getContent());
+    if (!Array.isArray(parsedResponse.recommendations)) {
+        throw new Error("AI response did not contain a recommendations array.");
+    }
+    const reasonsByProductNumber = new Map(
+        parsedResponse.recommendations
+            .filter((item) =>
+                typeof item.productNumber === "string" &&
+                typeof item.reason === "string" &&
+                item.reason.trim()
+            )
+            .map((item) => [
+                item.productNumber.toUpperCase(),
+                item.reason.trim()
+            ])
+    );
+    return recommendations.map((item) => ({
+        ...item,
+        reason: reasonsByProductNumber.get(
+            item.productNumber.toUpperCase()
+        ) || item.reason
+    }));
 }
 
 function evaluateProductFilterValue(token, product) {
@@ -738,6 +808,303 @@ return {
             return req.reject(
                 500,
                 `Order item interpretation failed: ${error.message}`
+            );
+        }
+    });
+
+    /**
+     * Reads customer order history and returns catalog products ranked by
+     * distinct order count, without creating or changing any orders.
+     */
+    this.on("recommendProducts", async (req) => {
+        const { customerId, excludedProductIDs = "[]" } = req.data;
+        if (!customerId) {
+            return req.reject(400, "A customer must be selected.");
+        }
+
+        let excludedProductIDsList;
+        try {
+            excludedProductIDsList = JSON.parse(excludedProductIDs || "[]");
+        } catch {
+            return req.reject(
+                400,
+                "The excluded product ID list must be valid JSON."
+            );
+        }
+        if (!Array.isArray(excludedProductIDsList) ||
+            excludedProductIDsList.some((id) => typeof id !== "string")) {
+            return req.reject(
+                400,
+                "The excluded product IDs must be a JSON array of strings."
+            );
+        }
+        const excludedProductIDsSet = new Set(excludedProductIDsList);
+
+        try {
+            let customer = await SELECT.one
+                .from(Customers)
+                .where({ ID: customerId });
+            if (!customer?.customerNumber) {
+                let salesCloudCustomer;
+                try {
+                    [salesCloudCustomer] = await salesCloud.run(
+                        SELECT.from(CorporateAccountCollection).where({
+                            ObjectID: customerId
+                        })
+                    );
+                } catch (error) {
+                    console.error(
+                        "Could not resolve customer in SAP Sales Cloud:",
+                        error
+                    );
+                    const lookupError = new Error(
+                        `SALES_CLOUD_CUSTOMER_LOOKUP_${getSalesCloudErrorCode(error)}: ` +
+                            getSalesCloudErrorMessage(error)
+                    );
+                    lookupError.statusCode = 502;
+                    throw lookupError;
+                }
+                customer = salesCloudCustomer
+                    ? {
+                        customerNumber: salesCloudCustomer.AccountID
+                    }
+                    : customer;
+            }
+            if (!customer?.customerNumber) {
+                return req.reject(
+                    404,
+                    "The selected customer could not be found in the local " +
+                        "customer catalog or SAP Sales Cloud."
+                );
+            }
+
+            let historicalOrders;
+            try {
+                historicalOrders = getResultRows(await salesCloud.run(
+                    SELECT.from(CustomerOrderCollection).where({
+                        BuyerPartyID: customer.customerNumber
+                    })
+                ));
+            } catch (error) {
+                console.error(
+                    "Could not read SAP Sales Cloud order history:",
+                    error
+                );
+                return req.reject(
+                    502,
+                    `SALES_CLOUD_ORDER_HISTORY_${getSalesCloudErrorCode(error)}: ` +
+                        getSalesCloudErrorMessage(error)
+                );
+            }
+
+            if (historicalOrders.length === 0) {
+                return {
+                    success: false,
+                    message: "No order history was found for this customer.",
+                    recommendations: []
+                };
+            }
+
+            const orderIDs = [...new Set(historicalOrders
+                .map((order) => order.ID)
+                .filter((id) => typeof id === "string" && id.length > 0))];
+            if (orderIDs.length === 0) {
+                return {
+                    success: false,
+                    message: "The customer's order history contains no order IDs.",
+                    recommendations: []
+                };
+            }
+
+            const historicalItems = [];
+            try {
+                for (let start = 0; start < orderIDs.length; start += 8) {
+                    const batch = orderIDs.slice(start, start + 8);
+                    const batchItems = await Promise.all(
+                        batch.map(async (salesOrderID) => ({
+                            salesOrderID,
+                            items: getResultRows(
+                                await salesCloud.run(
+                                    SELECT.from(CustomerOrderItemCollection)
+                                        .where({ SalesOrderID: salesOrderID })
+                                )
+                            )
+                        }))
+                    );
+                    historicalItems.push(
+                        ...batchItems.flatMap(({ salesOrderID, items }) =>
+                            items.map((item) => ({ salesOrderID, item }))
+                        )
+                    );
+                }
+            } catch (error) {
+                console.error(
+                    "Could not read SAP Sales Cloud order items:",
+                    error
+                );
+                return req.reject(
+                    502,
+                    `SALES_CLOUD_ORDER_ITEMS_HISTORY_${getSalesCloudErrorCode(error)}: ` +
+                        getSalesCloudErrorMessage(error)
+                );
+            }
+
+            if (historicalItems.length === 0) {
+                return {
+                    success: false,
+                    message: "No order items were found in this customer's history.",
+                    recommendations: []
+                };
+            }
+
+            const aggregatesByProductNumber = new Map();
+            for (const { salesOrderID, item } of historicalItems) {
+                const productNumber = String(item.ProductID || "")
+                    .trim()
+                    .toUpperCase();
+                const quantity = Number(item.Quantity);
+                if (!productNumber || !Number.isFinite(quantity) ||
+                    quantity <= 0) {
+                    continue;
+                }
+                let aggregate = aggregatesByProductNumber.get(productNumber);
+                if (!aggregate) {
+                    aggregate = {
+                        productNumber,
+                        orderIDs: new Set(),
+                        totalQuantity: 0
+                    };
+                    aggregatesByProductNumber.set(productNumber, aggregate);
+                }
+                aggregate.orderIDs.add(salesOrderID);
+                aggregate.totalQuantity += quantity;
+            }
+
+            const localProducts = await SELECT.from(Products);
+            const localProductsByNumber = new Map(
+                localProducts.map((product) => [
+                    String(product.productNumber || "").trim().toUpperCase(),
+                    product
+                ])
+            );
+            let salesCloudProducts;
+            try {
+                salesCloudProducts = await loadSalesCloudProducts();
+            } catch (error) {
+                console.error(
+                    "Could not resolve historical products in the active " +
+                        "SAP Sales Cloud catalog:",
+                    error
+                );
+                return req.reject(
+                    502,
+                    `SALES_CLOUD_PRODUCT_CATALOG_${getSalesCloudErrorCode(error)}: ` +
+                        getSalesCloudErrorMessage(error)
+                );
+            }
+            const salesCloudProductsByNumber = new Map(
+                salesCloudProducts.map((product) => [
+                    String(product.productNumber || "").trim().toUpperCase(),
+                    product
+                ])
+            );
+            const recommendations = [];
+            for (const aggregate of aggregatesByProductNumber.values()) {
+                const localProduct = localProductsByNumber.get(
+                    aggregate.productNumber
+                );
+                if (!localProduct) {
+                    console.warn(
+                        "Skipping historical product absent from local catalog:",
+                        aggregate.productNumber
+                    );
+                    continue;
+                }
+                const salesCloudProduct = salesCloudProductsByNumber.get(
+                    aggregate.productNumber
+                );
+                if (!salesCloudProduct) {
+                    console.warn(
+                        "Skipping historical product absent from active " +
+                            "Sales Cloud catalog:",
+                        aggregate.productNumber
+                    );
+                    continue;
+                }
+                if (excludedProductIDsSet.has(String(salesCloudProduct.ID))) {
+                    continue;
+                }
+                const unitPrice = Number(localProduct.price);
+                if (!Number.isFinite(unitPrice)) {
+                    console.warn(
+                        "Skipping recommended product without a catalog price:",
+                        localProduct.productNumber
+                    );
+                    continue;
+                }
+                const orderCount = aggregate.orderIDs.size;
+                recommendations.push({
+                    product_ID: salesCloudProduct.ID,
+                    productNumber: localProduct.productNumber,
+                    productName: localProduct.name,
+                    orderCount,
+                    totalQuantity: Math.round(aggregate.totalQuantity),
+                    reason:
+                        `Ordered in ${orderCount} distinct orders ` +
+                        `(total ${aggregate.totalQuantity} units) in this ` +
+                        "customer's order history.",
+                    unitPrice,
+                    unit: localProduct.unit || ""
+                });
+            }
+
+            if (recommendations.length === 0) {
+                return {
+                    success: false,
+                    message: aggregatesByProductNumber.size === 0
+                        ? "No products could be aggregated from the order history."
+                        : "No historical products matched the local catalog " +
+                            "or all matching products are already in the draft.",
+                    recommendations: []
+                };
+            }
+
+            recommendations.sort((left, right) =>
+                right.orderCount - left.orderCount ||
+                right.totalQuantity - left.totalQuantity
+            );
+            let topRecommendations = recommendations.slice(0, 5);
+            if (ENABLE_AI_RECOMMENDATION_REASONS) {
+                try {
+                    topRecommendations =
+                        await generateRecommendationReasonsWithAI(
+                            topRecommendations
+                        );
+                } catch (error) {
+                    console.error(
+                        "AI recommendation reason generation failed; " +
+                            "using history-based reasons:",
+                        error
+                    );
+                }
+            }
+
+            return {
+                success: true,
+                message: "Product recommendations are based on this customer's order history.",
+                recommendations: topRecommendations
+            };
+        } catch (error) {
+            const statusCode = Number(
+                error.statusCode || error.status || error.code
+            );
+            if (statusCode >= 400 && statusCode < 600) {
+                return req.reject(statusCode, error.message);
+            }
+            console.error("Product recommendations failed:", error);
+            return req.reject(
+                500,
+                `PRODUCT_RECOMMENDATIONS_FAILED: ${error.message}`
             );
         }
     });
