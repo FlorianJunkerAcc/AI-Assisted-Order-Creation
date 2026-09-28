@@ -600,17 +600,12 @@ sap.ui.define(
                     this._updateCreateEnabled();
                 },
                 _updateCreateEnabled: function () {
-                    const oCustomer = this.byId("customerSelect");
-                    const oOrderNumber = this.byId("orderNumberInput");
                     const aItems = this.getView()
                         .getModel("order")
                         .getProperty("/items") || [];
                     const bCanCreate = Boolean(
-                        oCustomer &&
-                        oCustomer.getSelectedKey() &&
-                        oOrderNumber &&
-                        oOrderNumber.getValue().trim() &&
-                        aItems.length
+                        aItems.length &&
+                        !this._isCreatingOrder
                     );
                     this.getView()
                         .getModel("order")
@@ -829,10 +824,6 @@ sap.ui.define(
                             this.byId(
                                 "customerSelect"
                             ).getSelectedItem();
-                        const sOrderNumber =
-                            this.byId(
-                                "orderNumberInput"
-                            ).getValue();
                         const sStatus =
                             this.byId(
                                 "statusInput"
@@ -844,12 +835,6 @@ sap.ui.define(
                         if (!oCustomerItem) {
                             MessageBox.warning(
                                 "Please select a customer."
-                            );
-                            return;
-                        }
-                        if (!sOrderNumber) {
-                            MessageBox.warning(
-                                "Please enter an order number."
                             );
                             return;
                         }
@@ -899,8 +884,6 @@ sap.ui.define(
                                 }
                             );
                         const oSalesOrder = {
-                            orderNumber:
-                                sOrderNumber,
                             status:
                                 sStatus,
                             customer_ID:
@@ -912,6 +895,8 @@ sap.ui.define(
                             "Sales Order payload:",
                             oSalesOrder
                         );
+                        this._isCreatingOrder = true;
+                        this._updateCreateEnabled();
                         const oListBinding =
                             oModel.bindList(
                                 "/SalesOrders"
@@ -931,8 +916,12 @@ sap.ui.define(
                             oError
                         );
                         MessageBox.error(
-                            "The Sales Order could not be created."
+                            "The Sales Order could not be created: " +
+                            (oError.message || String(oError))
                         );
+                    } finally {
+                        this._isCreatingOrder = false;
+                        this._updateCreateEnabled();
                     }
                 },
                 /**
@@ -943,9 +932,6 @@ sap.ui.define(
                     this.byId(
                         "customerSelect"
                     ).setSelectedKey("");
-                    this.byId(
-                        "orderNumberInput"
-                    ).setValue("");
                     this.byId(
                         "statusInput"
                     ).setText("Draft");

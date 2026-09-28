@@ -28,4 +28,9 @@ service SalesCloud {
             ProductID      : String(40);
             Amount         : Decimal(15, 3);
     }
+
+    entity CustomerOrderCollection {
+        key ObjectID     : String(70);
+            BuyerPartyID : String(60);
+    }
 }

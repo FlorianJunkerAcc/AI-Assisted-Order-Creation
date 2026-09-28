@@ -16,7 +16,8 @@ export default cds.service.impl(async function () {
     const {
         CorporateAccountCollection,
         ProductCollection,
-        InternalPriceDiscountListItemsCollection
+        InternalPriceDiscountListItemsCollection,
+        CustomerOrderCollection
     } = salesCloud.entities;
 
     const loadSalesCloudProducts = async () => {
@@ -84,7 +85,14 @@ export default cds.service.impl(async function () {
         const orderItems = req.data.items || [];
 
         if (!customerId) {
-            return;
+            return req.reject(400, "A customer must be selected.");
+        }
+
+        if (!orderItems.length) {
+            return req.reject(
+                400,
+                "At least one product must be added to the order."
+            );
         }
 
         const [customer] = await salesCloud.run(
@@ -148,6 +156,12 @@ export default cds.service.impl(async function () {
                 city: ""
             });
         }
+
+        await salesCloud.run(
+            INSERT.into(CustomerOrderCollection).entries({
+                BuyerPartyID: customer.ObjectID
+            })
+        );
     });
 
     /**

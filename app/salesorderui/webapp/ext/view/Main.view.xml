@@ -7,14 +7,10 @@
 <content>
 <l:Grid id="orderHeaderContent" defaultSpan="L4 M6 S12" hSpacing="1" vSpacing="0" width="100%">
 <VBox id="customerField" width="100%">
-<Label id="customerLabel" text="Customer" labelFor="customerSelect"/>
-<ComboBox id="customerSelect" width="100%" placeholder="{i18n>selectCustomer}" items="{/Customers}" selectionChange=".onHeaderChange" class="sapUiSmallMarginBottom">
+<Label id="customerLabel" text="Customer" labelFor="customerSelect" required="true"/>
+<ComboBox id="customerSelect" width="100%" placeholder="{i18n>selectCustomer}" items="{/Customers}" selectionChange=".onHeaderChange" required="true" class="sapUiSmallMarginBottom">
 <core:Item id="customerSelectItem" key="{ID}" text="{= ${customerNumber} + ' | ' + ${name} + ' | ' + ${address}}"/>
 </ComboBox>
-</VBox>
-<VBox id="orderNumberField" width="100%">
-<Label id="orderNumberLabel" text="Order Number" labelFor="orderNumberInput"/>
-<Input id="orderNumberInput" width="100%" placeholder="{i18n>enterOrderNumber}" change=".onHeaderChange" class="sapUiSmallMarginBottom"/>
 </VBox>
 <VBox id="statusField" width="100%">
 <Label id="statusLabel" text="Status" labelFor="statusInput"/>
