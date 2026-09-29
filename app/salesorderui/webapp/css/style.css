@@ -212,33 +212,67 @@
    (Home-Indicator unten, abgerundete Ecken/Notch seitlich), damit sie
    auf einem iPad in jeder Ausrichtung nicht von Systemflächen
    verdeckt werden bzw. nicht darüber hinausragen.
+
+   Der FAB dient gleichzeitig als einziger Schliess-Mechanismus fürs
+   Panel (Toggle) - es gibt bewusst KEINEN zusätzlichen X-Button im
+   Chat-Header mehr.
    ============================================================ */
 
-/* --- Floating Action Button --- */
-.picoFabButton,
-.picoFabButton .sapMBtnInner {
+/* --- Floating Action Button ---
+   Die Zentrierung des Icons erfolgt konsequent über Flexbox auf JEDER
+   Verschachtelungsebene des Buttons (Inner, Content, Icon-Wrapper),
+   statt sich auf eine einzelne line-height zu verlassen. Das
+   verhindert die zuvor beobachtete leichte Verschiebung des Icons
+   nach oben/links innerhalb des Kreises. */
+.picoFabButton {
     position: fixed !important;
     right: calc(1.25rem + env(safe-area-inset-right));
     bottom: calc(5rem + env(safe-area-inset-bottom));
     z-index: 210;
     width: 3.5rem;
     height: 3.5rem;
+}
+
+.picoFabButton .sapMBtnInner {
+    width: 3.5rem;
+    height: 3.5rem;
     min-width: 3.5rem;
     min-height: 3.5rem;
+    max-width: 3.5rem;
+    max-height: 3.5rem;
     border-radius: 50% !important;
     background-color: #8E44AD !important;
     border: none !important;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
     padding: 0 !important;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.picoFabButton .sapMBtnContent {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100%;
+    height: 100%;
+    padding: 0 !important;
+    margin: 0 !important;
 }
 
 .picoFabButton .sapMBtnIcon {
+    position: static !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
     color: #FFFFFF !important;
     font-size: 1.5rem !important;
-    line-height: 3.5rem !important;
+    line-height: 1 !important;
+    width: auto;
+    height: auto;
+    margin: 0 !important;
+    padding: 0 !important;
 }
 
 .picoFabButton:hover .sapMBtnInner {
@@ -274,7 +308,7 @@
     overscroll-behavior: contain;
 }
 
-/* --- Chat-Header --- */
+/* --- Chat-Header (rein informativ, kein Schliessen-Button mehr) --- */
 .picoChatHeader {
     flex-shrink: 0;
     padding: 0.75rem 1rem;
@@ -289,19 +323,6 @@
 .picoChatHeaderTitle {
     color: #FFFFFF;
     font-weight: bold;
-}
-
-/* Schliessen-Button: mindestens 44x44pt Touch-Ziel (Apple HIG). */
-.picoChatCloseButton,
-.picoChatCloseButton .sapMBtnInner {
-    min-width: 2.75rem !important;
-    min-height: 2.75rem !important;
-    background-color: transparent !important;
-    border: none !important;
-}
-
-.picoChatCloseButton .sapMBtnIcon {
-    color: #FFFFFF !important;
 }
 
 /* --- Scrollbarer Ergebnisbereich --- */
@@ -336,8 +357,7 @@
         max-height: calc(100vh - 6rem - env(safe-area-inset-bottom));
     }
 
-    .picoFabButton,
-    .picoFabButton .sapMBtnInner {
+    .picoFabButton {
         right: calc(0.75rem + env(safe-area-inset-right));
         bottom: calc(1rem + env(safe-area-inset-bottom));
     }

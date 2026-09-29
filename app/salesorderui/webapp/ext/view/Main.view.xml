@@ -91,18 +91,18 @@
      immer ueber der restlichen Seite schwebend dargestellt.
      ==================================================================  -->
 <!--  Floating Action Button: oeffnet/schliesst das Chat-Panel.
-     Immer sichtbar, unabhaengig vom Panel-Zustand.  -->
+     Immer sichtbar, unabhaengig vom Panel-Zustand. Dient gleichzeitig
+     als einziger Schliessen-Mechanismus (Toggle), daher gibt es im
+     Chat-Header selbst KEINEN separaten Schliessen-Button mehr.  -->
 <Button id="picoFabButton" icon="sap-icon://ai" type="Emphasized" tooltip="{i18n>startPico}" press=".onTogglePicoChat" class="picoFabButton"/>
 <!--  Chat-Panel: standardmaessig eingeklappt (visible=false).
-     Enthaelt Header (mit Schliessen-Button), scrollbaren Ergebnis-
-     bereich und fest positionierten Eingabebereich.  -->
+     Enthaelt Header (nur Titel, kein X-Button - siehe oben), einen
+     scrollbaren Ergebnisbereich und fest positionierten Eingabebereich.  -->
 <VBox id="picoChatPanel" visible="{pico>/chatOpen}" class="picoChatPanel">
-<!--  Chat-Header  -->
+<!--  Chat-Header (rein informativ, kein Schliessen-Button mehr)  -->
 <HBox id="picoChatHeader" alignItems="Center" class="picoChatHeader">
 <core:Icon id="picoChatHeaderIcon" src="sap-icon://ai" class="picoChatHeaderIcon sapUiTinyMarginEnd"/>
 <Text id="picoChatHeaderTitle" text="PICO" class="picoChatHeaderTitle"/>
-<ToolbarSpacer id="picoChatHeaderSpacer"/>
-<Button id="picoChatCloseButton" icon="sap-icon://decline" type="Transparent" tooltip="{i18n>picoClose}" press=".onTogglePicoChat" class="picoChatCloseButton"/>
 </HBox>
 <!--  Scrollbarer Ergebnisbereich  -->
 <VBox id="picoChatBody" class="picoChatBody">
