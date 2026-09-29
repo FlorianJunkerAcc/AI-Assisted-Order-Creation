@@ -96,4 +96,19 @@ action validateOrderItems(
     // JSON-kodiertes Array von { position, product_ID, quantity }
     items      : String
 ) returns OrderValidationResult;
+
+type PicoRouteResult {
+    // "ok" | "clarification_required" | "multiple_intents" | "unknown_intent"
+    status  : String;
+    // "add_items" | "recommend_products" | "validate_order" | "" (leer, falls status != "ok")
+    intent  : String;
+    // Für "ok": kurze Bestätigung. Für die anderen Status: Rückfrage bzw.
+    // Erklärung, die dem Nutzer direkt angezeigt wird.
+    message : String;
+}
+
+action routeAiCommand(
+    command : String
+) returns PicoRouteResult;
+
 }

@@ -32,16 +32,41 @@
 <ObjectStatus id="orderItemsHeaderTotal" title="{i18n>orderTotal}" text="{order>/orderTotal} EUR" state="Information" class="sapUiSmallMarginBegin"/>
 <ToolbarSpacer/>
 <Button id="addProductButton" text="{i18n>addProduct}" icon="sap-icon://add" type="Transparent" press=".onAddProduct" class="addProductButton sapUiSmallMarginEnd"/>
-<Button id="startAIAssistantButton" text="{i18n>aiAssistedEntry}" icon="sap-icon://ai" type="Transparent" press=".onStartAIAssistant" class="aiAssistedEntryButton"/>
-<Button id="startProductRecommendationsButton" text="{i18n>aiProductRecommendations}" icon="sap-icon://ai" type="Transparent" press=".onStartProductRecommendations" class="aiAssistedEntryButton"/>
-<Button id="startOrderValidationButton" text="{i18n>aiOrderValidation}" icon="sap-icon://ai" type="Transparent" press=".onStartOrderValidation" class="aiAssistedEntryButton"/>
+<!--  PICO ersetzt die frueher getrennten Buttons "AI-Assisted Entry",
+     "AI Product Recommendations" und "AI Order Validation". PICO
+     erkennt selbst, welche der drei Funktionen gemeint ist.  -->
+<Button id="startPicoButton" text="{i18n>startPico}" icon="sap-icon://ai" type="Transparent" press=".onStartPico" class="aiAssistedEntryButton"/>
 </Toolbar>
 </headerToolbar>
 <content>
 <VBox id="orderItemsContent" width="100%">
-<!--  AI assistant area (collapsed by default)  -->
+<!--  PICO assistant area (collapsed by default)  -->
 <VBox id="aiAssistantArea" width="100%" visible="false" class="aiAssistantArea sapUiMediumMarginBottom sapUiMediumMarginTop">
-<Title id="aiOrderEntryTitle" text="{i18n>aiOrderEntry}" level="H3" class="sapUiSmallMarginBottom"/>
+<Title id="aiOrderEntryTitle" text="{i18n>picoTitle}" level="H3" class="sapUiSmallMarginBottom"/>
+<!--  Begruessung: wird jedes Mal gezeigt, wenn PICO geoeffnet wird.  -->
+<VBox id="picoGreetingArea" visible="{pico>/greetingVisible}" class="clarificationBox sapUiSmallMarginBottom">
+<HBox id="picoGreetingHeaderBox" alignItems="Center" class="sapUiTinyMarginBottom">
+<core:Icon id="picoGreetingIcon" src="sap-icon://ai" class="clarificationIcon sapUiTinyMarginEnd"/>
+<Text id="picoGreetingHeaderText" text="PICO" class="clarificationHeaderText"/>
+</HBox>
+<Text id="picoGreetingIntroText" text="{i18n>picoGreetingIntro}" class="clarificationQuestionText sapUiTinyMarginBottom"/>
+<VBox id="picoGreetingBulletList" class="sapUiTinyMarginBottom">
+<Text id="picoGreetingBullet1Text" text="{i18n>picoGreetingBullet1}" class="clarificationQuestionText"/>
+<Text id="picoGreetingBullet2Text" text="{i18n>picoGreetingBullet2}" class="clarificationQuestionText"/>
+<Text id="picoGreetingBullet3Text" text="{i18n>picoGreetingBullet3}" class="clarificationQuestionText"/>
+</VBox>
+<Text id="picoGreetingOutroText" text="{i18n>picoGreetingOutro}" class="clarificationQuestionText"/>
+</VBox>
+<!--  Router-Nachrichten: Rueckfrage zum Intent, Hinweis auf mehrere
+     gleichzeitig angeforderte Funktionen, oder freundliche Ablehnung
+     bei unbekannten Anfragen.  -->
+<VBox id="picoMessageArea" visible="{pico>/messageVisible}" class="clarificationBox sapUiSmallMarginBottom">
+<HBox id="picoMessageHeaderBox" alignItems="Center" class="sapUiTinyMarginBottom">
+<core:Icon id="picoMessageIcon" src="sap-icon://ai" class="clarificationIcon sapUiTinyMarginEnd"/>
+<Text id="picoMessageHeaderText" text="PICO" class="clarificationHeaderText"/>
+</HBox>
+<Text id="picoMessageText" text="{pico>/message}" wrapping="true" class="clarificationQuestionText"/>
+</VBox>
 <Button id="startVoiceInputButton" text="{i18n>startVoiceInput}" icon="sap-icon://microphone" press=".onStartVoiceInput" class="sapUiSmallMarginBottom voiceStartButton"/>
 <VBox id="voiceListeningIndicator" visible="false" alignItems="Center" class="sapUiMediumMargin">
 <core:Icon id="voiceListeningIcon" src="sap-icon://microphone" size="2rem" color="#0070F2" class="voiceListeningPulse"/>
@@ -50,9 +75,9 @@
 <Label id="aiOrderInputLabel" text="{i18n>recognizedCommand}" labelFor="aiOrderInput"/>
 <TextArea id="aiOrderInput" width="100%" rows="3" value="{ui>/recognizedCommand}" liveChange=".onAIInputChange" valueLiveUpdate="true" placeholder="{i18n>voicePlaceholder}"/>
 <HBox id="aiConfirmationActions" width="100%" justifyContent="End" class="sapUiSmallMarginTop">
-<Button id="interpretOrderButton" text="{i18n>confirmAndAddItems}" type="Emphasized" enabled="{ui>/canSubmitAiCommand}" press=".onInterpretOrderItems"/>
+<Button id="askPicoButton" text="{i18n>askPico}" type="Emphasized" enabled="{ui>/canSubmitAiCommand}" press=".onAskPico"/>
 </HBox>
-<!--  AI clarification  -->
+<!--  Produkt-Rueckfrage innerhalb von add_items (z.B. "Kinder" ist mehrdeutig)  -->
 <VBox id="clarificationArea" visible="{clarification>/visible}" width="100%" class="sapUiMediumMarginTop">
 <VBox id="clarificationBox" class="clarificationBox sapUiSmallMarginBottom">
 <HBox id="clarificationHeaderBox" alignItems="Center" class="sapUiTinyMarginBottom">
@@ -66,7 +91,7 @@
 </FlexBox>
 </VBox>
 </VBox>
-<!--  AI product recommendations (based on customer order history)  -->
+<!--  AI product recommendations (Ergebnis von recommend_products)  -->
 <VBox id="recommendationArea" visible="{recommendation>/visible}" width="100%" class="sapUiMediumMarginTop">
 <VBox id="recommendationBox" class="clarificationBox sapUiSmallMarginBottom">
 <HBox id="recommendationHeaderBox" alignItems="Center" class="sapUiTinyMarginBottom">
@@ -77,17 +102,12 @@
 </VBox>
 <FlexBox id="productRecommendations" wrap="Wrap" items="{recommendation>/recommendations}">
 <VBox id="productRecommendation" width="14rem" class="sapUiSmallMarginEnd sapUiSmallMarginBottom">
-<!-- 
-    Der Button zeigt Produktname UND die empfohlene Menge
-    (Mittelwert der historischen Bestellmengen) direkt an,
-    damit der Nutzer vor dem Klick sieht, was übernommen wird.
- -->
 <Button id="recommendedProductButton" text="{= ${recommendation>productName} + ' (Qty ' + ${recommendation>averageQuantity} + ')'}" type="Default" press=".onSelectRecommendedProduct" class="sapUiTinyMarginBottom"/>
 <Text id="recommendedProductReason" text="{recommendation>reason}" wrapping="true" class="recommendationReasonText"/>
 </VBox>
 </FlexBox>
 </VBox>
-<!--  AI order validation (checks current draft against customer order history)  -->
+<!--  AI order validation (Ergebnis von validate_order)  -->
 <VBox id="validationArea" visible="{validation>/visible}" width="100%" class="sapUiMediumMarginTop">
 <VBox id="validationBox" class="clarificationBox sapUiSmallMarginBottom">
 <HBox id="validationHeaderBox" alignItems="Center" class="sapUiTinyMarginBottom">
@@ -96,10 +116,6 @@
 </HBox>
 <Text id="validationSummaryText" text="{validation>/message}" class="clarificationQuestionText"/>
 </VBox>
-<!-- 
-    Jede Warnung referenziert explizit ihre Position im Auftrag.
-    Die Liste ist rein informativ; ein Klick verändert nichts.
- -->
 <VBox id="validationWarnings" items="{validation>/warnings}" width="100%">
 <VBox class="validationWarningItem">
 <Text text="{= 'Position ' + ${validation>position} + ' \u2014 ' + ${validation>productName}}" class="validationWarningTitle"/>

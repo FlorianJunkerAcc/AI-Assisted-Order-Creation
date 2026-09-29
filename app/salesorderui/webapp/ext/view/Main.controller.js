@@ -61,6 +61,17 @@ sap.ui.define(
                         }),
                         "validation"
                     );
+                    // PICO: Begruessung (greetingVisible) und Router-
+                    // Nachrichten wie Rueckfragen, "nur eine Funktion pro
+                    // Befehl" oder freundliche Ablehnung (messageVisible).
+                    this.getView().setModel(
+                        new JSONModel({
+                            greetingVisible: false,
+                            messageVisible: false,
+                            message: ""
+                        }),
+                        "pico"
+                    );
                     this.getView().setModel(
                         new JSONModel({
                             recognizedCommand: "",
@@ -659,37 +670,262 @@ sap.ui.define(
                         .setProperty("/canCreate", bCanCreate);
                 },
                 /**
-                 * Blendet den AI-Assistenten ein.
+                 * Blendet PICO ein bzw. aus.
                  * Der Bereich ist in der XML-View zunächst
-                 * mit visible="false" versteckt.
+                 * mit visible="false" versteckt. Beim Oeffnen wird
+                 * immer die Begruessung gezeigt, beim Schliessen werden
+                 * Begruessung und Router-Nachricht zurueckgesetzt.
                  */
-                onStartAIAssistant: function () {
+                onStartPico: function () {
                     const oArea = this.byId("aiAssistantArea");
-                    const oButton = this.byId("startAIAssistantButton");
+                    const oButton = this.byId("startPicoButton");
                     const bVisible = oArea.getVisible();
                     oArea.setVisible(!bVisible);
+
+                    const oResourceBundle =
+                        this.getView().getModel("i18n").getResourceBundle();
                     oButton.setText(
-                        this.getView().getModel("i18n")
-                            .getResourceBundle()
-                            .getText(
-                                bVisible
-                                    ? "aiAssistedEntry"
-                                    : "aiCollapse"
-                            )
+                        oResourceBundle.getText(
+                            bVisible ? "startPico" : "picoCollapse"
+                        )
                     );
+
+                    const oPicoModel = this.getView().getModel("pico");
                     if (!bVisible) {
+                        oPicoModel.setData({
+                            greetingVisible: true,
+                            messageVisible: false,
+                            message: ""
+                        });
                         this.byId("aiOrderInput").focus();
+                    } else {
+                        oPicoModel.setData({
+                            greetingVisible: false,
+                            messageVisible: false,
+                            message: ""
+                        });
                     }
                 },
                 /**
-                 * Requests read-only product recommendations for the selected
-                 * customer, excluding products already in the current draft.
-                 * Recommendations are ranked by SAP CAP using a combined
-                 * score of relative and absolute order frequency, and each
-                 * recommendation includes an averageQuantity (mean of the
-                 * historical order quantities for that product).
+                 * Zentraler Einstiegspunkt: nimmt den Freitext-Befehl aus
+                 * dem PICO-Eingabefeld entgegen, ruft zuerst den Intent-
+                 * Router (routeAiCommand) auf und dispatcht anschliessend
+                 * je nach erkannter Absicht an genau eine der drei
+                 * bestehenden Funktionen. PICO selbst legt nie einen
+                 * Sales Order an und veraendert nie direkt den Entwurf -
+                 * das passiert weiterhin ausschliesslich in den bereits
+                 * vorhandenen Funktionen (_runAddItems,
+                 * _runRecommendProducts, _runValidateOrder).
                  */
-                onStartProductRecommendations: async function () {
+                onAskPico: async function () {
+                    const oButton = this.byId("askPicoButton");
+                    const oUiModel = this.getView().getModel("ui");
+                    const oPicoModel = this.getView().getModel("pico");
+
+                    const sCommand = (
+                        oUiModel.getProperty("/recognizedCommand") || ""
+                    ).trim();
+
+                    if (!sCommand) {
+                        MessageBox.warning(
+                            "Please enter a command for PICO."
+                        );
+                        return;
+                    }
+
+                    const oModel = this.getView().getModel();
+                    const oActionBinding = oModel.bindContext(
+                        "/routeAiCommand(...)"
+                    );
+                    oActionBinding.setParameter("command", sCommand);
+
+                    try {
+                        oUiModel.setProperty("/isAiProcessing", true);
+                        this._updateAiSubmitState();
+                        oButton.setBusy(true);
+                        oPicoModel.setProperty("/messageVisible", false);
+
+                        await oActionBinding.execute();
+
+                        const oResultContext =
+                            oActionBinding.getBoundContext();
+                        if (!oResultContext) {
+                            throw new Error(
+                                "PICO returned no result context."
+                            );
+                        }
+
+                        const oResult =
+                            await oResultContext.requestObject();
+
+                        console.log("PICO routing result:", oResult);
+
+                        switch (oResult.status) {
+
+                            case "multiple_intents":
+                            case "unknown_intent":
+                            case "clarification_required":
+                                // Eingabe bewusst NICHT leeren, damit der
+                                // Nutzer sie direkt praezisieren kann.
+                                oPicoModel.setData({
+                                    greetingVisible: false,
+                                    messageVisible: true,
+                                    message: oResult.message || ""
+                                });
+                                break;
+
+                            case "ok": {
+                                oPicoModel.setProperty(
+                                    "/messageVisible",
+                                    false
+                                );
+                                // Befehl wurde eindeutig erkannt und wird
+                                // jetzt ausgefuehrt - Eingabefeld leeren.
+                                oUiModel.setProperty(
+                                    "/recognizedCommand",
+                                    ""
+                                );
+                                this.byId("aiOrderInput").setValue("");
+
+                                if (oResult.intent === "add_items") {
+                                    await this._runAddItems(sCommand);
+                                } else if (
+                                    oResult.intent === "recommend_products"
+                                ) {
+                                    await this._runRecommendProducts();
+                                } else if (
+                                    oResult.intent === "validate_order"
+                                ) {
+                                    await this._runValidateOrder();
+                                } else {
+                                    MessageBox.error(
+                                        "PICO returned an unrecognized function."
+                                    );
+                                }
+                                break;
+                            }
+
+                            default:
+                                MessageBox.error(
+                                    "PICO returned an unexpected response."
+                                );
+                        }
+
+                    } catch (oError) {
+                        console.error("PICO routing failed:", oError);
+                        MessageBox.error(
+                            "PICO Error: " +
+                            (oError.message || String(oError))
+                        );
+                    } finally {
+                        oUiModel.setProperty("/isAiProcessing", false);
+                        this._updateAiSubmitState();
+                        oButton.setBusy(false);
+                    }
+                },
+                /**
+                 * Interpretiert Produkte/Mengen aus natuerlicher Sprache
+                 * (interpretOrderItems) und fuegt sie dem Auftragsentwurf
+                 * hinzu. Wird ausschliesslich von onAskPico aufgerufen,
+                 * nachdem PICO den Intent "add_items" erkannt hat.
+                 */
+                _runAddItems: async function (sOrderRequest) {
+                    const oModel = this.getView().getModel();
+                    const oActionBinding = oModel.bindContext(
+                        "/interpretOrderItems(...)"
+                    );
+                    oActionBinding.setParameter(
+                        "orderRequest",
+                        sOrderRequest
+                    );
+
+                    try {
+                        await oActionBinding.execute();
+
+                        const oResultContext =
+                            oActionBinding.getBoundContext();
+                        if (!oResultContext) {
+                            throw new Error(
+                                "The AI service returned no result context."
+                            );
+                        }
+
+                        const oResult =
+                            await oResultContext.requestObject();
+
+                        console.log(
+                            "AI interpretation result:",
+                            oResult
+                        );
+
+                        if (!oResult.success) {
+                            MessageBox.warning(
+                                oResult.message ||
+                                "The request could not be processed."
+                            );
+                            return;
+                        }
+
+                        const aClarifications = Array.isArray(
+                            oResult.clarifications
+                        ) ? oResult.clarifications : [];
+                        const aResolvedItems = Array.isArray(oResult.items)
+                            ? oResult.items
+                            : [];
+
+                        if (aClarifications.length > 0) {
+                            const oClarificationModel =
+                                this.getView().getModel("clarification");
+                            const oFirstClarification = aClarifications[0];
+                            const aRemainingClarifications =
+                                aClarifications.slice(1);
+                            oClarificationModel.setData({
+                                visible: true,
+                                question: oFirstClarification.question,
+                                quantity: oFirstClarification.quantity,
+                                suggestions: oFirstClarification.suggestions,
+                                pending: aRemainingClarifications
+                            });
+                            if (aResolvedItems.length > 0) {
+                                this._addAiItemsToOrder(aResolvedItems);
+                            }
+                            MessageToast.show(
+                                "Please clarify the highlighted product."
+                            );
+                            return;
+                        }
+
+                        if (aResolvedItems.length === 0) {
+                            MessageBox.warning(
+                                oResult.message ||
+                                "No matching products were identified."
+                            );
+                            return;
+                        }
+
+                        this._addAiItemsToOrder(aResolvedItems);
+                        MessageToast.show(
+                            `${aResolvedItems.length} item(s) added to the order draft`
+                        );
+
+                    } catch (oError) {
+                        console.error(
+                            "AI order interpretation failed:",
+                            oError
+                        );
+                        MessageBox.error(
+                            "AI Error: " +
+                            (oError.message || String(oError))
+                        );
+                    }
+                },
+                /**
+                 * Fordert Produktempfehlungen fuer den gewaehlten Kunden an
+                 * (recommendProducts). Wird ausschliesslich von onAskPico
+                 * aufgerufen, nachdem PICO den Intent "recommend_products"
+                 * erkannt hat.
+                 */
+                _runRecommendProducts: async function () {
                     const oCustomerItem =
                         this.byId("customerSelect").getSelectedItem();
                     if (!oCustomerItem) {
@@ -698,27 +934,29 @@ sap.ui.define(
                         );
                         return;
                     }
-                    const oButton = this.byId(
-                        "startProductRecommendationsButton"
-                    );
+
                     const oRecommendationModel =
                         this.getView().getModel("recommendation");
                     oRecommendationModel.setData({
                         visible: false,
                         recommendations: []
                     });
+
                     const aOrderItems =
                         this.getView().getModel("order")
                             .getProperty("/items") || [];
+
                     const oActionBinding =
                         this.getView().getModel().bindContext(
                             "/recommendProducts(...)"
                         );
+
                     try {
                         const oCustomerContext =
                             oCustomerItem.getBindingContext();
                         const sCustomerID =
                             await oCustomerContext.requestProperty("ID");
+
                         oActionBinding.setParameter(
                             "customerId",
                             sCustomerID
@@ -731,8 +969,9 @@ sap.ui.define(
                                     .filter(Boolean))]
                             )
                         );
-                        oButton.setBusy(true);
+
                         await oActionBinding.execute();
+
                         const oResultContext =
                             oActionBinding.getBoundContext();
                         if (!oResultContext) {
@@ -740,12 +979,15 @@ sap.ui.define(
                                 "The recommendation service returned no result."
                             );
                         }
+
                         const oResult =
                             await oResultContext.requestObject();
+
                         const aRecommendations =
                             Array.isArray(oResult.recommendations)
                                 ? oResult.recommendations
                                 : [];
+
                         if (!oResult.success || aRecommendations.length === 0) {
                             oRecommendationModel.setData({
                                 visible: false,
@@ -757,10 +999,12 @@ sap.ui.define(
                             );
                             return;
                         }
+
                         oRecommendationModel.setData({
                             visible: true,
                             recommendations: aRecommendations
                         });
+
                     } catch (oError) {
                         console.error(
                             "Could not load product recommendations:",
@@ -770,18 +1014,11 @@ sap.ui.define(
                             "Product recommendations could not be loaded: " +
                                 (oError.message || String(oError))
                         );
-                    } finally {
-                        oButton.setBusy(false);
                     }
                 },
                 /**
                  * Adds the selected recommendation to the draft and removes
                  * only that product from the displayed recommendations.
-                 *
-                 * Die Menge wird aus der vom Backend berechneten
-                 * "averageQuantity" übernommen (Mittelwert der historischen
-                 * Bestellmengen dieses Produkts). Fällt averageQuantity aus
-                 * irgendeinem Grund aus, wird defensiv auf 1 zurückgefallen.
                  */
                 onSelectRecommendedProduct: function (oEvent) {
                     const oContext =
@@ -828,12 +1065,12 @@ sap.ui.define(
                     );
                 },
                 /**
-                 * Requests a read-only validation of the current order draft
-                 * against the selected customer's SAP Sales Cloud order
-                 * history (rare/never ordered product categories and
-                 * unusually high/low quantities). Never modifies the order.
+                 * Validiert die aktuellen Auftragspositionen gegen die
+                 * Bestellhistorie des gewaehlten Kunden (validateOrderItems).
+                 * Wird ausschliesslich von onAskPico aufgerufen, nachdem
+                 * PICO den Intent "validate_order" erkannt hat.
                  */
-                onStartOrderValidation: async function () {
+                _runValidateOrder: async function () {
                     const oCustomerItem =
                         this.byId("customerSelect").getSelectedItem();
                     if (!oCustomerItem) {
@@ -857,7 +1094,6 @@ sap.ui.define(
                         return;
                     }
 
-                    const oButton = this.byId("startOrderValidationButton");
                     const oValidationModel =
                         this.getView().getModel("validation");
                     oValidationModel.setData({
@@ -892,7 +1128,6 @@ sap.ui.define(
                             )
                         );
 
-                        oButton.setBusy(true);
                         await oActionBinding.execute();
 
                         const oResultContext =
@@ -932,8 +1167,6 @@ sap.ui.define(
                             "Order validation could not be completed: " +
                                 (oError.message || String(oError))
                         );
-                    } finally {
-                        oButton.setBusy(false);
                     }
                 },
                 onStartVoiceInput: function () {
@@ -1000,118 +1233,6 @@ sap.ui.define(
                         );
                     };
                     oRecognition.start();
-                },
-                /**
-                 * Ruft die CAP-Action interpretOrderItems auf.
-                 */
-                onInterpretOrderItems: async function () {
-                    const oButton =
-                        this.byId("interpretOrderButton");
-                    const oUiModel =
-                        this.getView().getModel("ui");
-                    const sOrderRequest =
-                        (
-                            oUiModel.getProperty("/recognizedCommand") ||
-                            ""
-                        ).trim();
-                    if (!sOrderRequest) {
-                        MessageBox.warning(
-                            "Please enter products and quantities."
-                        );
-                        return;
-                    }
-                    const oModel =
-                        this.getView().getModel();
-                    const oActionBinding =
-                        oModel.bindContext(
-                            "/interpretOrderItems(...)"
-                        );
-                    oActionBinding.setParameter(
-                        "orderRequest",
-                        sOrderRequest
-                    );
-                    try {
-                        oUiModel.setProperty(
-                            "/isAiProcessing",
-                            true
-                        );
-                        this._updateAiSubmitState();
-                        oButton.setBusy(true);
-                        await oActionBinding.execute();
-                        const oResultContext =
-                            oActionBinding.getBoundContext();
-                        if (!oResultContext) {
-                            throw new Error(
-                                "The AI service returned no result context."
-                            );
-                        }
-                        const oResult =
-                            await oResultContext.requestObject();
-                        console.log(
-                            "AI interpretation result:",
-                            oResult
-                        );
-                        if (!oResult.success) {
-                            MessageBox.warning(
-                                oResult.message ||
-                                "The request could not be processed."
-                            );
-                            return;
-                        }
-                        const aClarifications = Array.isArray(oResult.clarifications)
-                            ? oResult.clarifications
-                            : [];
-                        const aResolvedItems = Array.isArray(oResult.items)
-                            ? oResult.items
-                            : [];
-                        if (aClarifications.length > 0) {
-                            const oClarificationModel =
-                                this.getView().getModel("clarification");
-                            const oFirstClarification = aClarifications[0];
-                            const aRemainingClarifications = aClarifications.slice(1);
-                            oClarificationModel.setData({
-                                visible: true,
-                                question: oFirstClarification.question,
-                                quantity: oFirstClarification.quantity,
-                                suggestions: oFirstClarification.suggestions,
-                                pending: aRemainingClarifications
-                            });
-                            if (aResolvedItems.length > 0) {
-                                this._addAiItemsToOrder(aResolvedItems);
-                            }
-                            MessageToast.show(
-                                "Please clarify the highlighted product."
-                            );
-                            return;
-                        }
-                        if (aResolvedItems.length === 0) {
-                            MessageBox.warning(
-                                oResult.message ||
-                                "No matching products were identified."
-                            );
-                            return;
-                        }
-                        this._addAiItemsToOrder(aResolvedItems);
-                        MessageToast.show(
-                            `${aResolvedItems.length} item(s) added to the order draft`
-                        );
-                    } catch (oError) {
-                        console.error(
-                            "AI order interpretation failed:",
-                            oError
-                        );
-                        MessageBox.error(
-                            "AI Error: " +
-                            (oError.message || String(oError))
-                        );
-                    } finally {
-                        oUiModel.setProperty(
-                            "/isAiProcessing",
-                            false
-                        );
-                        this._updateAiSubmitState();
-                        oButton.setBusy(false);
-                    }
                 },
                 /**
                  * Speichert den vollständigen Sales Order.
@@ -1275,12 +1396,19 @@ sap.ui.define(
                         "aiAssistantArea"
                     ).setVisible(false);
                     this.byId(
-                        "startAIAssistantButton"
+                        "startPicoButton"
                     ).setText(
                         this.getView().getModel("i18n")
                             .getResourceBundle()
-                            .getText("aiAssistedEntry")
+                            .getText("startPico")
                     );
+                    this.getView()
+                        .getModel("pico")
+                        .setData({
+                            greetingVisible: false,
+                            messageVisible: false,
+                            message: ""
+                        });
                     this.getView()
                         .getModel("recommendation")
                         .setData({

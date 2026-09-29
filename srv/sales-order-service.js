@@ -12,41 +12,37 @@ const ENABLE_AI_RECOMMENDATION_REASONS =
 
 // ---------------------------------------------------------------------
 // Gewichtung für den kombinierten Empfehlungs-Score (recommendProducts).
-// RELATIVE_FREQUENCY_WEIGHT: wie stark der Anteil an allen Aufträgen zählt.
-// ABSOLUTE_FREQUENCY_WEIGHT: wie stark die reine Anzahl an Aufträgen zählt
-//   (normalisiert relativ zum häufigsten Produkt im Kandidatenset).
-// Beide Gewichte müssen sich zu 1 addieren.
 // ---------------------------------------------------------------------
 const RELATIVE_FREQUENCY_WEIGHT = 0.5;
 const ABSOLUTE_FREQUENCY_WEIGHT = 0.5;
 
 // ---------------------------------------------------------------------
 // Schwellenwerte für validateOrderItems (AI Order Validation).
-//
-// MIN_ORDERS_FOR_VALIDATION: Mindestanzahl historischer Aufträge, die für
-//   diesen Kunden vorliegen muss, damit überhaupt geprüft wird. Bei
-//   weniger Aufträgen wäre jede Aussage statistisch nicht belastbar.
-//
-// RARE_CATEGORY_THRESHOLD: Eine Produktkategorie gilt als "selten
-//   bestellt", wenn sie in weniger als diesem Anteil aller historischen
-//   Aufträge vorkam (0.15 = 15%). Kam sie in KEINEM Auftrag vor (0%),
-//   wird das gesondert als "nie bestellt" ausgewiesen.
-//
-// QUANTITY_HIGH_FACTOR / QUANTITY_LOW_FACTOR: Eine Bestellmenge gilt als
-//   ungewöhnlich hoch, wenn sie mindestens das 2,0-fache des historischen
-//   Mittelwerts beträgt, bzw. als ungewöhnlich niedrig, wenn sie höchstens
-//   das 0,5-fache beträgt.
-//
-// MIN_AVERAGE_FOR_LOW_CHECK: Die "ungewöhnlich niedrig"-Prüfung wird nur
-//   angewendet, wenn der historische Mittelwert mindestens 2 Einheiten
-//   beträgt. Das verhindert Fehlalarme bei ohnehin sehr kleinen
-//   Durchschnittsmengen (z. B. Ø 1 Stück, wo 0,5 kaum aussagekräftig ist).
 // ---------------------------------------------------------------------
 const MIN_ORDERS_FOR_VALIDATION = 3;
 const RARE_CATEGORY_THRESHOLD = 0.15;
 const QUANTITY_HIGH_FACTOR = 2.0;
 const QUANTITY_LOW_FACTOR = 0.5;
 const MIN_AVERAGE_FOR_LOW_CHECK = 2;
+
+// ---------------------------------------------------------------------
+// PICO Intent Router (routeAiCommand).
+//
+// PICO_ALLOWED_STATUSES: die vier möglichen Router-Ergebnisse.
+// PICO_ALLOWED_INTENTS: die drei konkreten Funktionen, die PICO an den
+//   Controller weiterreichen kann, wenn status === "ok".
+// ---------------------------------------------------------------------
+const PICO_ALLOWED_STATUSES = [
+    "ok",
+    "clarification_required",
+    "multiple_intents",
+    "unknown_intent"
+];
+const PICO_ALLOWED_INTENTS = [
+    "add_items",
+    "recommend_products",
+    "validate_order"
+];
 
 function getSalesCloudErrorCode(error) {
     const remoteError = error.reason || error.innererror || error;
@@ -104,21 +100,6 @@ function average(numbers) {
 /**
  * Berechnet für eine Liste von Produkt-Aggregaten einen kombinierten
  * Ranking-Score aus relativer und absoluter Bestellhäufigkeit.
- *
- * - relativeFrequency = orderCount / totalOrders
- *   (Anteil an ALLEN historischen Aufträgen dieses Kunden, in denen das
- *   Produkt vorkam; Wertebereich bereits 0..1)
- *
- * - normalizedAbsoluteFrequency = orderCount / maxOrderCountInCandidateSet
- *   (orderCount wird relativ zum häufigsten Produkt in diesem konkreten
- *   Vorschlags-Set auf 0..1 normalisiert, damit es mit relativeFrequency
- *   vergleichbar gewichtet werden kann)
- *
- * - score = relativeFrequency * RELATIVE_FREQUENCY_WEIGHT
- *         + normalizedAbsoluteFrequency * ABSOLUTE_FREQUENCY_WEIGHT
- *
- * totalQuantity dient nur als zusätzlicher Tie-Breaker beim Sortieren,
- * nicht als Bestandteil des Scores selbst.
  */
 function rankRecommendationsByFrequency(recommendations, totalOrders) {
     const maxOrderCount = Math.max(
@@ -672,15 +653,6 @@ export default cds.service.impl(async function () {
 
     /**
      * Handler für die CAP Action interpretOrderItems.
-     *
-     * Die Action:
-     * 1. empfängt einen natürlichsprachlichen Bestelltext,
-     * 2. liest den Produktkatalog aus der SAP Sales Cloud,
-     * 3. sendet Text und Produktkatalog an SAP AI Core,
-     * 4. validiert die AI-Antwort,
-     * 5. ergänzt echte Preise aus der Produktdatenbank,
-     * 6. gibt nur vorgeschlagene Auftragspositionen zurück.
-     *
      * Die Action speichert keinen Sales Order.
      */
     this.on("interpretOrderItems", async (req) => {
@@ -907,15 +879,6 @@ Return exactly this structure:
      * Reads customer order history from SAP Sales Cloud and returns catalog
      * products ranked by a combined score of RELATIVE and ABSOLUTE order
      * frequency, without creating or changing any orders.
-     *
-     * Ranking (see rankRecommendationsByFrequency):
-     * - relativeFrequency = orderCount / totalOrders
-     * - normalized absolute frequency = orderCount / max(orderCount im Set)
-     * - score = gewichtete Kombination aus beidem
-     *
-     * Zusätzlich wird pro empfohlenem Produkt eine "averageQuantity"
-     * berechnet: der Mittelwert der historisch bestellten Mengen
-     * (totalQuantity / orderCount, gerundet, mindestens 1).
      */
     this.on("recommendProducts", async (req) => {
         const { customerId, excludedProductIDs = "[]" } = req.data;
@@ -1088,10 +1051,6 @@ Return exactly this structure:
 
                 const orderCount = aggregate.orderIDs.size;
 
-                // Empfohlene Menge = Mittelwert der historischen Mengen
-                // (Gesamtmenge über alle Aufträge / Anzahl der Aufträge,
-                // in denen das Produkt vorkam). Auf ganze Einheiten
-                // gerundet und nach unten auf mindestens 1 begrenzt.
                 const averageQuantity = Math.max(
                     1,
                     Math.round(aggregate.totalQuantity / orderCount)
@@ -1174,34 +1133,8 @@ Return exactly this structure:
 
     /**
      * AI Order Validation.
-     *
      * Prüft die aktuell im Fiori-Entwurf enthaltenen Auftragspositionen
-     * gegen die SAP-Sales-Cloud-Bestellhistorie desselben Kunden. Es
-     * werden ausschließlich Informationen zurückgegeben — es wird nie ein
-     * Auftrag angelegt, geändert oder gesendet.
-     *
-     * Zwei unabhängige Prüfungen pro Position:
-     *
-     * 1. SELTENE / NIE BESTELLTE PRODUKTGRUPPE
-     *    categoryRelativeFrequency = Anzahl unterschiedlicher historischer
-     *    Aufträge, die IRGENDEIN Produkt aus dieser Kategorie enthalten,
-     *    geteilt durch die Gesamtzahl aller historischen Aufträge.
-     *    - "nie bestellt", wenn categoryOrderCount === 0.
-     *    - "selten bestellt", wenn categoryRelativeFrequency unter
-     *      RARE_CATEGORY_THRESHOLD (15%) liegt.
-     *
-     * 2. UNGEWÖHNLICHE MENGE
-     *    Vergleichswert ist der Mittelwert der historisch bestellten
-     *    Mengen für GENAU dieses Produkt. Wurde das Produkt selbst noch
-     *    nie bestellt, wird ersatzweise der Mittelwert aller Produkte der
-     *    gleichen Kategorie verwendet (explizit als Fallback ausgewiesen).
-     *    - "ungewöhnlich hoch", wenn Menge >= Mittelwert * QUANTITY_HIGH_FACTOR.
-     *    - "ungewöhnlich niedrig", wenn Menge <= Mittelwert * QUANTITY_LOW_FACTOR
-     *      UND Mittelwert >= MIN_AVERAGE_FOR_LOW_CHECK.
-     *
-     * Voraussetzung für beide Prüfungen: mindestens MIN_ORDERS_FOR_VALIDATION
-     * historische Aufträge. Andernfalls wird dies transparent gemeldet und
-     * es werden keine Warnungen erzeugt.
+     * gegen die SAP-Sales-Cloud-Bestellhistorie desselben Kunden.
      */
     this.on("validateOrderItems", async (req) => {
         const { customerId, items: itemsJson } = req.data;
@@ -1294,7 +1227,6 @@ Return exactly this structure:
                 ])
             );
 
-            // Aggregiert historische Mengen PRO PRODUKT und PRO KATEGORIE.
             const productStats = new Map();
             const categoryStats = new Map();
 
@@ -1339,8 +1271,6 @@ Return exactly this structure:
 
                 if (!Number.isFinite(position) || !line.product_ID ||
                     !Number.isFinite(quantity) || quantity <= 0) {
-                    // Fehlerhafte Eingabezeile wird defensiv übersprungen,
-                    // statt die gesamte Validierung abzubrechen.
                     continue;
                 }
 
@@ -1365,7 +1295,6 @@ Return exactly this structure:
                     String(product.productNumber || "").trim().toUpperCase();
                 const categoryID = product.productCategoryID || "UNCATEGORIZED";
 
-                // --- Prüfung 1: seltene / nie bestellte Produktgruppe ---
                 const categoryStat = categoryStats.get(categoryID);
                 const categoryOrderCount = categoryStat
                     ? categoryStat.orderIDs.size
@@ -1402,14 +1331,10 @@ Return exactly this structure:
                     });
                 }
 
-                // --- Prüfung 2: ungewöhnliche Menge ---
                 let baseline = productStats.get(productNumber);
                 let baselineSource = `this exact product (${product.name})`;
 
                 if (!baseline || baseline.quantities.length === 0) {
-                    // Fallback: Mittelwert der Kategorie, da dieses Produkt
-                    // selbst noch nie bestellt wurde. Wird im Text explizit
-                    // als Fallback ausgewiesen.
                     baseline = categoryStats.get(categoryID);
                     baselineSource =
                         `products in category "${categoryID}" (this exact ` +
@@ -1486,6 +1411,123 @@ Return exactly this structure:
             return req.reject(
                 500,
                 `ORDER_VALIDATION_FAILED: ${error.message}`
+            );
+        }
+    });
+
+    /**
+     * PICO Intent Router (routeAiCommand).
+     *
+     * Empfängt einen beliebigen Freitext-Befehl aus dem EINEN PICO-
+     * Eingabefeld und entscheidet mittels Sonnet, welche der drei
+     * bestehenden Funktionen gemeint ist:
+     *
+     *   add_items          -> interpretOrderItems
+     *   recommend_products -> recommendProducts
+     *   validate_order     -> validateOrderItems
+     *
+     * PICO führt selbst NICHTS aus - er liefert nur die Entscheidung
+     * (status + intent) und ggf. einen Text, der dem Nutzer direkt
+     * angezeigt wird (Rückfrage, Hinweis auf mehrere Funktionen,
+     * freundliche Ablehnung bei unbekannten Anfragen).
+     *
+     * status:
+     *   "ok"                     -> intent ist gesetzt, Controller führt aus
+     *   "clarification_required" -> message enthält eine Rückfrage
+     *   "multiple_intents"       -> message erklärt, dass nur eine
+     *                                Funktion pro Befehl möglich ist
+     *   "unknown_intent"         -> message lehnt freundlich ab
+     */
+    this.on("routeAiCommand", async (req) => {
+        const { command } = req.data;
+
+        if (!command?.trim()) {
+            return req.reject(400, "The command must not be empty.");
+        }
+
+        console.log("PICO command received:", command);
+
+        try {
+            const client = new OrchestrationClient({
+                promptTemplating: {
+                    model: {
+                        name: "anthropic--claude-4.6-sonnet"
+                    }
+                }
+            });
+
+            const response = await client.chatCompletion({
+                messages: [
+                    {
+                        role: "system",
+                        content: `You are the intent router for PICO, an AI assistant that helps sales representatives create customer sales orders in a SAP-based application.
+
+PICO can perform exactly three functions:
+
+1. add_items - interpret spoken or typed product names and quantities and add them as order line items to the current order draft.
+2. recommend_products - suggest products to add to the order, based on the customer's historical order data.
+3. validate_order - check the current order draft's line items against the customer's order history and flag unusual product categories or quantities.
+
+Analyze the user's command and decide which single function is meant.
+
+Rules:
+
+- If the command clearly and unambiguously matches exactly ONE of the three functions, respond with status "ok" and set intent to that function's identifier (add_items, recommend_products, or validate_order). The message field can be a short one-sentence acknowledgement in German.
+- If the command explicitly or implicitly asks for TWO OR MORE of the three functions to be performed together (for example "add 5 Nutella and also validate the order"), respond with status "multiple_intents", intent set to an empty string, and a friendly German message explaining that PICO can only execute one function per command and asking the user to submit the requests one at a time.
+- If the command could reasonably match more than one function, or its meaning is unclear, respond with status "clarification_required", intent set to an empty string, and a short German clarifying question that helps determine which of the three functions is meant.
+- If the command does not relate to any of the three functions at all (for example small talk, unrelated topics, or requests PICO cannot fulfill), respond with status "unknown_intent", intent set to an empty string, and a very friendly German message explaining that PICO cannot help with this, briefly restating the three things PICO can help with.
+
+Always write the "message" field in German, regardless of the language of the input command.
+
+Do not invent order data. Do not decide which specific products or quantities are meant - that happens later in a separate step. Your only job is to decide WHICH of the three functions applies.
+
+Return only valid JSON in exactly this structure. Do not wrap the JSON in Markdown code fences.
+
+{
+  "status": "ok" | "clarification_required" | "multiple_intents" | "unknown_intent",
+  "intent": "add_items" | "recommend_products" | "validate_order" | "",
+  "message": "string"
+}`
+                    },
+                    {
+                        role: "user",
+                        content: command
+                    }
+                ]
+            });
+
+            const aiResponse = response.getContent();
+
+            console.log("PICO raw routing response:", aiResponse);
+
+            const parsedResponse = JSON.parse(aiResponse);
+
+            if (!PICO_ALLOWED_STATUSES.includes(parsedResponse.status)) {
+                throw new Error(
+                    `PICO returned an unknown status: ${parsedResponse.status}`
+                );
+            }
+
+            if (parsedResponse.status === "ok" &&
+                !PICO_ALLOWED_INTENTS.includes(parsedResponse.intent)) {
+                throw new Error(
+                    `PICO returned an unknown intent: ${parsedResponse.intent}`
+                );
+            }
+
+            return {
+                status: parsedResponse.status,
+                intent: parsedResponse.status === "ok"
+                    ? parsedResponse.intent
+                    : "",
+                message: parsedResponse.message || ""
+            };
+
+        } catch (error) {
+            console.error("PICO routing failed:", error);
+            return req.reject(
+                500,
+                `PICO_ROUTING_FAILED: ${error.message}`
             );
         }
     });
