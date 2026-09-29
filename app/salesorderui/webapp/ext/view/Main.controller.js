@@ -87,23 +87,7 @@ sap.ui.define(
                     this._openProductValueHelp();
                 },
                 onHeaderChange: function () {
-                    const oRecommendationModel =
-                        this.getView().getModel("recommendation");
-                    if (oRecommendationModel) {
-                        oRecommendationModel.setData({
-                            visible: false,
-                            recommendations: []
-                        });
-                    }
-                    const oValidationModel =
-                        this.getView().getModel("validation");
-                    if (oValidationModel) {
-                        oValidationModel.setData({
-                            visible: false,
-                            message: "",
-                            warnings: []
-                        });
-                    }
+                    this._clearAiResultAreas();
                     this._updateCreateEnabled();
                 },
                 onAIInputChange: function () {
@@ -127,6 +111,36 @@ sap.ui.define(
                         "/canSubmitAiCommand",
                         Boolean(sCommand.trim()) && !bProcessing
                     );
+                },
+                /**
+                 * Setzt die Ergebnisbereiche ALLER drei PICO-Funktionen
+                 * zurueck (Clarification, Recommendation, Validation).
+                 *
+                 * Wird bewusst zentral aufgerufen, statt jede Funktion nur
+                 * ihr eigenes Ergebnis setzen zu lassen: sonst bleibt z.B.
+                 * eine vorherige Produktempfehlung sichtbar, waehrend
+                 * bereits das Ergebnis der Auftragsvalidierung angezeigt
+                 * wird. Aufrufstellen: bei jedem neu erkannten Intent
+                 * (onAskPico, Status "ok") sowie beim Kundenwechsel
+                 * (onHeaderChange) und beim Zuruecksetzen des Formulars.
+                 */
+                _clearAiResultAreas: function () {
+                    this.getView().getModel("clarification").setData({
+                        visible: false,
+                        question: "",
+                        quantity: 1,
+                        suggestions: [],
+                        pending: []
+                    });
+                    this.getView().getModel("recommendation").setData({
+                        visible: false,
+                        recommendations: []
+                    });
+                    this.getView().getModel("validation").setData({
+                        visible: false,
+                        message: "",
+                        warnings: []
+                    });
                 },
                 /**
                  * Entfernt eine Position aus dem Auftragsentwurf.
@@ -673,8 +687,9 @@ sap.ui.define(
                  * Blendet PICO ein bzw. aus.
                  * Der Bereich ist in der XML-View zunächst
                  * mit visible="false" versteckt. Beim Oeffnen wird
-                 * immer die Begruessung gezeigt, beim Schliessen werden
-                 * Begruessung und Router-Nachricht zurueckgesetzt.
+                 * immer die Begruessung gezeigt und alle vorherigen
+                 * Ergebnisbereiche werden geleert, beim Schliessen
+                 * werden Begruessung und Router-Nachricht zurueckgesetzt.
                  */
                 onStartPico: function () {
                     const oArea = this.byId("aiAssistantArea");
@@ -697,6 +712,7 @@ sap.ui.define(
                             messageVisible: false,
                             message: ""
                         });
+                        this._clearAiResultAreas();
                         this.byId("aiOrderInput").focus();
                     } else {
                         oPicoModel.setData({
@@ -779,6 +795,16 @@ sap.ui.define(
                                     "/messageVisible",
                                     false
                                 );
+                                // Neuer, eindeutig erkannter Intent: zuerst
+                                // ALLE bisherigen Ergebnisbereiche leeren
+                                // (Clarification, Recommendation,
+                                // Validation), damit z.B. eine vorherige
+                                // Produktempfehlung nicht sichtbar bleibt,
+                                // waehrend bereits das Validierungsergebnis
+                                // angezeigt wird. Erst danach die neue
+                                // Funktion ausfuehren.
+                                this._clearAiResultAreas();
+
                                 // Befehl wurde eindeutig erkannt und wird
                                 // jetzt ausgefuehrt - Eingabefeld leeren.
                                 oUiModel.setProperty(
@@ -937,10 +963,6 @@ sap.ui.define(
 
                     const oRecommendationModel =
                         this.getView().getModel("recommendation");
-                    oRecommendationModel.setData({
-                        visible: false,
-                        recommendations: []
-                    });
 
                     const aOrderItems =
                         this.getView().getModel("order")
@@ -1096,11 +1118,6 @@ sap.ui.define(
 
                     const oValidationModel =
                         this.getView().getModel("validation");
-                    oValidationModel.setData({
-                        visible: false,
-                        message: "",
-                        warnings: []
-                    });
 
                     const oActionBinding =
                         this.getView().getModel().bindContext(
@@ -1409,19 +1426,7 @@ sap.ui.define(
                             messageVisible: false,
                             message: ""
                         });
-                    this.getView()
-                        .getModel("recommendation")
-                        .setData({
-                            visible: false,
-                            recommendations: []
-                        });
-                    this.getView()
-                        .getModel("validation")
-                        .setData({
-                            visible: false,
-                            message: "",
-                            warnings: []
-                        });
+                    this._clearAiResultAreas();
                     this.getView()
                         .getModel("order")
                         .setData({
