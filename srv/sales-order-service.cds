@@ -112,7 +112,7 @@ action routeAiCommand(
 ) returns PicoRouteResult;
 
 type CustomerMatchSuggestion {
-    customerId     : UUID;
+    customerId     : String;
     customerNumber : String;
     customerName   : String;
 }
@@ -121,7 +121,7 @@ type CustomerSelectionResult {
     // "resolved" | "clarification_required"
     status         : String;
     // Nur befüllt, wenn status = "resolved"
-    customerId     : UUID;
+    customerId     : String;
     customerNumber : String;
     customerName   : String;
     // Nur befüllt, wenn status = "clarification_required"
@@ -132,5 +132,6 @@ type CustomerSelectionResult {
 action selectCustomer(
     command : String
 ) returns CustomerSelectionResult;
+
 
 }

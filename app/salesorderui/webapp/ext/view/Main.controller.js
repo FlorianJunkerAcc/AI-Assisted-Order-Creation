@@ -46,6 +46,17 @@ sap.ui.define(
                         }),
                         "clarification"
                     );
+                    // Rueckfrage speziell fuer die Kundenauswahl
+                    // (select_customer). Kein "quantity"/"pending" noetig,
+                    // da hier immer nur eine einzelne Rueckfrage entsteht.
+                    this.getView().setModel(
+                        new JSONModel({
+                            visible: false,
+                            question: "",
+                            suggestions: []
+                        }),
+                        "customerClarification"
+                    );
                     this.getView().setModel(
                         new JSONModel({
                             visible: false,
@@ -116,8 +127,16 @@ sap.ui.define(
                     );
                 },
                 /**
-                 * Setzt die Ergebnisbereiche ALLER drei PICO-Funktionen
-                 * zurueck (Clarification, Recommendation, Validation).
+                 * Setzt die Ergebnisbereiche ALLER vier PICO-Funktionen
+                 * zurueck (Customer Clarification, Product Clarification,
+                 * Recommendation, Validation).
+                 *
+                 * Wichtig: "question" wird explizit auf "" zurueckgesetzt,
+                 * nicht nur "visible" auf false - die XML-View prueft bei
+                 * beiden Clarification-Bereichen zusaetzlich, dass
+                 * "question" nicht leer ist, bevor die Box angezeigt wird.
+                 * Das verhindert zuverlaessig eine leere, inhaltslose
+                 * "PICO needs clarification"-Box.
                  *
                  * Wird zentral aufgerufen, statt jede Funktion nur ihr
                  * eigenes Ergebnis setzen zu lassen: sonst bliebe z.B.
@@ -129,6 +148,11 @@ sap.ui.define(
                  * Zuruecksetzen des Formulars.
                  */
                 _clearAiResultAreas: function () {
+                    this.getView().getModel("customerClarification").setData({
+                        visible: false,
+                        question: "",
+                        suggestions: []
+                    });
                     this.getView().getModel("clarification").setData({
                         visible: false,
                         question: "",
@@ -689,15 +713,13 @@ sap.ui.define(
                 },
                 /**
                  * Oeffnet bzw. schliesst das schwebende PICO-Chat-Panel.
-                 * Wird sowohl vom FAB-Button als auch vom Schliessen-"X"
-                 * im Chat-Header aufgerufen (identisches Toggle-Verhalten).
+                 * Wird ausschliesslich vom FAB-Button aufgerufen (Toggle-
+                 * Verhalten, kein separater Schliessen-Button im Header).
                  *
                  * Beim Oeffnen: Begruessung anzeigen, alle vorherigen
                  * Ergebnisbereiche leeren, Eingabefeld fokussieren.
                  * Beim Schliessen: Begruessung/Router-Nachricht
-                 * zuruecksetzen (Ergebnisse bleiben bewusst sichtbar
-                 * fuer den naechsten Blick, werden aber beim naechsten
-                 * Oeffnen ohnehin ueberschrieben).
+                 * zuruecksetzen.
                  */
                 onTogglePicoChat: function () {
                     const oPicoModel = this.getView().getModel("pico");
@@ -708,6 +730,12 @@ sap.ui.define(
                     oPicoModel.setProperty("/chatOpen", bNewOpen);
 
                     if (bNewOpen) {
+                        // WICHTIG: Zuerst alle Ergebnisbereiche leeren,
+                        // DANACH erst die Begruessung anzeigen. So kann
+                        // beim Oeffnen niemals eine leere Rueckfrage-Box
+                        // parallel zur Begruessung sichtbar sein.
+                        this._clearAiResultAreas();
+
                         oPicoModel.setProperty(
                             "/greetingVisible",
                             true
@@ -717,7 +745,6 @@ sap.ui.define(
                             false
                         );
                         oPicoModel.setProperty("/message", "");
-                        this._clearAiResultAreas();
 
                         // Fokus erst nach dem Rendern des Panels setzen.
                         setTimeout(
@@ -746,12 +773,12 @@ sap.ui.define(
                  * Zentraler Einstiegspunkt: nimmt den Freitext-Befehl aus
                  * dem PICO-Eingabefeld entgegen, ruft zuerst den Intent-
                  * Router (routeAiCommand) auf und dispatcht anschliessend
-                 * je nach erkannter Absicht an genau eine der drei
+                 * je nach erkannter Absicht an genau eine der vier
                  * bestehenden Funktionen. PICO selbst legt nie einen
                  * Sales Order an und veraendert nie direkt den Entwurf -
                  * das passiert weiterhin ausschliesslich in den bereits
-                 * vorhandenen Funktionen (_runAddItems,
-                 * _runRecommendProducts, _runValidateOrder).
+                 * vorhandenen Funktionen (_runSelectCustomer,
+                 * _runAddItems, _runRecommendProducts, _runValidateOrder).
                  */
                 onAskPico: async function () {
                     const oButton = this.byId("askPicoButton");
@@ -818,7 +845,8 @@ sap.ui.define(
                                 );
                                 // Neuer, eindeutig erkannter Intent: zuerst
                                 // ALLE bisherigen Ergebnisbereiche leeren
-                                // (Clarification, Recommendation,
+                                // (Customer Clarification, Product
+                                // Clarification, Recommendation,
                                 // Validation), damit z.B. eine vorherige
                                 // Produktempfehlung nicht sichtbar bleibt,
                                 // waehrend bereits das Validierungsergebnis
@@ -834,7 +862,11 @@ sap.ui.define(
                                 );
                                 this.byId("aiOrderInput").setValue("");
 
-                                if (oResult.intent === "add_items") {
+                                if (oResult.intent === "select_customer") {
+                                    await this._runSelectCustomer(sCommand);
+                                } else if (
+                                    oResult.intent === "add_items"
+                                ) {
                                     await this._runAddItems(sCommand);
                                 } else if (
                                     oResult.intent === "recommend_products"
@@ -869,6 +901,183 @@ sap.ui.define(
                         this._updateAiSubmitState();
                         oButton.setBusy(false);
                     }
+                },
+                /**
+                 * Identifiziert den gemeinten Kunden per Name/Kundennummer
+                 * (selectCustomer) und setzt ihn im Header. Wird
+                 * ausschliesslich von onAskPico aufgerufen, nachdem PICO
+                 * den Intent "select_customer" erkannt hat.
+                 */
+                _runSelectCustomer: async function (sCommand) {
+                    const oModel = this.getView().getModel();
+                    const oActionBinding = oModel.bindContext(
+                        "/selectCustomer(...)"
+                    );
+                    oActionBinding.setParameter("command", sCommand);
+
+                    try {
+                        await oActionBinding.execute();
+
+                        const oResultContext =
+                            oActionBinding.getBoundContext();
+                        if (!oResultContext) {
+                            throw new Error(
+                                "The customer selection service returned no result context."
+                            );
+                        }
+
+                        const oResult =
+                            await oResultContext.requestObject();
+
+                        console.log(
+                            "Customer selection result:",
+                            oResult
+                        );
+
+                        if (oResult.status === "resolved") {
+                            const bApplied = await this._applySelectedCustomer(
+                                oResult.customerId,
+                                oResult.customerName
+                            );
+
+                            if (bApplied) {
+                                MessageToast.show(
+                                    `Customer ${oResult.customerName} selected.`
+                                );
+                            } else {
+                                MessageBox.error(
+                                    "PICO identified customer " +
+                                    oResult.customerName +
+                                    ", but it could not be found in the " +
+                                    "customer dropdown. Please select the " +
+                                    "customer manually."
+                                );
+                            }
+                            return;
+                        }
+
+                        if (oResult.status === "clarification_required") {
+                            const oCustomerClarificationModel =
+                                this.getView().getModel(
+                                    "customerClarification"
+                                );
+                            oCustomerClarificationModel.setData({
+                                visible: true,
+                                question: oResult.question,
+                                suggestions: oResult.suggestions
+                            });
+                            MessageToast.show(
+                                "Please clarify which customer you mean."
+                            );
+                            return;
+                        }
+
+                        MessageBox.error(
+                            "Customer selection returned an unexpected result."
+                        );
+
+                    } catch (oError) {
+                        console.error(
+                            "Customer selection failed:",
+                            oError
+                        );
+                        MessageBox.error(
+                            "Customer selection failed: " +
+                            (oError.message || String(oError))
+                        );
+                    }
+                },
+                /**
+                 * Wird ausgeloest, wenn der Nutzer bei einer Kunden-
+                 * Rueckfrage einen der vorgeschlagenen Kunden anklickt.
+                 */
+                onSelectCustomerClarificationSuggestion: async function (oEvent) {
+                    const oContext = oEvent.getSource()
+                        .getBindingContext("customerClarification");
+                    const oSuggestion = oContext.getObject();
+
+                    const bApplied = await this._applySelectedCustomer(
+                        oSuggestion.customerId,
+                        oSuggestion.customerName
+                    );
+
+                    this.getView()
+                        .getModel("customerClarification")
+                        .setData({
+                            visible: false,
+                            question: "",
+                            suggestions: []
+                        });
+
+                    if (bApplied) {
+                        MessageToast.show(
+                            `Customer ${oSuggestion.customerName} selected.`
+                        );
+                    } else {
+                        MessageBox.error(
+                            "The selected customer could not be found in " +
+                            "the customer dropdown. Please select the " +
+                            "customer manually."
+                        );
+                    }
+                },
+                /**
+                 * Setzt den Kunden im Header-ComboBox programmatisch.
+                 *
+                 * setSelectedKey() ist der normale, direkte Weg - er
+                 * schlaegt aber STILL (ohne Fehler) fehl, falls der
+                 * uebergebene Key nicht exakt (Gross-/Kleinschreibung,
+                 * Bindestriche) mit dem "key" eines ComboBox-Items
+                 * uebereinstimmt. Als Absicherung wird deshalb zusaetzlich
+                 * geprueft, ob die Auswahl tatsaechlich gegriffen hat; wenn
+                 * nicht, wird ueber eine normalisierte (Kleinschreibung,
+                 * ohne Bindestriche) Suche in den aktuell geladenen Items
+                 * ein Fallback-Treffer gesucht.
+                 *
+                 * Gibt true zurueck, wenn ein Kunde erfolgreich gesetzt
+                 * wurde, sonst false.
+                 */
+                _applySelectedCustomer: async function (sCustomerId, sCustomerName) {
+                    const oCustomerSelect = this.byId("customerSelect");
+
+                    const normalize = function (value) {
+                        return String(value || "")
+                            .toLowerCase()
+                            .replace(/-/g, "");
+                    };
+
+                    oCustomerSelect.setSelectedKey(sCustomerId);
+
+                    let bSuccess = Boolean(
+                        oCustomerSelect.getSelectedItem() &&
+                        oCustomerSelect.getSelectedKey() === sCustomerId
+                    );
+
+                    if (!bSuccess) {
+                        const sNormalizedTarget = normalize(sCustomerId);
+                        const oMatchingItem = oCustomerSelect.getItems().find(
+                            function (oItem) {
+                                return normalize(oItem.getKey()) ===
+                                    sNormalizedTarget;
+                            }
+                        );
+
+                        if (oMatchingItem) {
+                            oCustomerSelect.setSelectedItem(oMatchingItem);
+                            bSuccess = true;
+                        } else {
+                            console.warn(
+                                "Could not find a matching customer item " +
+                                "for ID:",
+                                sCustomerId,
+                                sCustomerName
+                            );
+                        }
+                    }
+
+                    this.onHeaderChange();
+
+                    return bSuccess;
                 },
                 /**
                  * Interpretiert Produkte/Mengen aus natuerlicher Sprache

@@ -123,8 +123,14 @@
 <Text id="picoMessageText" text="{pico>/message}" wrapping="true" class="clarificationQuestionText"/>
 </VBox>
 <!--  Kunden-Rueckfrage innerhalb von select_customer (mehrere Treffer
-     oder gar kein Treffer bei Name/Kundennummer).  -->
-<VBox id="customerClarificationArea" visible="{customerClarification>/visible}" width="100%" class="sapUiSmallMarginBottom">
+     oder gar kein Treffer bei Name/Kundennummer).
+
+     WICHTIG: visible prueft zusaetzlich, dass tatsaechlich eine Frage
+     vorhanden ist (question <> ''). Das verhindert, dass diese Box
+     jemals leer angezeigt wird, falls "visible" durch einen Zustands-
+     Rest einmal true sein sollte, ohne dass eine echte Rueckfrage
+     vorliegt.  -->
+<VBox id="customerClarificationArea" visible="{= ${customerClarification>/visible} === true && ${customerClarification>/question} !== ''}" width="100%" class="sapUiSmallMarginBottom">
 <VBox id="customerClarificationBox" class="clarificationBox sapUiSmallMarginBottom">
 <HBox id="customerClarificationHeaderBox" alignItems="Center" class="sapUiTinyMarginBottom">
 <core:Icon id="customerClarificationIcon" src="sap-icon://ai" class="clarificationIcon sapUiTinyMarginEnd"/>
@@ -136,8 +142,9 @@
 <Button id="customerClarificationSuggestionButton" text="{= ${customerClarification>customerNumber} + ' | ' + ${customerClarification>customerName}}" type="Default" press=".onSelectCustomerClarificationSuggestion" width="100%" class="sapUiTinyMarginEnd sapUiTinyMarginBottom"/>
 </FlexBox>
 </VBox>
-<!--  Produkt-Rueckfrage innerhalb von add_items (z.B. "Kinder" ist mehrdeutig)  -->
-<VBox id="clarificationArea" visible="{clarification>/visible}" width="100%" class="sapUiSmallMarginBottom">
+<!--  Produkt-Rueckfrage innerhalb von add_items (z.B. "Kinder" ist mehrdeutig).
+     Gleiche Absicherung wie oben: nur sichtbar, wenn auch eine Frage da ist.  -->
+<VBox id="clarificationArea" visible="{= ${clarification>/visible} === true && ${clarification>/question} !== ''}" width="100%" class="sapUiSmallMarginBottom">
 <VBox id="clarificationBox" class="clarificationBox sapUiSmallMarginBottom">
 <HBox id="clarificationHeaderBox" alignItems="Center" class="sapUiTinyMarginBottom">
 <core:Icon id="clarificationIcon" src="sap-icon://ai" class="clarificationIcon sapUiTinyMarginEnd"/>
