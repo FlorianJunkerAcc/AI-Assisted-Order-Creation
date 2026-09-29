@@ -27,10 +27,6 @@ const MIN_AVERAGE_FOR_LOW_CHECK = 2;
 
 // ---------------------------------------------------------------------
 // PICO Intent Router (routeAiCommand).
-//
-// PICO_ALLOWED_STATUSES: die vier möglichen Router-Ergebnisse.
-// PICO_ALLOWED_INTENTS: die drei konkreten Funktionen, die PICO an den
-//   Controller weiterreichen kann, wenn status === "ok".
 // ---------------------------------------------------------------------
 const PICO_ALLOWED_STATUSES = [
     "ok",
@@ -1431,12 +1427,9 @@ Return exactly this structure:
      * angezeigt wird (Rückfrage, Hinweis auf mehrere Funktionen,
      * freundliche Ablehnung bei unbekannten Anfragen).
      *
-     * status:
-     *   "ok"                     -> intent ist gesetzt, Controller führt aus
-     *   "clarification_required" -> message enthält eine Rückfrage
-     *   "multiple_intents"       -> message erklärt, dass nur eine
-     *                                Funktion pro Befehl möglich ist
-     *   "unknown_intent"         -> message lehnt freundlich ab
+     * WICHTIG: "message" wird IMMER auf Englisch zurückgegeben,
+     * unabhängig davon, in welcher Sprache der Nutzer seinen Befehl
+     * eingegeben hat.
      */
     this.on("routeAiCommand", async (req) => {
         const { command } = req.data;
@@ -1472,12 +1465,12 @@ Analyze the user's command and decide which single function is meant.
 
 Rules:
 
-- If the command clearly and unambiguously matches exactly ONE of the three functions, respond with status "ok" and set intent to that function's identifier (add_items, recommend_products, or validate_order). The message field can be a short one-sentence acknowledgement in German.
-- If the command explicitly or implicitly asks for TWO OR MORE of the three functions to be performed together (for example "add 5 Nutella and also validate the order"), respond with status "multiple_intents", intent set to an empty string, and a friendly German message explaining that PICO can only execute one function per command and asking the user to submit the requests one at a time.
-- If the command could reasonably match more than one function, or its meaning is unclear, respond with status "clarification_required", intent set to an empty string, and a short German clarifying question that helps determine which of the three functions is meant.
-- If the command does not relate to any of the three functions at all (for example small talk, unrelated topics, or requests PICO cannot fulfill), respond with status "unknown_intent", intent set to an empty string, and a very friendly German message explaining that PICO cannot help with this, briefly restating the three things PICO can help with.
+- If the command clearly and unambiguously matches exactly ONE of the three functions, respond with status "ok" and set intent to that function's identifier (add_items, recommend_products, or validate_order). The message field can be a short one-sentence acknowledgement.
+- If the command explicitly or implicitly asks for TWO OR MORE of the three functions to be performed together (for example "add 5 Nutella and also validate the order"), respond with status "multiple_intents", intent set to an empty string, and a friendly message explaining that PICO can only execute one function per command and asking the user to submit the requests one at a time.
+- If the command could reasonably match more than one function, or its meaning is unclear, respond with status "clarification_required", intent set to an empty string, and a short clarifying question that helps determine which of the three functions is meant.
+- If the command does not relate to any of the three functions at all (for example small talk, unrelated topics, or requests PICO cannot fulfill), respond with status "unknown_intent", intent set to an empty string, and a very friendly message explaining that PICO cannot help with this, briefly restating the three things PICO can help with.
 
-Always write the "message" field in German, regardless of the language of the input command.
+Always write the "message" field in English, regardless of the language of the input command.
 
 Do not invent order data. Do not decide which specific products or quantities are meant - that happens later in a separate step. Your only job is to decide WHICH of the three functions applies.
 
