@@ -27,6 +27,9 @@ const MIN_AVERAGE_FOR_LOW_CHECK = 2;
 
 // ---------------------------------------------------------------------
 // PICO Intent Router (routeAiCommand).
+//
+// select_customer wurde als vierte Funktion ergänzt: PICO kann jetzt
+// auch den Kunden per Freitext-/Sprachbefehl auswählen.
 // ---------------------------------------------------------------------
 const PICO_ALLOWED_STATUSES = [
     "ok",
@@ -35,6 +38,7 @@ const PICO_ALLOWED_STATUSES = [
     "unknown_intent"
 ];
 const PICO_ALLOWED_INTENTS = [
+    "select_customer",
     "add_items",
     "recommend_products",
     "validate_order"
@@ -383,6 +387,28 @@ export default cds.service.impl(async function () {
     };
 
     /**
+     * Lädt die aktiven Sales-Cloud-Kunden (CorporateAccountCollection).
+     * Zentral ausgelagert, damit sowohl der normale OData-READ-Handler
+     * für /Customers als auch die neue PICO-Funktion selectCustomer
+     * dieselbe Quelle verwenden.
+     */
+    const loadSalesCloudCustomers = async () => {
+        const customers = await salesCloud.run(
+            SELECT.from(CorporateAccountCollection).where({
+                LifeCycleStatusCode: "2",
+                RoleCode: "CRM000"
+            })
+        );
+        return customers.map((customer) => ({
+            ID: customer.ObjectID,
+            customerNumber: customer.AccountID,
+            name: customer.Name,
+            address: customer.FormattedPostalAddressDescription,
+            city: ""
+        }));
+    };
+
+    /**
      * Resolves a customer's Sales Cloud customer number (BuyerPartyID),
      * falling back to a live Sales Cloud lookup if the customer is not
      * (yet) cached in the local Customers table. Shared by
@@ -467,19 +493,7 @@ export default cds.service.impl(async function () {
     };
 
     this.on("READ", Customers, async () => {
-        const customers = await salesCloud.run(
-            SELECT.from(CorporateAccountCollection).where({
-                LifeCycleStatusCode: "2",
-                RoleCode: "CRM000"
-            })
-        );
-        return customers.map((customer) => ({
-            ID: customer.ObjectID,
-            customerNumber: customer.AccountID,
-            name: customer.Name,
-            address: customer.FormattedPostalAddressDescription,
-            city: ""
-        }));
+        return loadSalesCloudCustomers();
     });
 
     this.on("READ", Products, async (req) => {
@@ -1412,12 +1426,184 @@ Return exactly this structure:
     });
 
     /**
+     * PICO: Select Customer.
+     *
+     * Empfängt einen Freitext-/Sprachbefehl und ermittelt, welcher Kunde
+     * gemeint ist, basierend auf Name und/oder Kundennummer. Sonnet
+     * erhält dafür den vollständigen aktiven Sales-Cloud-Kundenkatalog
+     * als Kontext (analog zum Produktkatalog bei interpretOrderItems)
+     * und darf ausschließlich Kunden aus diesem Katalog zurückgeben.
+     *
+     * status "resolved": genau ein Kunde wurde eindeutig erkannt.
+     * status "clarification_required": entweder mehrere passende Kunden
+     *   (Rückfrage + anklickbare Vorschläge) oder gar kein Treffer
+     *   (Rückfrage, aber leere Vorschlagsliste).
+     *
+     * Diese Action wählt selbst keinen Kunden aus der UI aus - das
+     * übernimmt der Controller (_applySelectedCustomer), sobald das
+     * Ergebnis vorliegt bzw. der Nutzer eine Rückfrage beantwortet hat.
+     */
+    this.on("selectCustomer", async (req) => {
+        const { command } = req.data;
+
+        if (!command?.trim()) {
+            return req.reject(400, "The command must not be empty.");
+        }
+
+        console.log("Customer selection command received:", command);
+
+        try {
+            const customers = await loadSalesCloudCustomers();
+
+            if (!customers.length) {
+                return req.reject(
+                    500,
+                    "No customers are available in the customer catalog."
+                );
+            }
+
+            const customerCatalog = customers
+                .map(
+                    (customer) =>
+                        `${customer.ID} | ${customer.customerNumber} | ${customer.name}`
+                )
+                .join("\n");
+
+            const client = new OrchestrationClient({
+                promptTemplating: {
+                    model: {
+                        name: "anthropic--claude-4.6-sonnet"
+                    }
+                }
+            });
+
+            const response = await client.chatCompletion({
+                messages: [
+                    {
+                        role: "system",
+                        content: `You identify which customer a sales representative wants to select for a sales order, based on a spoken or typed command that may reference the customer's name and/or customer number.
+
+You must match the command against the following customer catalog:
+
+${customerCatalog}
+
+Rules:
+
+- If you are confident which single customer is meant (by name, by customer number, or both), return status "resolved" with that customer's exact ID, customer number, and name from the catalog.
+- If the command could reasonably match more than one customer (for example, a partial or generic name), do not guess. Return status "clarification_required", a short clarifying question, and list every catalog customer that could reasonably match as suggestions.
+- If the command does not match any customer in the catalog at all, return status "clarification_required", a short question asking the user to repeat or clarify the customer name or number, and an empty suggestions list.
+- Never invent a customer ID, customer number, or name that is not in the catalog.
+- Base your decision only on the provided catalog.
+- Do not create, save, or submit a sales order. Your only job is to identify the customer.
+- Return only valid JSON. Do not wrap the JSON in Markdown code fences.
+
+Return exactly this structure:
+
+{
+  "status": "resolved" | "clarification_required",
+  "customerId": "ID from catalog, or empty string if not resolved",
+  "customerNumber": "customer number from catalog, or empty string if not resolved",
+  "customerName": "exact name from catalog, or empty string if not resolved",
+  "question": "string (only used when status is clarification_required)",
+  "suggestions": [
+    {
+      "customerId": "ID from catalog",
+      "customerNumber": "customer number from catalog",
+      "customerName": "exact name from catalog"
+    }
+  ]
+}`
+                    },
+                    {
+                        role: "user",
+                        content: command
+                    }
+                ]
+            });
+
+            const aiResponse = response.getContent();
+
+            console.log("Raw customer selection AI response:", aiResponse);
+
+            const parsedResponse = JSON.parse(aiResponse);
+
+            if (!["resolved", "clarification_required"].includes(
+                parsedResponse.status
+            )) {
+                throw new Error(
+                    `Unknown status returned by AI: ${parsedResponse.status}`
+                );
+            }
+
+            if (parsedResponse.status === "resolved") {
+
+                const customer = customers.find(
+                    (candidate) => candidate.ID === parsedResponse.customerId
+                );
+
+                if (!customer) {
+                    throw new Error(
+                        `Unknown customer returned by AI: ${parsedResponse.customerName}`
+                    );
+                }
+
+                return {
+                    status: "resolved",
+                    customerId: customer.ID,
+                    customerNumber: customer.customerNumber,
+                    customerName: customer.name,
+                    question: "",
+                    suggestions: []
+                };
+            }
+
+            const validatedSuggestions = (parsedResponse.suggestions || [])
+                .map((suggestion) => {
+                    const customer = customers.find(
+                        (candidate) => candidate.ID === suggestion.customerId
+                    );
+
+                    if (!customer) {
+                        throw new Error(
+                            `Unknown suggested customer returned by AI: ${suggestion.customerName}`
+                        );
+                    }
+
+                    return {
+                        customerId: customer.ID,
+                        customerNumber: customer.customerNumber,
+                        customerName: customer.name
+                    };
+                });
+
+            return {
+                status: "clarification_required",
+                customerId: "",
+                customerNumber: "",
+                customerName: "",
+                question:
+                    parsedResponse.question ||
+                    "Which customer did you mean?",
+                suggestions: validatedSuggestions
+            };
+
+        } catch (error) {
+            console.error("Customer selection failed:", error);
+            return req.reject(
+                500,
+                `Customer selection failed: ${error.message}`
+            );
+        }
+    });
+
+    /**
      * PICO Intent Router (routeAiCommand).
      *
      * Empfängt einen beliebigen Freitext-Befehl aus dem EINEN PICO-
-     * Eingabefeld und entscheidet mittels Sonnet, welche der drei
+     * Eingabefeld und entscheidet mittels Sonnet, welche der vier
      * bestehenden Funktionen gemeint ist:
      *
+     *   select_customer    -> selectCustomer
      *   add_items          -> interpretOrderItems
      *   recommend_products -> recommendProducts
      *   validate_order     -> validateOrderItems
@@ -1455,30 +1641,31 @@ Return exactly this structure:
                         role: "system",
                         content: `You are the intent router for PICO, an AI assistant that helps sales representatives create customer sales orders in a SAP-based application.
 
-PICO can perform exactly three functions:
+PICO can perform exactly four functions:
 
-1. add_items - interpret spoken or typed product names and quantities and add them as order line items to the current order draft.
-2. recommend_products - suggest products to add to the order, based on the customer's historical order data.
-3. validate_order - check the current order draft's line items against the customer's order history and flag unusual product categories or quantities.
+1. select_customer - identify and select the customer for the order, based on the customer's name and/or customer number.
+2. add_items - interpret spoken or typed product names and quantities and add them as order line items to the current order draft.
+3. recommend_products - suggest products to add to the order, based on the customer's historical order data.
+4. validate_order - check the current order draft's line items against the customer's order history and flag unusual product categories or quantities.
 
 Analyze the user's command and decide which single function is meant.
 
 Rules:
 
-- If the command clearly and unambiguously matches exactly ONE of the three functions, respond with status "ok" and set intent to that function's identifier (add_items, recommend_products, or validate_order). The message field can be a short one-sentence acknowledgement.
-- If the command explicitly or implicitly asks for TWO OR MORE of the three functions to be performed together (for example "add 5 Nutella and also validate the order"), respond with status "multiple_intents", intent set to an empty string, and a friendly message explaining that PICO can only execute one function per command and asking the user to submit the requests one at a time.
-- If the command could reasonably match more than one function, or its meaning is unclear, respond with status "clarification_required", intent set to an empty string, and a short clarifying question that helps determine which of the three functions is meant.
-- If the command does not relate to any of the three functions at all (for example small talk, unrelated topics, or requests PICO cannot fulfill), respond with status "unknown_intent", intent set to an empty string, and a very friendly message explaining that PICO cannot help with this, briefly restating the three things PICO can help with.
+- If the command clearly and unambiguously matches exactly ONE of the four functions, respond with status "ok" and set intent to that function's identifier (select_customer, add_items, recommend_products, or validate_order). The message field can be a short one-sentence acknowledgement.
+- If the command explicitly or implicitly asks for TWO OR MORE of the four functions to be performed together (for example "select customer Acme and add 5 Nutella"), respond with status "multiple_intents", intent set to an empty string, and a friendly message explaining that PICO can only execute one function per command and asking the user to submit the requests one at a time.
+- If the command could reasonably match more than one function, or its meaning is unclear, respond with status "clarification_required", intent set to an empty string, and a short clarifying question that helps determine which of the four functions is meant.
+- If the command does not relate to any of the four functions at all (for example small talk, unrelated topics, or requests PICO cannot fulfill), respond with status "unknown_intent", intent set to an empty string, and a very friendly message explaining that PICO cannot help with this, briefly restating the four things PICO can help with.
 
 Always write the "message" field in English, regardless of the language of the input command.
 
-Do not invent order data. Do not decide which specific products or quantities are meant - that happens later in a separate step. Your only job is to decide WHICH of the three functions applies.
+Do not invent order data or customer data. Do not decide which specific customer, products, or quantities are meant - that happens later in a separate step. Your only job is to decide WHICH of the four functions applies.
 
 Return only valid JSON in exactly this structure. Do not wrap the JSON in Markdown code fences.
 
 {
   "status": "ok" | "clarification_required" | "multiple_intents" | "unknown_intent",
-  "intent": "add_items" | "recommend_products" | "validate_order" | "",
+  "intent": "select_customer" | "add_items" | "recommend_products" | "validate_order" | "",
   "message": "string"
 }`
                     },

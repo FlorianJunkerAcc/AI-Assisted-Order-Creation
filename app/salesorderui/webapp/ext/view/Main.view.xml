@@ -1,3 +1,4 @@
+This XML file does not appear to have any style information associated with it. The document tree is shown below.
 <mvc:View xmlns:core="sap.ui.core" xmlns:mvc="sap.ui.core.mvc" xmlns="sap.m" xmlns:l="sap.ui.layout" xmlns:macros="sap.fe.macros" controllerName="com.prototype.salesorderai.salesorderui.ext.view.Main">
 <macros:Page id="Page" title="Create Sales Order" showFooter="true">
 <macros:items>
@@ -93,13 +94,13 @@
 <!--  Floating Action Button: oeffnet/schliesst das Chat-Panel.
      Immer sichtbar, unabhaengig vom Panel-Zustand. Dient gleichzeitig
      als einziger Schliessen-Mechanismus (Toggle), daher gibt es im
-     Chat-Header selbst KEINEN separaten Schliessen-Button mehr.  -->
+     Chat-Header selbst KEINEN separaten Schliessen-Button.  -->
 <Button id="picoFabButton" icon="sap-icon://ai" type="Emphasized" tooltip="{i18n>startPico}" press=".onTogglePicoChat" class="picoFabButton"/>
 <!--  Chat-Panel: standardmaessig eingeklappt (visible=false).
-     Enthaelt Header (nur Titel, kein X-Button - siehe oben), einen
-     scrollbaren Ergebnisbereich und fest positionierten Eingabebereich.  -->
+     Enthaelt Header (nur Titel), einen scrollbaren Ergebnisbereich und
+     fest positionierten Eingabebereich.  -->
 <VBox id="picoChatPanel" visible="{pico>/chatOpen}" class="picoChatPanel">
-<!--  Chat-Header (rein informativ, kein Schliessen-Button mehr)  -->
+<!--  Chat-Header (rein informativ, kein Schliessen-Button)  -->
 <HBox id="picoChatHeader" alignItems="Center" class="picoChatHeader">
 <core:Icon id="picoChatHeaderIcon" src="sap-icon://ai" class="picoChatHeaderIcon sapUiTinyMarginEnd"/>
 <Text id="picoChatHeaderTitle" text="PICO" class="picoChatHeaderTitle"/>
@@ -113,6 +114,7 @@
 <Text id="picoGreetingBullet1Text" text="{i18n>picoGreetingBullet1}" class="clarificationQuestionText"/>
 <Text id="picoGreetingBullet2Text" text="{i18n>picoGreetingBullet2}" class="clarificationQuestionText"/>
 <Text id="picoGreetingBullet3Text" text="{i18n>picoGreetingBullet3}" class="clarificationQuestionText"/>
+<Text id="picoGreetingBullet4Text" text="{i18n>picoGreetingBullet4}" class="clarificationQuestionText"/>
 </VBox>
 <Text id="picoGreetingOutroText" text="{i18n>picoGreetingOutro}" class="clarificationQuestionText"/>
 </VBox>
@@ -120,6 +122,20 @@
      oder freundliche Ablehnung bei unbekannten Anfragen.  -->
 <VBox id="picoMessageArea" visible="{pico>/messageVisible}" class="clarificationBox sapUiSmallMarginBottom">
 <Text id="picoMessageText" text="{pico>/message}" wrapping="true" class="clarificationQuestionText"/>
+</VBox>
+<!--  Kunden-Rueckfrage innerhalb von select_customer (mehrere Treffer
+     oder gar kein Treffer bei Name/Kundennummer).  -->
+<VBox id="customerClarificationArea" visible="{customerClarification>/visible}" width="100%" class="sapUiSmallMarginBottom">
+<VBox id="customerClarificationBox" class="clarificationBox sapUiSmallMarginBottom">
+<HBox id="customerClarificationHeaderBox" alignItems="Center" class="sapUiTinyMarginBottom">
+<core:Icon id="customerClarificationIcon" src="sap-icon://ai" class="clarificationIcon sapUiTinyMarginEnd"/>
+<Text id="customerClarificationHeaderText" text="PICO needs clarification" class="clarificationHeaderText"/>
+</HBox>
+<Text id="customerClarificationQuestionText" text="{customerClarification>/question}" class="clarificationQuestionText"/>
+</VBox>
+<FlexBox id="customerClarificationSuggestions" wrap="Wrap" items="{customerClarification>/suggestions}">
+<Button id="customerClarificationSuggestionButton" text="{= ${customerClarification>customerNumber} + ' | ' + ${customerClarification>customerName}}" type="Default" press=".onSelectCustomerClarificationSuggestion" width="100%" class="sapUiTinyMarginEnd sapUiTinyMarginBottom"/>
+</FlexBox>
 </VBox>
 <!--  Produkt-Rueckfrage innerhalb von add_items (z.B. "Kinder" ist mehrdeutig)  -->
 <VBox id="clarificationArea" visible="{clarification>/visible}" width="100%" class="sapUiSmallMarginBottom">
