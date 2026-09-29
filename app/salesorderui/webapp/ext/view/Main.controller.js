@@ -61,11 +61,14 @@ sap.ui.define(
                         }),
                         "validation"
                     );
-                    // PICO: Begruessung (greetingVisible) und Router-
-                    // Nachrichten wie Rueckfragen, "nur eine Funktion pro
-                    // Befehl" oder freundliche Ablehnung (messageVisible).
+                    // PICO: chatOpen steuert Sichtbarkeit des schwebenden
+                    // Chat-Panels. greetingVisible/messageVisible/message
+                    // steuern Begruessung bzw. Router-Nachrichten
+                    // (Rueckfragen, "nur eine Funktion pro Befehl",
+                    // freundliche Ablehnung) innerhalb des Panels.
                     this.getView().setModel(
                         new JSONModel({
+                            chatOpen: false,
                             greetingVisible: false,
                             messageVisible: false,
                             message: ""
@@ -116,13 +119,14 @@ sap.ui.define(
                  * Setzt die Ergebnisbereiche ALLER drei PICO-Funktionen
                  * zurueck (Clarification, Recommendation, Validation).
                  *
-                 * Wird bewusst zentral aufgerufen, statt jede Funktion nur
-                 * ihr eigenes Ergebnis setzen zu lassen: sonst bleibt z.B.
+                 * Wird zentral aufgerufen, statt jede Funktion nur ihr
+                 * eigenes Ergebnis setzen zu lassen: sonst bliebe z.B.
                  * eine vorherige Produktempfehlung sichtbar, waehrend
                  * bereits das Ergebnis der Auftragsvalidierung angezeigt
                  * wird. Aufrufstellen: bei jedem neu erkannten Intent
-                 * (onAskPico, Status "ok") sowie beim Kundenwechsel
-                 * (onHeaderChange) und beim Zuruecksetzen des Formulars.
+                 * (onAskPico, Status "ok"), beim Oeffnen des Chat-Panels,
+                 * beim Kundenwechsel (onHeaderChange) und beim
+                 * Zuruecksetzen des Formulars.
                  */
                 _clearAiResultAreas: function () {
                     this.getView().getModel("clarification").setData({
@@ -684,42 +688,58 @@ sap.ui.define(
                         .setProperty("/canCreate", bCanCreate);
                 },
                 /**
-                 * Blendet PICO ein bzw. aus.
-                 * Der Bereich ist in der XML-View zunächst
-                 * mit visible="false" versteckt. Beim Oeffnen wird
-                 * immer die Begruessung gezeigt und alle vorherigen
-                 * Ergebnisbereiche werden geleert, beim Schliessen
-                 * werden Begruessung und Router-Nachricht zurueckgesetzt.
+                 * Oeffnet bzw. schliesst das schwebende PICO-Chat-Panel.
+                 * Wird sowohl vom FAB-Button als auch vom Schliessen-"X"
+                 * im Chat-Header aufgerufen (identisches Toggle-Verhalten).
+                 *
+                 * Beim Oeffnen: Begruessung anzeigen, alle vorherigen
+                 * Ergebnisbereiche leeren, Eingabefeld fokussieren.
+                 * Beim Schliessen: Begruessung/Router-Nachricht
+                 * zuruecksetzen (Ergebnisse bleiben bewusst sichtbar
+                 * fuer den naechsten Blick, werden aber beim naechsten
+                 * Oeffnen ohnehin ueberschrieben).
                  */
-                onStartPico: function () {
-                    const oArea = this.byId("aiAssistantArea");
-                    const oButton = this.byId("startPicoButton");
-                    const bVisible = oArea.getVisible();
-                    oArea.setVisible(!bVisible);
-
-                    const oResourceBundle =
-                        this.getView().getModel("i18n").getResourceBundle();
-                    oButton.setText(
-                        oResourceBundle.getText(
-                            bVisible ? "startPico" : "picoCollapse"
-                        )
-                    );
-
+                onTogglePicoChat: function () {
                     const oPicoModel = this.getView().getModel("pico");
-                    if (!bVisible) {
-                        oPicoModel.setData({
-                            greetingVisible: true,
-                            messageVisible: false,
-                            message: ""
-                        });
+                    const bCurrentlyOpen =
+                        oPicoModel.getProperty("/chatOpen");
+                    const bNewOpen = !bCurrentlyOpen;
+
+                    oPicoModel.setProperty("/chatOpen", bNewOpen);
+
+                    if (bNewOpen) {
+                        oPicoModel.setProperty(
+                            "/greetingVisible",
+                            true
+                        );
+                        oPicoModel.setProperty(
+                            "/messageVisible",
+                            false
+                        );
+                        oPicoModel.setProperty("/message", "");
                         this._clearAiResultAreas();
-                        this.byId("aiOrderInput").focus();
+
+                        // Fokus erst nach dem Rendern des Panels setzen.
+                        setTimeout(
+                            function () {
+                                const oInput =
+                                    this.byId("aiOrderInput");
+                                if (oInput) {
+                                    oInput.focus();
+                                }
+                            }.bind(this),
+                            100
+                        );
                     } else {
-                        oPicoModel.setData({
-                            greetingVisible: false,
-                            messageVisible: false,
-                            message: ""
-                        });
+                        oPicoModel.setProperty(
+                            "/greetingVisible",
+                            false
+                        );
+                        oPicoModel.setProperty(
+                            "/messageVisible",
+                            false
+                        );
+                        oPicoModel.setProperty("/message", "");
                     }
                 },
                 /**
@@ -784,6 +804,7 @@ sap.ui.define(
                                 // Eingabe bewusst NICHT leeren, damit der
                                 // Nutzer sie direkt praezisieren kann.
                                 oPicoModel.setData({
+                                    chatOpen: true,
                                     greetingVisible: false,
                                     messageVisible: true,
                                     message: oResult.message || ""
@@ -1409,19 +1430,10 @@ sap.ui.define(
                             isAiProcessing: false,
                             canSubmitAiCommand: false
                         });
-                    this.byId(
-                        "aiAssistantArea"
-                    ).setVisible(false);
-                    this.byId(
-                        "startPicoButton"
-                    ).setText(
-                        this.getView().getModel("i18n")
-                            .getResourceBundle()
-                            .getText("startPico")
-                    );
                     this.getView()
                         .getModel("pico")
                         .setData({
+                            chatOpen: false,
                             greetingVisible: false,
                             messageVisible: false,
                             message: ""

@@ -47,7 +47,7 @@
     border-color: #7D3C98 !important;
 }
 
-/* Lila Hinweis-Block für KI-Rückfragen */
+/* Lila Hinweis-Block für KI-Rückfragen, Empfehlungen und Validierung */
 .clarificationBox {
     background-color: #F1EAF7;
     border: 1px solid #D2B4DE;
@@ -155,28 +155,6 @@
     box-shadow: none !important;
 }
 
-/* "AI-Assisted Entry": lila Akzentfarbe, konsistent mit dem
-   Voice-Button und den KI-Rückfragen im gleichen Prototyp. */
-.aiAssistedEntryButton,
-.aiAssistedEntryButton .sapMBtnInner {
-    border: none !important;
-    background-color: transparent !important;
-    background-image: none !important;
-    box-shadow: none !important;
-}
-
-.aiAssistedEntryButton .sapMBtnInner .sapMBtnContent,
-.aiAssistedEntryButton .sapMBtnInner .sapMBtnText,
-.aiAssistedEntryButton .sapMBtnIcon {
-    color: #8E44AD !important;
-}
-
-.aiAssistedEntryButton:hover .sapMBtnInner .sapMBtnContent,
-.aiAssistedEntryButton:hover .sapMBtnInner .sapMBtnText,
-.aiAssistedEntryButton:hover .sapMBtnIcon {
-    color: #7D3C98 !important;
-}
-
 /* ============================================================
    Verlässliche Sichtbarkeit von Item-Anzahl und Order Total
    auf allen Geräten, insbesondere iPad Safari.
@@ -217,4 +195,150 @@
     top: 0;
     z-index: 10;
     background-color: var(--sapGroup_ContentBackground, #FFFFFF);
+}
+
+/* ============================================================
+   PICO Chat Widget (schwebender FAB + Chat-Panel)
+   ============================================================
+
+   Layer-Reihenfolge (z-index):
+     .stickyOrderItemsToolbar  -> 10
+     .stickyPageFooter         -> 100
+     .picoChatPanel            -> 200   (liegt ÜBER dem Footer)
+     .picoFabButton            -> 210   (liegt ÜBER dem Panel)
+
+   Beide Elemente sind unabhängig von ihrer Position im XML-Baum per
+   position: fixed positioniert und respektieren die iPad-Safe-Areas
+   (Home-Indicator unten, abgerundete Ecken/Notch seitlich), damit sie
+   auf einem iPad in jeder Ausrichtung nicht von Systemflächen
+   verdeckt werden bzw. nicht darüber hinausragen.
+   ============================================================ */
+
+/* --- Floating Action Button --- */
+.picoFabButton,
+.picoFabButton .sapMBtnInner {
+    position: fixed !important;
+    right: calc(1.25rem + env(safe-area-inset-right));
+    bottom: calc(5rem + env(safe-area-inset-bottom));
+    z-index: 210;
+    width: 3.5rem;
+    height: 3.5rem;
+    min-width: 3.5rem;
+    min-height: 3.5rem;
+    border-radius: 50% !important;
+    background-color: #8E44AD !important;
+    border: none !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+    padding: 0 !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.picoFabButton .sapMBtnIcon {
+    color: #FFFFFF !important;
+    font-size: 1.5rem !important;
+    line-height: 3.5rem !important;
+}
+
+.picoFabButton:hover .sapMBtnInner {
+    background-color: #7D3C98 !important;
+}
+
+/* --- Chat-Panel: Grundlayout --- */
+.picoChatPanel {
+    position: fixed !important;
+    right: calc(1.25rem + env(safe-area-inset-right));
+    bottom: calc(9.5rem + env(safe-area-inset-bottom));
+    z-index: 200;
+
+    width: 24rem;
+    max-width: calc(100vw - 2.5rem);
+
+    /* Harte Obergrenze relativ zum Viewport, damit das Panel auf
+       kleineren iPad-Ausrichtungen (z.B. Split View) nie über den
+       sichtbaren Bereich hinausragt. Der interne Body scrollt bei
+       Bedarf (siehe .picoChatBody). */
+    max-height: min(38rem, calc(100vh - 11rem - env(safe-area-inset-bottom)));
+
+    display: flex;
+    flex-direction: column;
+
+    background-color: #FFFFFF;
+    border-radius: 0.75rem;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+
+    /* Verhindert, dass Scrollen im Panel die Hintergrundseite
+       mitscrollt (wichtig für iOS Safari "rubber-banding"). */
+    overscroll-behavior: contain;
+}
+
+/* --- Chat-Header --- */
+.picoChatHeader {
+    flex-shrink: 0;
+    padding: 0.75rem 1rem;
+    background-color: #8E44AD;
+}
+
+.picoChatHeaderIcon {
+    color: #FFFFFF;
+    font-size: 1.2rem;
+}
+
+.picoChatHeaderTitle {
+    color: #FFFFFF;
+    font-weight: bold;
+}
+
+/* Schliessen-Button: mindestens 44x44pt Touch-Ziel (Apple HIG). */
+.picoChatCloseButton,
+.picoChatCloseButton .sapMBtnInner {
+    min-width: 2.75rem !important;
+    min-height: 2.75rem !important;
+    background-color: transparent !important;
+    border: none !important;
+}
+
+.picoChatCloseButton .sapMBtnIcon {
+    color: #FFFFFF !important;
+}
+
+/* --- Scrollbarer Ergebnisbereich --- */
+.picoChatBody {
+    flex: 1 1 auto;
+    min-height: 6rem;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding: 1rem;
+}
+
+/* --- Fest positionierter Eingabebereich am unteren Panel-Rand --- */
+.picoChatInputArea {
+    flex-shrink: 0;
+    padding: 0.75rem 1rem;
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+    border-top: 1px solid #E5D4EE;
+    background-color: #FFFFFF;
+}
+
+/* Auf sehr schmalen Bildschirmen (Handy-Hochformat) wird das Panel zu
+   einem vollflächigen Bottom-Sheet, damit Tastatur + Inhalt genug
+   Platz haben und nichts abgeschnitten wird. */
+@media (max-width: 26rem) {
+    .picoChatPanel {
+        left: 0.5rem;
+        right: 0.5rem;
+        bottom: calc(0.5rem + env(safe-area-inset-bottom));
+        width: auto;
+        max-width: none;
+        max-height: calc(100vh - 6rem - env(safe-area-inset-bottom));
+    }
+
+    .picoFabButton,
+    .picoFabButton .sapMBtnInner {
+        right: calc(0.75rem + env(safe-area-inset-right));
+        bottom: calc(1rem + env(safe-area-inset-bottom));
+    }
 }

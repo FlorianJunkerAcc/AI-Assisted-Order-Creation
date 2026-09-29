@@ -32,98 +32,14 @@
 <ObjectStatus id="orderItemsHeaderTotal" title="{i18n>orderTotal}" text="{order>/orderTotal} EUR" state="Information" class="sapUiSmallMarginBegin"/>
 <ToolbarSpacer/>
 <Button id="addProductButton" text="{i18n>addProduct}" icon="sap-icon://add" type="Transparent" press=".onAddProduct" class="addProductButton sapUiSmallMarginEnd"/>
-<!--  PICO ersetzt die frueher getrennten Buttons "AI-Assisted Entry",
-     "AI Product Recommendations" und "AI Order Validation". PICO
-     erkennt selbst, welche der drei Funktionen gemeint ist.  -->
-<Button id="startPicoButton" text="{i18n>startPico}" icon="sap-icon://ai" type="Transparent" press=".onStartPico" class="aiAssistedEntryButton"/>
 </Toolbar>
 </headerToolbar>
 <content>
 <VBox id="orderItemsContent" width="100%">
-<!--  PICO assistant area (collapsed by default)  -->
-<VBox id="aiAssistantArea" width="100%" visible="false" class="aiAssistantArea sapUiMediumMarginBottom sapUiMediumMarginTop">
-<Title id="aiOrderEntryTitle" text="{i18n>picoTitle}" level="H3" class="sapUiSmallMarginBottom"/>
-<!--  Begruessung: wird jedes Mal gezeigt, wenn PICO geoeffnet wird.  -->
-<VBox id="picoGreetingArea" visible="{pico>/greetingVisible}" class="clarificationBox sapUiSmallMarginBottom">
-<HBox id="picoGreetingHeaderBox" alignItems="Center" class="sapUiTinyMarginBottom">
-<core:Icon id="picoGreetingIcon" src="sap-icon://ai" class="clarificationIcon sapUiTinyMarginEnd"/>
-<Text id="picoGreetingHeaderText" text="PICO" class="clarificationHeaderText"/>
-</HBox>
-<Text id="picoGreetingIntroText" text="{i18n>picoGreetingIntro}" class="clarificationQuestionText sapUiTinyMarginBottom"/>
-<VBox id="picoGreetingBulletList" class="sapUiTinyMarginBottom">
-<Text id="picoGreetingBullet1Text" text="{i18n>picoGreetingBullet1}" class="clarificationQuestionText"/>
-<Text id="picoGreetingBullet2Text" text="{i18n>picoGreetingBullet2}" class="clarificationQuestionText"/>
-<Text id="picoGreetingBullet3Text" text="{i18n>picoGreetingBullet3}" class="clarificationQuestionText"/>
-</VBox>
-<Text id="picoGreetingOutroText" text="{i18n>picoGreetingOutro}" class="clarificationQuestionText"/>
-</VBox>
-<!--  Router-Nachrichten: Rueckfrage zum Intent, Hinweis auf mehrere
-     gleichzeitig angeforderte Funktionen, oder freundliche Ablehnung
-     bei unbekannten Anfragen.  -->
-<VBox id="picoMessageArea" visible="{pico>/messageVisible}" class="clarificationBox sapUiSmallMarginBottom">
-<HBox id="picoMessageHeaderBox" alignItems="Center" class="sapUiTinyMarginBottom">
-<core:Icon id="picoMessageIcon" src="sap-icon://ai" class="clarificationIcon sapUiTinyMarginEnd"/>
-<Text id="picoMessageHeaderText" text="PICO" class="clarificationHeaderText"/>
-</HBox>
-<Text id="picoMessageText" text="{pico>/message}" wrapping="true" class="clarificationQuestionText"/>
-</VBox>
-<Button id="startVoiceInputButton" text="{i18n>startVoiceInput}" icon="sap-icon://microphone" press=".onStartVoiceInput" class="sapUiSmallMarginBottom voiceStartButton"/>
-<VBox id="voiceListeningIndicator" visible="false" alignItems="Center" class="sapUiMediumMargin">
-<core:Icon id="voiceListeningIcon" src="sap-icon://microphone" size="2rem" color="#0070F2" class="voiceListeningPulse"/>
-<Text id="voiceListeningText" text="Listening..." class="sapUiSmallMarginTop"/>
-</VBox>
-<Label id="aiOrderInputLabel" text="{i18n>recognizedCommand}" labelFor="aiOrderInput"/>
-<TextArea id="aiOrderInput" width="100%" rows="3" value="{ui>/recognizedCommand}" liveChange=".onAIInputChange" valueLiveUpdate="true" placeholder="{i18n>voicePlaceholder}"/>
-<HBox id="aiConfirmationActions" width="100%" justifyContent="End" class="sapUiSmallMarginTop">
-<Button id="askPicoButton" text="{i18n>askPico}" type="Emphasized" enabled="{ui>/canSubmitAiCommand}" press=".onAskPico"/>
-</HBox>
-<!--  Produkt-Rueckfrage innerhalb von add_items (z.B. "Kinder" ist mehrdeutig)  -->
-<VBox id="clarificationArea" visible="{clarification>/visible}" width="100%" class="sapUiMediumMarginTop">
-<VBox id="clarificationBox" class="clarificationBox sapUiSmallMarginBottom">
-<HBox id="clarificationHeaderBox" alignItems="Center" class="sapUiTinyMarginBottom">
-<core:Icon id="clarificationIcon" src="sap-icon://ai" class="clarificationIcon sapUiTinyMarginEnd"/>
-<Text id="clarificationHeaderText" text="The AI Assistant needs clarification" class="clarificationHeaderText"/>
-</HBox>
-<Text id="clarificationQuestionText" text="{clarification>/question}" class="clarificationQuestionText"/>
-</VBox>
-<FlexBox id="clarificationSuggestions" wrap="Wrap" items="{clarification>/suggestions}">
-<Button id="clarificationSuggestionButton" text="{clarification>productName}" type="Default" press=".onSelectClarificationSuggestion" class="sapUiTinyMarginEnd sapUiTinyMarginBottom"/>
-</FlexBox>
-</VBox>
-</VBox>
-<!--  AI product recommendations (Ergebnis von recommend_products)  -->
-<VBox id="recommendationArea" visible="{recommendation>/visible}" width="100%" class="sapUiMediumMarginTop">
-<VBox id="recommendationBox" class="clarificationBox sapUiSmallMarginBottom">
-<HBox id="recommendationHeaderBox" alignItems="Center" class="sapUiTinyMarginBottom">
-<core:Icon id="recommendationIcon" src="sap-icon://ai" class="clarificationIcon sapUiTinyMarginEnd"/>
-<Text id="recommendationHeaderText" text="{i18n>aiProductRecommendations}" class="clarificationHeaderText"/>
-</HBox>
-<Text id="recommendationDescription" text="{i18n>recommendationDescription}" class="clarificationQuestionText"/>
-</VBox>
-<FlexBox id="productRecommendations" wrap="Wrap" items="{recommendation>/recommendations}">
-<VBox id="productRecommendation" width="14rem" class="sapUiSmallMarginEnd sapUiSmallMarginBottom">
-<Button id="recommendedProductButton" text="{= ${recommendation>productName} + ' (Qty ' + ${recommendation>averageQuantity} + ')'}" type="Default" press=".onSelectRecommendedProduct" class="sapUiTinyMarginBottom"/>
-<Text id="recommendedProductReason" text="{recommendation>reason}" wrapping="true" class="recommendationReasonText"/>
-</VBox>
-</FlexBox>
-</VBox>
-<!--  AI order validation (Ergebnis von validate_order)  -->
-<VBox id="validationArea" visible="{validation>/visible}" width="100%" class="sapUiMediumMarginTop">
-<VBox id="validationBox" class="clarificationBox sapUiSmallMarginBottom">
-<HBox id="validationHeaderBox" alignItems="Center" class="sapUiTinyMarginBottom">
-<core:Icon id="validationIcon" src="sap-icon://ai" class="clarificationIcon sapUiTinyMarginEnd"/>
-<Text id="validationHeaderText" text="{i18n>aiOrderValidation}" class="clarificationHeaderText"/>
-</HBox>
-<Text id="validationSummaryText" text="{validation>/message}" class="clarificationQuestionText"/>
-</VBox>
-<VBox id="validationWarnings" items="{validation>/warnings}" width="100%">
-<VBox class="validationWarningItem">
-<Text text="{= 'Position ' + ${validation>position} + ' \u2014 ' + ${validation>productName}}" class="validationWarningTitle"/>
-<Text text="{validation>message}" wrapping="true" class="validationWarningMessage"/>
-</VBox>
-</VBox>
-</VBox>
-<!--  Single source of truth: the order items table  -->
+<!--  Single source of truth: the order items table.
+     PICO ergebnisse (clarification/recommendation/validation) werden
+     NICHT mehr hier inline angezeigt, sondern im schwebenden Chat-Panel
+     weiter unten in dieser View - dadurch bleibt diese Seite clean.  -->
 <Table id="orderItemsTable" width="100%" growing="true" growingThreshold="10" sticky="ColumnHeaders,HeaderToolbar" noDataText="{i18n>noProductsAdded}" items="{order>/items}">
 <columns>
 <Column id="positionColumn" width="8%" hAlign="Center">
@@ -168,6 +84,102 @@
 </VBox>
 </content>
 </Panel>
+<!--  ==================================================================
+     PICO Chat Widget
+     Komplett ausserhalb des normalen Seitenflusses. Wird per CSS
+     (position: fixed) unabhaengig von seiner Position im XML-Baum
+     immer ueber der restlichen Seite schwebend dargestellt.
+     ==================================================================  -->
+<!--  Floating Action Button: oeffnet/schliesst das Chat-Panel.
+     Immer sichtbar, unabhaengig vom Panel-Zustand.  -->
+<Button id="picoFabButton" icon="sap-icon://ai" type="Emphasized" tooltip="{i18n>startPico}" press=".onTogglePicoChat" class="picoFabButton"/>
+<!--  Chat-Panel: standardmaessig eingeklappt (visible=false).
+     Enthaelt Header (mit Schliessen-Button), scrollbaren Ergebnis-
+     bereich und fest positionierten Eingabebereich.  -->
+<VBox id="picoChatPanel" visible="{pico>/chatOpen}" class="picoChatPanel">
+<!--  Chat-Header  -->
+<HBox id="picoChatHeader" alignItems="Center" class="picoChatHeader">
+<core:Icon id="picoChatHeaderIcon" src="sap-icon://ai" class="picoChatHeaderIcon sapUiTinyMarginEnd"/>
+<Text id="picoChatHeaderTitle" text="PICO" class="picoChatHeaderTitle"/>
+<ToolbarSpacer id="picoChatHeaderSpacer"/>
+<Button id="picoChatCloseButton" icon="sap-icon://decline" type="Transparent" tooltip="{i18n>picoClose}" press=".onTogglePicoChat" class="picoChatCloseButton"/>
+</HBox>
+<!--  Scrollbarer Ergebnisbereich  -->
+<VBox id="picoChatBody" class="picoChatBody">
+<!--  Begruessung: wird jedes Mal gezeigt, wenn PICO geoeffnet wird.  -->
+<VBox id="picoGreetingArea" visible="{pico>/greetingVisible}" class="clarificationBox sapUiSmallMarginBottom">
+<Text id="picoGreetingIntroText" text="{i18n>picoGreetingIntro}" class="clarificationQuestionText sapUiTinyMarginBottom"/>
+<VBox id="picoGreetingBulletList" class="sapUiTinyMarginBottom">
+<Text id="picoGreetingBullet1Text" text="{i18n>picoGreetingBullet1}" class="clarificationQuestionText"/>
+<Text id="picoGreetingBullet2Text" text="{i18n>picoGreetingBullet2}" class="clarificationQuestionText"/>
+<Text id="picoGreetingBullet3Text" text="{i18n>picoGreetingBullet3}" class="clarificationQuestionText"/>
+</VBox>
+<Text id="picoGreetingOutroText" text="{i18n>picoGreetingOutro}" class="clarificationQuestionText"/>
+</VBox>
+<!--  Router-Nachrichten: Rueckfrage, Hinweis auf mehrere Funktionen,
+     oder freundliche Ablehnung bei unbekannten Anfragen.  -->
+<VBox id="picoMessageArea" visible="{pico>/messageVisible}" class="clarificationBox sapUiSmallMarginBottom">
+<Text id="picoMessageText" text="{pico>/message}" wrapping="true" class="clarificationQuestionText"/>
+</VBox>
+<!--  Produkt-Rueckfrage innerhalb von add_items (z.B. "Kinder" ist mehrdeutig)  -->
+<VBox id="clarificationArea" visible="{clarification>/visible}" width="100%" class="sapUiSmallMarginBottom">
+<VBox id="clarificationBox" class="clarificationBox sapUiSmallMarginBottom">
+<HBox id="clarificationHeaderBox" alignItems="Center" class="sapUiTinyMarginBottom">
+<core:Icon id="clarificationIcon" src="sap-icon://ai" class="clarificationIcon sapUiTinyMarginEnd"/>
+<Text id="clarificationHeaderText" text="PICO needs clarification" class="clarificationHeaderText"/>
+</HBox>
+<Text id="clarificationQuestionText" text="{clarification>/question}" class="clarificationQuestionText"/>
+</VBox>
+<FlexBox id="clarificationSuggestions" wrap="Wrap" items="{clarification>/suggestions}">
+<Button id="clarificationSuggestionButton" text="{clarification>productName}" type="Default" press=".onSelectClarificationSuggestion" class="sapUiTinyMarginEnd sapUiTinyMarginBottom"/>
+</FlexBox>
+</VBox>
+<!--  AI product recommendations (Ergebnis von recommend_products)  -->
+<VBox id="recommendationArea" visible="{recommendation>/visible}" width="100%" class="sapUiSmallMarginBottom">
+<VBox id="recommendationBox" class="clarificationBox sapUiSmallMarginBottom">
+<HBox id="recommendationHeaderBox" alignItems="Center" class="sapUiTinyMarginBottom">
+<core:Icon id="recommendationIcon" src="sap-icon://ai" class="clarificationIcon sapUiTinyMarginEnd"/>
+<Text id="recommendationHeaderText" text="{i18n>aiProductRecommendations}" class="clarificationHeaderText"/>
+</HBox>
+<Text id="recommendationDescription" text="{i18n>recommendationDescription}" class="clarificationQuestionText"/>
+</VBox>
+<FlexBox id="productRecommendations" wrap="Wrap" items="{recommendation>/recommendations}">
+<VBox id="productRecommendation" width="100%" class="sapUiTinyMarginBottom">
+<Button id="recommendedProductButton" text="{= ${recommendation>productName} + ' (Qty ' + ${recommendation>averageQuantity} + ')'}" type="Default" press=".onSelectRecommendedProduct" width="100%" class="sapUiTinyMarginBottom"/>
+<Text id="recommendedProductReason" text="{recommendation>reason}" wrapping="true" class="recommendationReasonText"/>
+</VBox>
+</FlexBox>
+</VBox>
+<!--  AI order validation (Ergebnis von validate_order)  -->
+<VBox id="validationArea" visible="{validation>/visible}" width="100%" class="sapUiSmallMarginBottom">
+<VBox id="validationBox" class="clarificationBox sapUiSmallMarginBottom">
+<HBox id="validationHeaderBox" alignItems="Center" class="sapUiTinyMarginBottom">
+<core:Icon id="validationIcon" src="sap-icon://ai" class="clarificationIcon sapUiTinyMarginEnd"/>
+<Text id="validationHeaderText" text="{i18n>aiOrderValidation}" class="clarificationHeaderText"/>
+</HBox>
+<Text id="validationSummaryText" text="{validation>/message}" class="clarificationQuestionText"/>
+</VBox>
+<VBox id="validationWarnings" items="{validation>/warnings}" width="100%">
+<VBox class="validationWarningItem">
+<Text text="{= 'Position ' + ${validation>position} + ' \u2014 ' + ${validation>productName}}" class="validationWarningTitle"/>
+<Text text="{validation>message}" wrapping="true" class="validationWarningMessage"/>
+</VBox>
+</VBox>
+</VBox>
+</VBox>
+<!--  Ende picoChatBody  -->
+<!--  Fest positionierter Eingabebereich am unteren Rand des Panels  -->
+<VBox id="picoChatInputArea" class="picoChatInputArea">
+<Button id="startVoiceInputButton" text="{i18n>startVoiceInput}" icon="sap-icon://microphone" press=".onStartVoiceInput" class="sapUiTinyMarginBottom voiceStartButton"/>
+<VBox id="voiceListeningIndicator" visible="false" alignItems="Center" class="sapUiTinyMargin">
+<core:Icon id="voiceListeningIcon" src="sap-icon://microphone" size="1.5rem" color="#0070F2" class="voiceListeningPulse"/>
+<Text id="voiceListeningText" text="Listening..." class="sapUiTinyMarginTop"/>
+</VBox>
+<TextArea id="aiOrderInput" width="100%" rows="2" value="{ui>/recognizedCommand}" liveChange=".onAIInputChange" valueLiveUpdate="true" placeholder="{i18n>voicePlaceholder}" class="sapUiTinyMarginBottom"/>
+<Button id="askPicoButton" text="{i18n>askPico}" type="Emphasized" enabled="{ui>/canSubmitAiCommand}" press=".onAskPico" width="100%"/>
+</VBox>
+</VBox>
+<!--  Ende picoChatPanel  -->
 </VBox>
 </macros:items>
 <!--  Page Footer: always pinned to the bottom of the viewport,
