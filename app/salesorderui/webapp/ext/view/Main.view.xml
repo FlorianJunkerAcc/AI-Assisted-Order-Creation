@@ -1,4 +1,3 @@
-This XML file does not appear to have any style information associated with it. The document tree is shown below.
 <mvc:View xmlns:core="sap.ui.core" xmlns:mvc="sap.ui.core.mvc" xmlns="sap.m" xmlns:l="sap.ui.layout" xmlns:macros="sap.fe.macros" controllerName="com.prototype.salesorderai.salesorderui.ext.view.Main">
 <macros:Page id="Page" title="Create Sales Order" showFooter="true">
 <macros:items>
