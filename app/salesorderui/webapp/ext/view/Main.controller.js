@@ -1593,11 +1593,7 @@ sap.ui.define(
                             );
                         MessageBox.success(
                             "Sales Order " + sOrderNumber +
-                            " created successfully.\n\n" +
-                            "Order payload:\n" +
-                            JSON.stringify(JSON.parse(sOrderPayload), null, 2) +
-                            "\n\nOrder item payloads:\n" +
-                            JSON.stringify(JSON.parse(sItemPayloads), null, 2),
+                            " created successfully.",
                             {
                                 title: "Sales Order Created"
                             }
