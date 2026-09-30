@@ -211,7 +211,7 @@ function evaluateProductFilterValue(token, product) {
     }
     if (token.ref) {
         const property = token.ref[token.ref.length - 1];
-        if (!["productNumber", "name", "productCategoryID"].includes(property)) {
+        if (!["ID","productNumber", "name", "productCategoryID"].includes(property)) {
             throw new Error(`Unsupported product filter property: ${property}`);
         }
         return product[property];
