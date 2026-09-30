@@ -725,6 +725,14 @@ Rules:
 - If you are confident which single product is meant, return it as a resolved item.
 - If you are not confident, do not guess. Instead, return clarification_required
   and list every catalog product that could reasonably match, as suggestions.
+- If a request is broad or generic and could match many catalog products
+  (for example a category name like "chocolates" or "snacks" rather than
+  a specific product), do not list every possible match. Select at most
+  the 5 most relevant and clearly distinct products as suggestions.
+- When choosing which products to suggest, double-check that each
+  suggested productId exactly matches the productName from the same
+  catalog line. Never pair a productId from one line with a productName
+  from a different line.
 - Base your confidence only on how well the request matches the catalog.
 - Do not invent products, product IDs, prices, or quantities.
 - Do not create, save, or submit a sales order.
@@ -824,22 +832,35 @@ Return exactly this structure:
 
                 } else if (item.status === "clarification_required") {
 
-                    const validatedSuggestions = (item.suggestions || []).map((suggestion) => {
-                        const product = products.find(
-                            (candidate) => candidate.ID === suggestion.productId
-                        );
+                   const validatedSuggestions = (item.suggestions || [])
+    .map((suggestion) => {
+        const product = products.find(
+            (candidate) => candidate.ID === suggestion.productId
+        );
 
-                        if (!product) {
-                            throw new Error(
-                                `Unknown suggested product returned by AI: ${suggestion.productName}`
-                            );
-                        }
+        if (!product) {
+            // Statt die ganze Anfrage abzubrechen: nur diesen einen
+            // fehlerhaften Vorschlag überspringen und loggen.
+            console.warn(
+                "Skipping hallucinated suggestion from AI:",
+                suggestion.productName,
+                suggestion.productId
+            );
+            return null;
+        }
 
-                        return {
-                            productId: product.ID,
-                            productName: product.name
-                        };
-                    });
+        return {
+            productId: product.ID,
+            productName: product.name
+        };
+    })
+    .filter(Boolean);
+
+if (validatedSuggestions.length === 0) {
+    throw new Error(
+        `No valid suggestions remained for question: "${item.question}"`
+    );
+}
 
                     clarifications.push({
                         question: item.question,
