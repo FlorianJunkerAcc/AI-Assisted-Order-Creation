@@ -1879,9 +1879,7 @@ Return exactly this structure:
                 if (frequency < DRAFT_SUGGEST_MIN_FREQUENCY ||
                     !purchasedRecently) {
                     fallbackReason =
-                        "Suggestion only: ordered less regularly or not " +
-                        `within the last ${DRAFT_RECENT_WINDOW} orders, so ` +
-                        "PICO does not add it automatically. Please confirm.";
+                        "Suggestion: ordered rarely or not recently.";
                 }
 
                 // Reorder-Timing aus den Bestelldaten.
@@ -1918,10 +1916,8 @@ Return exactly this structure:
                 } else if (reorderKnown) {
                     if (reorderRatio < DRAFT_MIN_REORDER_RATIO) {
                         fallbackReason =
-                            "Suggestion only: ordered regularly, but the " +
-                            "next reorder is not due yet " +
-                            `(${pct(reorderRatio)}% of the usual interval). ` +
-                            "Please confirm.";
+                            "Suggestion: ordered regularly, reorder not due " +
+                            "yet.";
                         decision = "suggested";
                     } else {
                         decision = frequency >= DRAFT_AUTO_MIN_FREQUENCY
@@ -1939,40 +1935,27 @@ Return exactly this structure:
                 const unit = product.unit || "";
 
                 const reasonProduct =
-                    `Ordered in ${orderCount} of the last ${analyzedOrders} ` +
-                    `orders (${pct(frequency)}%). ` +
+                    `Ordered in ${orderCount} of ${analyzedOrders} orders ` +
+                    `(${pct(frequency)}%)` +
                     (reorderKnown
-                        ? `Usually reordered every ${Math.round(avgIntervalDays)} ` +
-                          `days; last ordered ${Math.round(daysSinceLast)} days ` +
-                          `ago (${pct(reorderRatio)}% of the usual interval).`
-                        : "The reorder timing could not be determined from " +
-                          "the available order dates.");
+                        ? `, last ${Math.round(daysSinceLast)} days ago ` +
+                          `(usually every ${Math.round(avgIntervalDays)}).`
+                        : ".");
 
                 const reasonQuantity =
-                    `Average quantity across these ${orderCount} orders: ` +
-                    `${averageQuantity.toFixed(1)} ${unit}`.trim() +
-                    ` \u2192 proposed ${quantity}.`;
+                    `Average ${averageQuantity.toFixed(1)} ${unit}`.trim() +
+                    ` \u2192 ${quantity}.`;
 
                 let reasonDecision;
                 if (decision === "auto") {
-                    reasonDecision =
-                        "Added automatically: ordered in at least " +
-                        `${pct(DRAFT_AUTO_MIN_FREQUENCY)}% of recent orders, ` +
-                        `bought within the last ${DRAFT_RECENT_WINDOW} orders ` +
-                        "and a reorder is due.";
+                    reasonDecision = "Added automatically: frequent and due.";
                 } else if (fallbackReason) {
                     reasonDecision = fallbackReason;
                 } else if (reorderKnown) {
-                    reasonDecision =
-                        "Suggestion only: ordered in " +
-                        `${pct(DRAFT_SUGGEST_MIN_FREQUENCY)}\u2013` +
-                        `${pct(DRAFT_AUTO_MIN_FREQUENCY) - 1}% of recent ` +
-                        "orders, so PICO is less certain. Please confirm.";
+                    reasonDecision = "Suggestion: less certain, please confirm.";
                 } else {
                     reasonDecision =
-                        "Suggestion only: the reorder timing could not be " +
-                        "verified, so PICO does not add it automatically. " +
-                        "Please confirm.";
+                        "Suggestion: timing unknown, please confirm.";
                 }
 
                 const entry = {
