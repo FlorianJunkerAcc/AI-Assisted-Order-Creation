@@ -134,4 +134,31 @@ action selectCustomer(
 ) returns CustomerSelectionResult;
 
 
+type OrderDraftItem {
+    product_ID       : String;
+    productNumber    : String;
+    productName      : String;
+    unit             : String;
+    quantity         : Integer;
+    unitPrice        : Decimal(15, 2);
+    totalPrice       : Decimal(15, 2);
+    decision         : String;
+    orderCount       : Integer;
+    totalOrders      : Integer;
+    frequencyPercent : Integer;
+    reasonProduct    : String;
+    reasonQuantity   : String;
+    reasonDecision   : String;
+}
+
+type OrderDraftResult {
+    success        : Boolean;
+    message        : String;
+    analyzedOrders : Integer;
+    autoItems      : many OrderDraftItem;
+    suggestions    : many OrderDraftItem;
+}
+
+action generateOrderDraft(customerId : String, excludedProductIDs : String) returns OrderDraftResult;
+
 }

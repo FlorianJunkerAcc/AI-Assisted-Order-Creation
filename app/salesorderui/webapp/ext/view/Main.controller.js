@@ -1,4 +1,3 @@
-
 sap.ui.define(
     [
         "sap/fe/core/PageController",
@@ -64,6 +63,21 @@ sap.ui.define(
                         }),
                         "recommendation"
                     );
+                    // Ergebnis von "Generate order draft": sichere Items
+                    // (autoItems, bereits im Auftrag) und Vorschlaege
+                    // (suggestions, vom Nutzer zu bestaetigen) inkl.
+                    // Begruendung pro Item ("Why?").
+                    this.getView().setModel(
+                        new JSONModel({
+                            visible: false,
+                            message: "",
+                            hasAuto: false,
+                            hasSuggestions: false,
+                            autoItems: [],
+                            suggestions: []
+                        }),
+                        "draft"
+                    );
                     this.getView().setModel(
                         new JSONModel({
                             visible: false,
@@ -127,9 +141,9 @@ sap.ui.define(
                     );
                 },
                 /**
-                 * Setzt die Ergebnisbereiche ALLER vier PICO-Funktionen
+                 * Setzt die Ergebnisbereiche ALLER PICO-Funktionen
                  * zurueck (Customer Clarification, Product Clarification,
-                 * Recommendation, Validation).
+                 * Order Draft, Recommendation, Validation).
                  *
                  * Wichtig: "question" wird explizit auf "" zurueckgesetzt,
                  * nicht nur "visible" auf false - die XML-View prueft bei
@@ -163,6 +177,14 @@ sap.ui.define(
                     this.getView().getModel("recommendation").setData({
                         visible: false,
                         recommendations: []
+                    });
+                    this.getView().getModel("draft").setData({
+                        visible: false,
+                        message: "",
+                        hasAuto: false,
+                        hasSuggestions: false,
+                        autoItems: [],
+                        suggestions: []
                     });
                     this.getView().getModel("validation").setData({
                         visible: false,
@@ -773,11 +795,11 @@ sap.ui.define(
                  * Zentraler Einstiegspunkt: nimmt den Freitext-Befehl aus
                  * dem PICO-Eingabefeld entgegen, ruft zuerst den Intent-
                  * Router (routeAiCommand) auf und dispatcht anschliessend
-                 * je nach erkannter Absicht an genau eine der vier
-                 * bestehenden Funktionen. PICO selbst legt nie einen
-                 * Sales Order an und veraendert nie direkt den Entwurf -
-                 * das passiert weiterhin ausschliesslich in den bereits
-                 * vorhandenen Funktionen (_runSelectCustomer,
+                 * je nach erkannter Absicht an genau eine der fuenf
+                 * Funktionen. PICO selbst legt nie einen Sales Order an -
+                 * das passiert weiterhin ausschliesslich in onCreateOrder.
+                 * Den Entwurf aendert PICO nur ueber die vorhandenen
+                 * Funktionen (_runSelectCustomer, _runGenerateOrderDraft,
                  * _runAddItems, _runRecommendProducts, _runValidateOrder).
                  */
                 onAskPico: async function () {
@@ -846,12 +868,12 @@ sap.ui.define(
                                 // Neuer, eindeutig erkannter Intent: zuerst
                                 // ALLE bisherigen Ergebnisbereiche leeren
                                 // (Customer Clarification, Product
-                                // Clarification, Recommendation,
-                                // Validation), damit z.B. eine vorherige
-                                // Produktempfehlung nicht sichtbar bleibt,
-                                // waehrend bereits das Validierungsergebnis
-                                // angezeigt wird. Erst danach die neue
-                                // Funktion ausfuehren.
+                                // Clarification, Order Draft,
+                                // Recommendation, Validation), damit z.B.
+                                // eine vorherige Produktempfehlung nicht
+                                // sichtbar bleibt, waehrend bereits das
+                                // Validierungsergebnis angezeigt wird. Erst
+                                // danach die neue Funktion ausfuehren.
                                 this._clearAiResultAreas();
 
                                 // Befehl wurde eindeutig erkannt und wird
@@ -862,7 +884,11 @@ sap.ui.define(
                                 );
                                 this.byId("aiOrderInput").setValue("");
 
-                                if (oResult.intent === "select_customer") {
+                                if (oResult.intent === "generate_order_draft") {
+                                    await this._runGenerateOrderDraft();
+                                } else if (
+                                    oResult.intent === "select_customer"
+                                ) {
                                     await this._runSelectCustomer(sCommand);
                                 } else if (
                                     oResult.intent === "add_items"
@@ -1174,6 +1200,199 @@ sap.ui.define(
                             (oError.message || String(oError))
                         );
                     }
+                },
+                /**
+                 * Erzeugt einen Auftragsentwurf aus der Kundenhistorie
+                 * (generateOrderDraft). Sichere Items werden direkt in den
+                 * Entwurf uebernommen, unsichere erscheinen als Vorschlag
+                 * zur Bestaetigung. Jedes Item hat eine Begruendung hinter
+                 * "Why?". Wird ausschliesslich von onAskPico aufgerufen,
+                 * nachdem PICO den Intent "generate_order_draft" erkannt hat.
+                 */
+                _runGenerateOrderDraft: async function () {
+                    const oCustomerItem =
+                        this.byId("customerSelect").getSelectedItem();
+                    if (!oCustomerItem) {
+                        MessageBox.warning(
+                            "Please select a customer before generating an order draft."
+                        );
+                        return;
+                    }
+
+                    const aOrderItems =
+                        this.getView().getModel("order")
+                            .getProperty("/items") || [];
+
+                    const oDraftModel = this.getView().getModel("draft");
+
+                    const oActionBinding =
+                        this.getView().getModel().bindContext(
+                            "/generateOrderDraft(...)"
+                        );
+
+                    try {
+                        const oCustomerContext =
+                            oCustomerItem.getBindingContext();
+                        const sCustomerID =
+                            await oCustomerContext.requestProperty("ID");
+
+                        oActionBinding.setParameter(
+                            "customerId",
+                            sCustomerID
+                        );
+                        oActionBinding.setParameter(
+                            "excludedProductIDs",
+                            JSON.stringify(
+                                [...new Set(aOrderItems
+                                    .map((item) => item.product_ID)
+                                    .filter(Boolean))]
+                            )
+                        );
+
+                        await oActionBinding.execute();
+
+                        const oResultContext =
+                            oActionBinding.getBoundContext();
+                        if (!oResultContext) {
+                            throw new Error(
+                                "The order draft service returned no result."
+                            );
+                        }
+
+                        const oResult =
+                            await oResultContext.requestObject();
+
+                        console.log("Order draft result:", oResult);
+
+                        const aAuto = (Array.isArray(oResult.autoItems)
+                            ? oResult.autoItems
+                            : []
+                        ).map((oItem) =>
+                            Object.assign({}, oItem, { showWhy: false })
+                        );
+                        const aSuggestions = (Array.isArray(oResult.suggestions)
+                            ? oResult.suggestions
+                            : []
+                        ).map((oItem) =>
+                            Object.assign({}, oItem, { showWhy: false })
+                        );
+
+                        if (!oResult.success ||
+                            (aAuto.length === 0 && aSuggestions.length === 0)) {
+                            oDraftModel.setData({
+                                visible: false,
+                                message: "",
+                                hasAuto: false,
+                                hasSuggestions: false,
+                                autoItems: [],
+                                suggestions: []
+                            });
+                            MessageToast.show(
+                                oResult.message ||
+                                    "No order draft could be generated."
+                            );
+                            return;
+                        }
+
+                        // Sichere Items direkt in den Entwurf uebernehmen.
+                        if (aAuto.length > 0) {
+                            this._addAiItemsToOrder(aAuto.map((oItem) => ({
+                                product_ID: oItem.product_ID,
+                                productName: oItem.productName,
+                                unit: oItem.unit || "",
+                                quantity: Number(oItem.quantity),
+                                unitPrice: Number(oItem.unitPrice),
+                                totalPrice: Number(oItem.totalPrice)
+                            })));
+                        }
+
+                        oDraftModel.setData({
+                            visible: true,
+                            message: oResult.message || "",
+                            hasAuto: aAuto.length > 0,
+                            hasSuggestions: aSuggestions.length > 0,
+                            autoItems: aAuto,
+                            suggestions: aSuggestions
+                        });
+
+                        if (aAuto.length > 0) {
+                            MessageToast.show(
+                                `${aAuto.length} item(s) added to the order draft.`
+                            );
+                        }
+
+                    } catch (oError) {
+                        console.error(
+                            "Order draft generation failed:",
+                            oError
+                        );
+                        MessageBox.error(
+                            "The order draft could not be generated: " +
+                                (oError.message || String(oError))
+                        );
+                    }
+                },
+                /**
+                 * Klappt die Begruendung ("Why?") eines Draft-Items
+                 * auf bzw. zu.
+                 */
+                onToggleDraftWhy: function (oEvent) {
+                    const oContext =
+                        oEvent.getSource().getBindingContext("draft");
+                    if (!oContext) {
+                        return;
+                    }
+                    const oModel = oContext.getModel();
+                    const sPath = oContext.getPath() + "/showWhy";
+                    oModel.setProperty(sPath, !oModel.getProperty(sPath));
+                },
+                /**
+                 * Nutzer bestaetigt einen Vorschlag aus dem Order Draft:
+                 * Item wird in den Entwurf uebernommen und aus der
+                 * Vorschlagsliste entfernt.
+                 */
+                onAddDraftSuggestion: function (oEvent) {
+                    const oContext =
+                        oEvent.getSource().getBindingContext("draft");
+                    const oSuggestion = oContext?.getObject();
+                    if (!oSuggestion?.product_ID) {
+                        MessageBox.error(
+                            "The selected suggestion is invalid."
+                        );
+                        return;
+                    }
+
+                    const iQuantity = Number.isInteger(oSuggestion.quantity) &&
+                        oSuggestion.quantity > 0
+                        ? oSuggestion.quantity
+                        : 1;
+                    const fUnitPrice = Number(oSuggestion.unitPrice);
+
+                    this._addAiItemsToOrder([{
+                        product_ID: oSuggestion.product_ID,
+                        productName: oSuggestion.productName,
+                        unit: oSuggestion.unit || "",
+                        quantity: iQuantity,
+                        unitPrice: fUnitPrice,
+                        totalPrice: fUnitPrice * iQuantity
+                    }]);
+
+                    const oDraftModel = this.getView().getModel("draft");
+                    const aRemaining =
+                        (oDraftModel.getProperty("/suggestions") || [])
+                            .filter(
+                                (oItem) =>
+                                    oItem.product_ID !== oSuggestion.product_ID
+                            );
+                    oDraftModel.setProperty("/suggestions", aRemaining);
+                    oDraftModel.setProperty(
+                        "/hasSuggestions",
+                        aRemaining.length > 0
+                    );
+
+                    MessageToast.show(
+                        `${oSuggestion.productName} (Qty ${iQuantity}) added to the order draft.`
+                    );
                 },
                 /**
                  * Fordert Produktempfehlungen fuer den gewaehlten Kunden an

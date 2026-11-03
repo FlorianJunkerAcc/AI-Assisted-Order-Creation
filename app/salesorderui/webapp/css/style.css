@@ -97,6 +97,21 @@
     color: #7D3C98;
 }
 
+/* PICO Order Draft: Abschnittstitel und aufklappbare "Why?"-Begründung.
+   Die Draft-Items verwenden .validationWarningItem als Zeile. */
+.draftSectionTitle {
+    display: block;
+    font-weight: bold;
+    color: #6C3483;
+    margin-bottom: 0.5rem;
+}
+
+.draftWhyBox {
+    margin-top: 0.4rem;
+    padding-top: 0.4rem;
+    border-top: 1px dashed #D2B4DE;
+}
+
 .productDisplayField,
 .productDisplayField .sapMInputBaseContentWrapper,
 .productDisplayField.sapMInputBaseReadonly .sapMInputBaseContentWrapper {

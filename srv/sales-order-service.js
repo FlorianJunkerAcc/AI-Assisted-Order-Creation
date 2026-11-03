@@ -26,10 +26,35 @@ const QUANTITY_LOW_FACTOR = 0.5;
 const MIN_AVERAGE_FOR_LOW_CHECK = 2;
 
 // ---------------------------------------------------------------------
+// Schwellenwerte für generateOrderDraft (PICO: Generate order draft).
+//
+// Regel (konservativ, damit der Draft nicht überladen wird):
+//   - Es werden nur die letzten DRAFT_HISTORY_WINDOW Orders analysiert.
+//   - Ein Produkt muss in den letzten DRAFT_RECENT_WINDOW Orders
+//     mindestens einmal vorkommen (sonst hat der Kunde es evtl. aufgegeben).
+//   - Nachbestellung muss fällig sein (>= 80 % des üblichen Intervalls).
+//   - Frequency >= 60 %  -> wird direkt in den Draft übernommen.
+//   - Frequency 40-59 %  -> Vorschlag, den der Nutzer bestätigen muss.
+// ---------------------------------------------------------------------
+const DAY_MS = 24 * 60 * 60 * 1000;
+const DRAFT_HISTORY_WINDOW = 10;
+const DRAFT_RECENT_WINDOW = 5;
+const DRAFT_MIN_ORDERS = 3;
+const DRAFT_AUTO_MIN_FREQUENCY = 0.6;
+const DRAFT_SUGGEST_MIN_FREQUENCY = 0.4;
+const DRAFT_MIN_REORDER_RATIO = 0.8;
+const DRAFT_MAX_AUTO_ITEMS = 15;
+const DRAFT_MAX_SUGGESTIONS = 8;
+// Mögliche Datumsfelder der Sales-Cloud-Order (bitte im Log prüfen).
+const ORDER_DATE_FIELDS = ["CreationDateTime", "DateTime"];
+
+// ---------------------------------------------------------------------
 // PICO Intent Router (routeAiCommand).
 //
 // select_customer wurde als vierte Funktion ergänzt: PICO kann jetzt
 // auch den Kunden per Freitext-/Sprachbefehl auswählen.
+// generate_order_draft ist die fünfte Funktion: Auftragsentwurf aus
+// der Kundenhistorie.
 // ---------------------------------------------------------------------
 const PICO_ALLOWED_STATUSES = [
     "ok",
@@ -39,6 +64,7 @@ const PICO_ALLOWED_STATUSES = [
 ];
 const PICO_ALLOWED_INTENTS = [
     "select_customer",
+    "generate_order_draft",
     "add_items",
     "recommend_products",
     "validate_order"
@@ -95,6 +121,50 @@ function getResultRows(result) {
 
 function average(numbers) {
     return numbers.reduce((sum, value) => sum + value, 0) / numbers.length;
+}
+
+/**
+ * Wandelt ein Sales-Cloud-Datum (ISO-String, /Date(...)/ oder Date)
+ * in einen Timestamp (ms) um. Gibt null zurück, wenn nicht lesbar.
+ */
+function parseSalesCloudDate(value) {
+    if (!value) {
+        return null;
+    }
+    if (value instanceof Date) {
+        return value.getTime();
+    }
+    const text = String(value);
+    const odataMatch = /\/Date\((-?\d+)/.exec(text);
+    if (odataMatch) {
+        return Number(odataMatch[1]);
+    }
+    const parsed = Date.parse(text);
+    return Number.isNaN(parsed) ? null : parsed;
+}
+
+function getOrderTimestamp(order) {
+    for (const field of ORDER_DATE_FIELDS) {
+        const timestamp = parseSalesCloudDate(order?.[field]);
+        if (timestamp !== null) {
+            return timestamp;
+        }
+    }
+    return null;
+}
+
+// Neueste Order zuerst; Fallback auf die (numerische) Order-ID.
+function compareOrdersNewestFirst(left, right) {
+    if (left.timestamp !== null && right.timestamp !== null &&
+        left.timestamp !== right.timestamp) {
+        return right.timestamp - left.timestamp;
+    }
+    const leftID = Number(left.id);
+    const rightID = Number(right.id);
+    if (Number.isFinite(leftID) && Number.isFinite(rightID)) {
+        return rightID - leftID;
+    }
+    return String(right.id).localeCompare(String(left.id));
 }
 
 /**
@@ -412,7 +482,7 @@ export default cds.service.impl(async function () {
      * Resolves a customer's Sales Cloud customer number (BuyerPartyID),
      * falling back to a live Sales Cloud lookup if the customer is not
      * (yet) cached in the local Customers table. Shared by
-     * recommendProducts and validateOrderItems.
+     * recommendProducts, validateOrderItems and generateOrderDraft.
      */
     const resolveCustomerNumber = async (customerId) => {
         let customer = await SELECT.one
@@ -451,9 +521,12 @@ export default cds.service.impl(async function () {
     /**
      * Loads a customer's full historical order line items from SAP Sales
      * Cloud (CustomerOrderCollection + batched CustomerOrderItemCollection
-     * reads). Shared by recommendProducts and validateOrderItems.
+     * reads). Shared by recommendProducts, validateOrderItems and
+     * generateOrderDraft.
      *
-     * Returns { totalOrders, historicalItems }.
+     * Returns { totalOrders, historicalItems, historicalOrders }.
+     * historicalOrders enthält die Order-Köpfe (inkl. Datumsfelder) und
+     * wird für das Reorder-Timing in generateOrderDraft benötigt.
      */
     const loadCustomerOrderHistory = async (customerNumber) => {
         const historicalOrders = getResultRows(await salesCloud.run(
@@ -489,7 +562,7 @@ export default cds.service.impl(async function () {
             );
         }
 
-        return { totalOrders, historicalItems };
+        return { totalOrders, historicalItems, historicalOrders };
     };
 
     this.on("READ", Customers, async () => {
@@ -1618,16 +1691,362 @@ Return exactly this structure:
     });
 
     /**
+     * PICO: Generate order draft.
+     *
+     * Analysiert die letzten DRAFT_HISTORY_WINDOW Orders des Kunden und
+     * teilt Produkte in zwei Gruppen:
+     *   autoItems   -> Frequency >= 60 %, in den letzten 5 Orders dabei,
+     *                  Nachbestellung fällig (>= 80 % des Intervalls)
+     *   suggestions -> Frequency 40-59 %, sonst gleiche Bedingungen
+     *                  (oder Fälligkeit nicht prüfbar) -> Nutzer bestätigt
+     * Menge = historischer Durchschnitt. Jede Entscheidung bekommt eine
+     * deterministische Begründung (kein LLM). Die Action ändert nichts
+     * in der Sales Cloud.
+     */
+    this.on("generateOrderDraft", async (req) => {
+        const { customerId, excludedProductIDs = "[]" } = req.data;
+
+        if (!customerId) {
+            return req.reject(400, "A customer must be selected.");
+        }
+
+        let excludedList;
+        try {
+            excludedList = JSON.parse(excludedProductIDs || "[]");
+        } catch {
+            return req.reject(
+                400,
+                "The excluded product ID list must be valid JSON."
+            );
+        }
+        if (!Array.isArray(excludedList) ||
+            excludedList.some((id) => typeof id !== "string")) {
+            return req.reject(
+                400,
+                "The excluded product IDs must be a JSON array of strings."
+            );
+        }
+        const excludedSet = new Set(excludedList);
+
+        const emptyResult = (message, analyzedOrders = 0) => ({
+            success: false,
+            message,
+            analyzedOrders,
+            autoItems: [],
+            suggestions: []
+        });
+
+        try {
+            const customerNumber = await resolveCustomerNumber(customerId);
+            if (!customerNumber) {
+                return req.reject(
+                    404,
+                    "The selected customer could not be found in the local " +
+                        "customer catalog or SAP Sales Cloud."
+                );
+            }
+
+            let historicalOrders;
+            let historicalItems;
+            try {
+                ({ historicalOrders, historicalItems } =
+                    await loadCustomerOrderHistory(customerNumber));
+            } catch (error) {
+                console.error(
+                    "Could not read SAP Sales Cloud order history:",
+                    error
+                );
+                return req.reject(
+                    502,
+                    `SALES_CLOUD_ORDER_HISTORY_${getSalesCloudErrorCode(error)}: ` +
+                        getSalesCloudErrorMessage(error)
+                );
+            }
+
+            // Orders deduplizieren, sortieren, Analysefenster bilden.
+            const seenOrderIDs = new Set();
+            const orders = [];
+            for (const order of historicalOrders) {
+                if (typeof order.ID !== "string" || !order.ID ||
+                    seenOrderIDs.has(order.ID)) {
+                    continue;
+                }
+                seenOrderIDs.add(order.ID);
+                orders.push({
+                    id: order.ID,
+                    timestamp: getOrderTimestamp(order)
+                });
+            }
+            orders.sort(compareOrdersNewestFirst);
+
+            const windowOrders = orders.slice(0, DRAFT_HISTORY_WINDOW);
+            const analyzedOrders = windowOrders.length;
+
+            if (analyzedOrders < DRAFT_MIN_ORDERS) {
+                return emptyResult(
+                    `Insufficient order history (${analyzedOrders} of ` +
+                        `${DRAFT_MIN_ORDERS} required orders) to generate ` +
+                        "a reliable order draft.",
+                    analyzedOrders
+                );
+            }
+
+            const windowIDs = new Set(windowOrders.map((o) => o.id));
+            const recentIDs = new Set(
+                windowOrders.slice(0, DRAFT_RECENT_WINDOW).map((o) => o.id)
+            );
+            const timestampByOrder = new Map(
+                windowOrders.map((o) => [o.id, o.timestamp])
+            );
+
+            // Aggregation pro Produkt: Menge je Order (mehrere Zeilen
+            // desselben Produkts in einer Order werden summiert).
+            const aggregates = new Map();
+            for (const { salesOrderID, item } of historicalItems) {
+                if (!windowIDs.has(salesOrderID)) {
+                    continue;
+                }
+                const productNumber = String(item.ProductID || "")
+                    .trim()
+                    .toUpperCase();
+                const quantity = Number(item.Quantity);
+                if (!productNumber || !Number.isFinite(quantity) ||
+                    quantity <= 0) {
+                    continue;
+                }
+                let aggregate = aggregates.get(productNumber);
+                if (!aggregate) {
+                    aggregate = {
+                        productNumber,
+                        quantityByOrder: new Map()
+                    };
+                    aggregates.set(productNumber, aggregate);
+                }
+                aggregate.quantityByOrder.set(
+                    salesOrderID,
+                    (aggregate.quantityByOrder.get(salesOrderID) || 0) +
+                        quantity
+                );
+            }
+
+            let catalog;
+            try {
+                catalog = await loadSalesCloudProducts();
+            } catch (error) {
+                console.error(
+                    "Could not load the active SAP Sales Cloud catalog:",
+                    error
+                );
+                return req.reject(
+                    502,
+                    `SALES_CLOUD_PRODUCT_CATALOG_${getSalesCloudErrorCode(error)}: ` +
+                        getSalesCloudErrorMessage(error)
+                );
+            }
+            const catalogByNumber = new Map(
+                catalog.map((product) => [
+                    String(product.productNumber || "").trim().toUpperCase(),
+                    product
+                ])
+            );
+
+            const autoItems = [];
+            const suggestions = [];
+            let skipped = 0;
+            const now = Date.now();
+            const pct = (value) => Math.round(value * 100);
+
+            for (const aggregate of aggregates.values()) {
+                const product = catalogByNumber.get(aggregate.productNumber);
+                if (!product || excludedSet.has(String(product.ID))) {
+                    continue;
+                }
+                const unitPrice = Number(product.price);
+                if (!Number.isFinite(unitPrice)) {
+                    continue;
+                }
+
+                const orderIDs = [...aggregate.quantityByOrder.keys()];
+                const orderCount = orderIDs.length;
+                const frequency = orderCount / analyzedOrders;
+                const purchasedRecently =
+                    orderIDs.some((id) => recentIDs.has(id));
+
+                if (frequency < DRAFT_SUGGEST_MIN_FREQUENCY ||
+                    !purchasedRecently) {
+                    skipped += 1;
+                    continue;
+                }
+
+                // Reorder-Timing aus den Bestelldaten.
+                const purchaseTimes = orderIDs
+                    .map((id) => timestampByOrder.get(id))
+                    .filter((t) => t !== null && t !== undefined)
+                    .sort((a, b) => a - b);
+
+                let reorderKnown = false;
+                let avgIntervalDays = 0;
+                let daysSinceLast = 0;
+                let reorderRatio = 0;
+
+                if (purchaseTimes.length >= 2) {
+                    const gaps = [];
+                    for (let i = 1; i < purchaseTimes.length; i += 1) {
+                        gaps.push(
+                            (purchaseTimes[i] - purchaseTimes[i - 1]) / DAY_MS
+                        );
+                    }
+                    avgIntervalDays = Math.max(average(gaps), 1);
+                    daysSinceLast = Math.max(
+                        (now - purchaseTimes[purchaseTimes.length - 1]) /
+                            DAY_MS,
+                        0
+                    );
+                    reorderRatio = daysSinceLast / avgIntervalDays;
+                    reorderKnown = true;
+                }
+
+                let decision;
+                if (reorderKnown) {
+                    if (reorderRatio < DRAFT_MIN_REORDER_RATIO) {
+                        skipped += 1;
+                        continue;
+                    }
+                    decision = frequency >= DRAFT_AUTO_MIN_FREQUENCY
+                        ? "auto"
+                        : "suggested";
+                } else {
+                    // Fälligkeit nicht prüfbar -> nie automatisch hinzufügen.
+                    decision = "suggested";
+                }
+
+                const quantities = [...aggregate.quantityByOrder.values()];
+                const averageQuantity = average(quantities);
+                const quantity = Math.max(1, Math.round(averageQuantity));
+                const unit = product.unit || "";
+
+                const reasonProduct =
+                    `Ordered in ${orderCount} of the last ${analyzedOrders} ` +
+                    `orders (${pct(frequency)}%). ` +
+                    (reorderKnown
+                        ? `Usually reordered every ${Math.round(avgIntervalDays)} ` +
+                          `days; last ordered ${Math.round(daysSinceLast)} days ` +
+                          `ago (${pct(reorderRatio)}% of the usual interval).`
+                        : "The reorder timing could not be determined from " +
+                          "the available order dates.");
+
+                const reasonQuantity =
+                    `Average quantity across these ${orderCount} orders: ` +
+                    `${averageQuantity.toFixed(1)} ${unit}`.trim() +
+                    ` \u2192 proposed ${quantity}.`;
+
+                let reasonDecision;
+                if (decision === "auto") {
+                    reasonDecision =
+                        "Added automatically: ordered in at least " +
+                        `${pct(DRAFT_AUTO_MIN_FREQUENCY)}% of recent orders, ` +
+                        `bought within the last ${DRAFT_RECENT_WINDOW} orders ` +
+                        "and a reorder is due.";
+                } else if (reorderKnown) {
+                    reasonDecision =
+                        "Suggestion only: ordered in " +
+                        `${pct(DRAFT_SUGGEST_MIN_FREQUENCY)}\u2013` +
+                        `${pct(DRAFT_AUTO_MIN_FREQUENCY) - 1}% of recent ` +
+                        "orders, so PICO is less certain. Please confirm.";
+                } else {
+                    reasonDecision =
+                        "Suggestion only: the reorder timing could not be " +
+                        "verified, so PICO does not add it automatically. " +
+                        "Please confirm.";
+                }
+
+                const entry = {
+                    product_ID: product.ID,
+                    productNumber: product.productNumber,
+                    productName: product.name,
+                    unit,
+                    quantity,
+                    unitPrice,
+                    totalPrice: Number((unitPrice * quantity).toFixed(2)),
+                    decision,
+                    orderCount,
+                    totalOrders: analyzedOrders,
+                    frequencyPercent: pct(frequency),
+                    reasonProduct,
+                    reasonQuantity,
+                    reasonDecision,
+                    _frequency: frequency
+                };
+                (decision === "auto" ? autoItems : suggestions).push(entry);
+            }
+
+            const byFrequency = (a, b) =>
+                b._frequency - a._frequency || b.orderCount - a.orderCount;
+            const strip = ({ _frequency, ...rest }) => rest;
+
+            const finalAuto = autoItems
+                .sort(byFrequency)
+                .slice(0, DRAFT_MAX_AUTO_ITEMS)
+                .map(strip);
+            const finalSuggestions = suggestions
+                .sort(byFrequency)
+                .slice(0, DRAFT_MAX_SUGGESTIONS)
+                .map(strip);
+
+            console.log(
+                `Order draft: ${finalAuto.length} auto, ` +
+                    `${finalSuggestions.length} suggested, ${skipped} skipped ` +
+                    `(${analyzedOrders} orders analyzed).`
+            );
+
+            if (finalAuto.length === 0 && finalSuggestions.length === 0) {
+                return emptyResult(
+                    "No products met the criteria for an order draft " +
+                        `(based on the last ${analyzedOrders} orders). ` +
+                        "Either nothing is due for reorder yet, or the " +
+                        "products are already in the draft.",
+                    analyzedOrders
+                );
+            }
+
+            return {
+                success: true,
+                message:
+                    `${finalAuto.length} item(s) added automatically, ` +
+                    `${finalSuggestions.length} suggestion(s) need your ` +
+                    `confirmation (based on the last ${analyzedOrders} orders).`,
+                analyzedOrders,
+                autoItems: finalAuto,
+                suggestions: finalSuggestions
+            };
+
+        } catch (error) {
+            const statusCode = Number(
+                error.statusCode || error.status || error.code
+            );
+            if (statusCode >= 400 && statusCode < 600) {
+                return req.reject(statusCode, error.message);
+            }
+            console.error("Order draft generation failed:", error);
+            return req.reject(
+                500,
+                `ORDER_DRAFT_FAILED: ${error.message}`
+            );
+        }
+    });
+
+    /**
      * PICO Intent Router (routeAiCommand).
      *
      * Empfängt einen beliebigen Freitext-Befehl aus dem EINEN PICO-
-     * Eingabefeld und entscheidet mittels Sonnet, welche der vier
-     * bestehenden Funktionen gemeint ist:
+     * Eingabefeld und entscheidet mittels Sonnet, welche der fünf
+     * Funktionen gemeint ist:
      *
-     *   select_customer    -> selectCustomer
-     *   add_items          -> interpretOrderItems
-     *   recommend_products -> recommendProducts
-     *   validate_order     -> validateOrderItems
+     *   select_customer      -> selectCustomer
+     *   generate_order_draft -> generateOrderDraft
+     *   add_items            -> interpretOrderItems
+     *   recommend_products   -> recommendProducts
+     *   validate_order       -> validateOrderItems
      *
      * PICO führt selbst NICHTS aus - er liefert nur die Entscheidung
      * (status + intent) und ggf. einen Text, der dem Nutzer direkt
@@ -1662,31 +2081,32 @@ Return exactly this structure:
                         role: "system",
                         content: `You are the intent router for PICO, an AI assistant that helps sales representatives create customer sales orders in a SAP-based application.
 
-PICO can perform exactly four functions:
+PICO can perform exactly five functions:
 
 1. select_customer - identify and select the customer for the order, based on the customer's name and/or customer number.
-2. add_items - interpret spoken or typed product names and quantities and add them as order line items to the current order draft.
-3. recommend_products - suggest products to add to the order, based on the customer's historical order data.
-4. validate_order - check the current order draft's line items against the customer's order history and flag unusual product categories or quantities.
+2. generate_order_draft - automatically build an order draft from the customer's order history: frequently ordered products that are due for reorder are added to the order, less certain ones are offered as suggestions to confirm. Typical commands: "create an order draft", "prepare the usual order", "fill the order based on history".
+3. add_items - interpret spoken or typed product names and quantities and add them as order line items to the current order draft.
+4. recommend_products - suggest products to consider adding to the order, based on the customer's historical order data, without adding anything automatically.
+5. validate_order - check the current order draft's line items against the customer's order history and flag unusual product categories or quantities.
 
 Analyze the user's command and decide which single function is meant.
 
 Rules:
 
-- If the command clearly and unambiguously matches exactly ONE of the four functions, respond with status "ok" and set intent to that function's identifier (select_customer, add_items, recommend_products, or validate_order). The message field can be a short one-sentence acknowledgement.
-- If the command explicitly or implicitly asks for TWO OR MORE of the four functions to be performed together (for example "select customer Acme and add 5 Nutella"), respond with status "multiple_intents", intent set to an empty string, and a friendly message explaining that PICO can only execute one function per command and asking the user to submit the requests one at a time.
-- If the command could reasonably match more than one function, or its meaning is unclear, respond with status "clarification_required", intent set to an empty string, and a short clarifying question that helps determine which of the four functions is meant.
-- If the command does not relate to any of the four functions at all (for example small talk, unrelated topics, or requests PICO cannot fulfill), respond with status "unknown_intent", intent set to an empty string, and a very friendly message explaining that PICO cannot help with this, briefly restating the four things PICO can help with.
+- If the command clearly and unambiguously matches exactly ONE of the five functions, respond with status "ok" and set intent to that function's identifier (select_customer, generate_order_draft, add_items, recommend_products, or validate_order). The message field can be a short one-sentence acknowledgement.
+- If the command explicitly or implicitly asks for TWO OR MORE of the five functions to be performed together (for example "select customer Acme and add 5 Nutella"), respond with status "multiple_intents", intent set to an empty string, and a friendly message explaining that PICO can only execute one function per command and asking the user to submit the requests one at a time.
+- If the command could reasonably match more than one function, or its meaning is unclear, respond with status "clarification_required", intent set to an empty string, and a short clarifying question that helps determine which of the five functions is meant.
+- If the command does not relate to any of the five functions at all (for example small talk, unrelated topics, or requests PICO cannot fulfill), respond with status "unknown_intent", intent set to an empty string, and a very friendly message explaining that PICO cannot help with this, briefly restating the five things PICO can help with.
 
 Always write the "message" field in English, regardless of the language of the input command.
 
-Do not invent order data or customer data. Do not decide which specific customer, products, or quantities are meant - that happens later in a separate step. Your only job is to decide WHICH of the four functions applies.
+Do not invent order data or customer data. Do not decide which specific customer, products, or quantities are meant - that happens later in a separate step. Your only job is to decide WHICH of the five functions applies.
 
 Return only valid JSON in exactly this structure. Do not wrap the JSON in Markdown code fences.
 
 {
   "status": "ok" | "clarification_required" | "multiple_intents" | "unknown_intent",
-  "intent": "select_customer" | "add_items" | "recommend_products" | "validate_order" | "",
+  "intent": "select_customer" | "generate_order_draft" | "add_items" | "recommend_products" | "validate_order" | "",
   "message": "string"
 }`
                     },

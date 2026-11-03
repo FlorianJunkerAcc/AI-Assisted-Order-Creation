@@ -2,7 +2,7 @@
 <macros:Page id="Page" title="Create Sales Order" showFooter="true">
 <macros:items>
 <VBox id="salesOrderContent" class="sapUiResponsiveContentPadding" width="100%">
-<!--  Order Information  -->
+<!--   Order Information   -->
 <Panel id="orderHeaderPanel" headerText="{i18n>orderInformation}" expandable="true" expanded="true" width="100%" class="sapUiResponsiveMargin">
 <content>
 <l:Grid id="orderHeaderContent" defaultSpan="L4 M6 S12" hSpacing="1" vSpacing="0" width="100%">
@@ -23,7 +23,7 @@
 </l:Grid>
 </content>
 </Panel>
-<!--  Sales Order Items  -->
+<!--   Sales Order Items   -->
 <Panel id="orderItemsPanel" expandable="true" expanded="true" width="100%" class="sapUiResponsiveMargin">
 <headerToolbar>
 <Toolbar id="orderItemsToolbar" class="stickyOrderItemsToolbar">
@@ -36,10 +36,10 @@
 </headerToolbar>
 <content>
 <VBox id="orderItemsContent" width="100%">
-<!--  Single source of truth: the order items table.
-     PICO ergebnisse (clarification/recommendation/validation) werden
-     NICHT mehr hier inline angezeigt, sondern im schwebenden Chat-Panel
-     weiter unten in dieser View - dadurch bleibt diese Seite clean.  -->
+<!--   Single source of truth: the order items table.
+                                 PICO ergebnisse (clarification/recommendation/validation/draft) werden
+                                 NICHT mehr hier inline angezeigt, sondern im schwebenden Chat-Panel
+                                 weiter unten in dieser View - dadurch bleibt diese Seite clean.   -->
 <Table id="orderItemsTable" width="100%" growing="true" growingThreshold="10" sticky="ColumnHeaders,HeaderToolbar" noDataText="{i18n>noProductsAdded}" items="{order>/items}">
 <columns>
 <Column id="positionColumn" width="8%" hAlign="Center">
@@ -84,29 +84,29 @@
 </VBox>
 </content>
 </Panel>
-<!--  ==================================================================
-     PICO Chat Widget
-     Komplett ausserhalb des normalen Seitenflusses. Wird per CSS
-     (position: fixed) unabhaengig von seiner Position im XML-Baum
-     immer ueber der restlichen Seite schwebend dargestellt.
-     ==================================================================  -->
-<!--  Floating Action Button: oeffnet/schliesst das Chat-Panel.
-     Immer sichtbar, unabhaengig vom Panel-Zustand. Dient gleichzeitig
-     als einziger Schliessen-Mechanismus (Toggle), daher gibt es im
-     Chat-Header selbst KEINEN separaten Schliessen-Button.  -->
+<!--   ==================================================================
+                     PICO Chat Widget
+                     Komplett ausserhalb des normalen Seitenflusses. Wird per CSS
+                     (position: fixed) unabhaengig von seiner Position im XML-Baum
+                     immer ueber der restlichen Seite schwebend dargestellt.
+                     ==================================================================   -->
+<!--   Floating Action Button: oeffnet/schliesst das Chat-Panel.
+                     Immer sichtbar, unabhaengig vom Panel-Zustand. Dient gleichzeitig
+                     als einziger Schliessen-Mechanismus (Toggle), daher gibt es im
+                     Chat-Header selbst KEINEN separaten Schliessen-Button.   -->
 <Button id="picoFabButton" icon="sap-icon://ai" type="Emphasized" tooltip="{i18n>startPico}" press=".onTogglePicoChat" class="picoFabButton"/>
-<!--  Chat-Panel: standardmaessig eingeklappt (visible=false).
-     Enthaelt Header (nur Titel), einen scrollbaren Ergebnisbereich und
-     fest positionierten Eingabebereich.  -->
+<!--   Chat-Panel: standardmaessig eingeklappt (visible=false).
+                     Enthaelt Header (nur Titel), einen scrollbaren Ergebnisbereich und
+                     fest positionierten Eingabebereich.   -->
 <VBox id="picoChatPanel" visible="{pico>/chatOpen}" class="picoChatPanel">
-<!--  Chat-Header (rein informativ, kein Schliessen-Button)  -->
+<!--   Chat-Header (rein informativ, kein Schliessen-Button)   -->
 <HBox id="picoChatHeader" alignItems="Center" class="picoChatHeader">
 <core:Icon id="picoChatHeaderIcon" src="sap-icon://ai" class="picoChatHeaderIcon sapUiTinyMarginEnd"/>
 <Text id="picoChatHeaderTitle" text="PICO" class="picoChatHeaderTitle"/>
 </HBox>
-<!--  Scrollbarer Ergebnisbereich  -->
+<!--   Scrollbarer Ergebnisbereich   -->
 <VBox id="picoChatBody" class="picoChatBody">
-<!--  Begruessung: wird jedes Mal gezeigt, wenn PICO geoeffnet wird.  -->
+<!--   Begruessung: wird jedes Mal gezeigt, wenn PICO geoeffnet wird.   -->
 <VBox id="picoGreetingArea" visible="{pico>/greetingVisible}" class="clarificationBox sapUiSmallMarginBottom">
 <Text id="picoGreetingIntroText" text="{i18n>picoGreetingIntro}" class="clarificationQuestionText sapUiTinyMarginBottom"/>
 <VBox id="picoGreetingBulletList" class="sapUiTinyMarginBottom">
@@ -114,26 +114,27 @@
 <Text id="picoGreetingBullet2Text" text="{i18n>picoGreetingBullet2}" class="clarificationQuestionText"/>
 <Text id="picoGreetingBullet3Text" text="{i18n>picoGreetingBullet3}" class="clarificationQuestionText"/>
 <Text id="picoGreetingBullet4Text" text="{i18n>picoGreetingBullet4}" class="clarificationQuestionText"/>
+<Text id="picoGreetingBullet5Text" text="{i18n>picoGreetingBullet5}" class="clarificationQuestionText"/>
 </VBox>
 <Text id="picoGreetingOutroText" text="{i18n>picoGreetingOutro}" class="clarificationQuestionText"/>
 </VBox>
-<!--  Router-Nachrichten: Rueckfrage, Hinweis auf mehrere Funktionen,
-     oder freundliche Ablehnung bei unbekannten Anfragen.  -->
+<!--   Router-Nachrichten: Rueckfrage, Hinweis auf mehrere Funktionen,
+                             oder freundliche Ablehnung bei unbekannten Anfragen.   -->
 <VBox id="picoMessageArea" visible="{pico>/messageVisible}" class="clarificationBox sapUiSmallMarginBottom">
 <Text id="picoMessageText" text="{pico>/message}" wrapping="true" class="clarificationQuestionText"/>
 </VBox>
-<!--  Kunden-Rueckfrage innerhalb von select_customer (mehrere Treffer
-     oder gar kein Treffer bei Name/Kundennummer).
+<!--   Kunden-Rueckfrage innerhalb von select_customer (mehrere Treffer
+                             oder gar kein Treffer bei Name/Kundennummer).
 
-     "visible" ist direkt an das Model gebunden. Der Controller
-     garantiert an JEDER Stelle, an der "visible" auf true gesetzt wird
-     (_runSelectCustomer, onSelectCustomerClarificationSuggestion),
-     dass gleichzeitig eine echte "question" gesetzt ist, und setzt
-     beim Zuruecksetzen (_clearAiResultAreas, u.a. beim Oeffnen des
-     Chat-Panels VOR dem Anzeigen der Begruessung) "visible" und
-     "question" immer gemeinsam zurueck. Dadurch kann diese Box nie
-     leer erscheinen, ohne dass die XML-Bindung selbst zusaetzliche
-     Ampersand-Ausdruecke benoetigt.  -->
+                             "visible" ist direkt an das Model gebunden. Der Controller
+                             garantiert an JEDER Stelle, an der "visible" auf true gesetzt wird
+                             (_runSelectCustomer, onSelectCustomerClarificationSuggestion),
+                             dass gleichzeitig eine echte "question" gesetzt ist, und setzt
+                             beim Zuruecksetzen (_clearAiResultAreas, u.a. beim Oeffnen des
+                             Chat-Panels VOR dem Anzeigen der Begruessung) "visible" und
+                             "question" immer gemeinsam zurueck. Dadurch kann diese Box nie
+                             leer erscheinen, ohne dass die XML-Bindung selbst zusaetzliche
+                             Ampersand-Ausdruecke benoetigt.   -->
 <VBox id="customerClarificationArea" visible="{customerClarification>/visible}" width="100%" class="sapUiSmallMarginBottom">
 <VBox id="customerClarificationBox" class="clarificationBox sapUiSmallMarginBottom">
 <HBox id="customerClarificationHeaderBox" alignItems="Center" class="sapUiTinyMarginBottom">
@@ -146,9 +147,9 @@
 <Button id="customerClarificationSuggestionButton" text="{= ${customerClarification>customerNumber} + ' | ' + ${customerClarification>customerName}}" type="Default" press=".onSelectCustomerClarificationSuggestion" width="100%" class="sapUiTinyMarginEnd sapUiTinyMarginBottom"/>
 </FlexBox>
 </VBox>
-<!--  Produkt-Rueckfrage innerhalb von add_items (z.B. "Kinder" ist mehrdeutig).
-     Gleiche Absicherung wie oben ueber den Controller, keine
-     zusaetzliche Ampersand-Formel in der XML-Bindung noetig.  -->
+<!--   Produkt-Rueckfrage innerhalb von add_items (z.B. "Kinder" ist mehrdeutig).
+                             Gleiche Absicherung wie oben ueber den Controller, keine
+                             zusaetzliche Ampersand-Formel in der XML-Bindung noetig.   -->
 <VBox id="clarificationArea" visible="{clarification>/visible}" width="100%" class="sapUiSmallMarginBottom">
 <VBox id="clarificationBox" class="clarificationBox sapUiSmallMarginBottom">
 <HBox id="clarificationHeaderBox" alignItems="Center" class="sapUiTinyMarginBottom">
@@ -161,7 +162,57 @@
 <Button id="clarificationSuggestionButton" text="{clarification>productName}" type="Default" press=".onSelectClarificationSuggestion" class="sapUiTinyMarginEnd sapUiTinyMarginBottom"/>
 </FlexBox>
 </VBox>
-<!--  AI product recommendations (Ergebnis von recommend_products)  -->
+<!--   AI order draft (Ergebnis von generate_order_draft):
+                             sichere Items wurden bereits in den Auftrag uebernommen,
+                             unsichere erscheinen als Vorschlag mit "Add"-Button.
+                             Jedes Item hat hinter "Why?" eine Begruendung.   -->
+<VBox id="draftArea" visible="{draft>/visible}" width="100%" class="sapUiSmallMarginBottom">
+<VBox id="draftBox" class="clarificationBox sapUiSmallMarginBottom">
+<HBox id="draftHeaderBox" alignItems="Center" class="sapUiTinyMarginBottom">
+<core:Icon id="draftIcon" src="sap-icon://ai" class="clarificationIcon sapUiTinyMarginEnd"/>
+<Text id="draftHeaderText" text="{i18n>aiOrderDraft}" class="clarificationHeaderText"/>
+</HBox>
+<Text id="draftSummaryText" text="{draft>/message}" wrapping="true" class="clarificationQuestionText"/>
+</VBox>
+<!--   Automatisch hinzugefuegte Items   -->
+<VBox id="draftAutoSection" visible="{draft>/hasAuto}" width="100%" class="sapUiSmallMarginBottom">
+<Text id="draftAutoTitle" text="{i18n>draftAddedTitle}" class="draftSectionTitle"/>
+<VBox id="draftAutoList" items="{draft>/autoItems}" width="100%">
+<VBox class="validationWarningItem">
+<HBox alignItems="Center" justifyContent="SpaceBetween">
+<Text text="{= ${draft>productName} + ' (Qty ' + ${draft>quantity} + ')'}" class="validationWarningTitle"/>
+<Link text="{i18n>why}" press=".onToggleDraftWhy"/>
+</HBox>
+<VBox visible="{draft>showWhy}" class="draftWhyBox">
+<Text text="{= 'Why this product? ' + ${draft>reasonProduct}}" wrapping="true" class="recommendationReasonText"/>
+<Text text="{= 'Why this quantity? ' + ${draft>reasonQuantity}}" wrapping="true" class="recommendationReasonText"/>
+<Text text="{= 'Decision: ' + ${draft>reasonDecision}}" wrapping="true" class="recommendationReasonText"/>
+</VBox>
+</VBox>
+</VBox>
+</VBox>
+<!--   Vorschlaege, die der Nutzer bestaetigen muss   -->
+<VBox id="draftSuggestionSection" visible="{draft>/hasSuggestions}" width="100%">
+<Text id="draftSuggestionTitle" text="{i18n>draftSuggestionsTitle}" class="draftSectionTitle"/>
+<VBox id="draftSuggestionList" items="{draft>/suggestions}" width="100%">
+<VBox class="validationWarningItem">
+<HBox alignItems="Center" justifyContent="SpaceBetween">
+<Text text="{= ${draft>productName} + ' (Qty ' + ${draft>quantity} + ')'}" class="validationWarningTitle"/>
+<HBox alignItems="Center">
+<Link text="{i18n>why}" press=".onToggleDraftWhy" class="sapUiTinyMarginEnd"/>
+<Button text="{i18n>draftAdd}" type="Default" press=".onAddDraftSuggestion"/>
+</HBox>
+</HBox>
+<VBox visible="{draft>showWhy}" class="draftWhyBox">
+<Text text="{= 'Why this product? ' + ${draft>reasonProduct}}" wrapping="true" class="recommendationReasonText"/>
+<Text text="{= 'Why this quantity? ' + ${draft>reasonQuantity}}" wrapping="true" class="recommendationReasonText"/>
+<Text text="{= 'Decision: ' + ${draft>reasonDecision}}" wrapping="true" class="recommendationReasonText"/>
+</VBox>
+</VBox>
+</VBox>
+</VBox>
+</VBox>
+<!--   AI product recommendations (Ergebnis von recommend_products)   -->
 <VBox id="recommendationArea" visible="{recommendation>/visible}" width="100%" class="sapUiSmallMarginBottom">
 <VBox id="recommendationBox" class="clarificationBox sapUiSmallMarginBottom">
 <HBox id="recommendationHeaderBox" alignItems="Center" class="sapUiTinyMarginBottom">
@@ -177,7 +228,7 @@
 </VBox>
 </FlexBox>
 </VBox>
-<!--  AI order validation (Ergebnis von validate_order)  -->
+<!--   AI order validation (Ergebnis von validate_order)   -->
 <VBox id="validationArea" visible="{validation>/visible}" width="100%" class="sapUiSmallMarginBottom">
 <VBox id="validationBox" class="clarificationBox sapUiSmallMarginBottom">
 <HBox id="validationHeaderBox" alignItems="Center" class="sapUiTinyMarginBottom">
@@ -194,8 +245,8 @@
 </VBox>
 </VBox>
 </VBox>
-<!--  Ende picoChatBody  -->
-<!--  Fest positionierter Eingabebereich am unteren Rand des Panels  -->
+<!--   Ende picoChatBody   -->
+<!--   Fest positionierter Eingabebereich am unteren Rand des Panels   -->
 <VBox id="picoChatInputArea" class="picoChatInputArea">
 <Button id="startVoiceInputButton" text="{i18n>startVoiceInput}" icon="sap-icon://microphone" press=".onStartVoiceInput" class="sapUiTinyMarginBottom voiceStartButton"/>
 <VBox id="voiceListeningIndicator" visible="false" alignItems="Center" class="sapUiTinyMargin">
@@ -206,12 +257,12 @@
 <Button id="askPicoButton" text="{i18n>askPico}" type="Emphasized" enabled="{ui>/canSubmitAiCommand}" press=".onAskPico" width="100%"/>
 </VBox>
 </VBox>
-<!--  Ende picoChatPanel  -->
+<!--   Ende picoChatPanel   -->
 </VBox>
 </macros:items>
-<!--  Page Footer: always pinned to the bottom of the viewport,
-     shows item count, order total and the primary Create Order action.
-     Reinforced via CSS (see style.css) to remain visible on iPad.  -->
+<!--   Page Footer: always pinned to the bottom of the viewport,
+             shows item count, order total and the primary Create Order action.
+             Reinforced via CSS (see style.css) to remain visible on iPad.   -->
 <macros:footer>
 <OverflowToolbar id="footerToolbar" class="stickyPageFooter">
 <ObjectStatus id="footerItemCount" text="{order>/itemCount} {i18n>items}" state="None"/>
