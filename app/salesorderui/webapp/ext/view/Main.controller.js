@@ -1643,6 +1643,32 @@ sap.ui.define(
                         );
                     }
                 },
+                /**
+                 * Nutzer ignoriert eine Validierungswarnung: Sie wird aus
+                 * der Liste entfernt, die Zusammenfassung aktualisiert.
+                 */
+                onIgnoreValidationWarning: function (oEvent) {
+                    const oContext =
+                        oEvent.getSource().getBindingContext("validation");
+                    if (!oContext) {
+                        return;
+                    }
+                    const oModel = oContext.getModel();
+                    const aWarnings = oModel.getProperty("/warnings") || [];
+                    const iIndex = Number(
+                        oContext.getPath().split("/").pop()
+                    );
+                    const aRemaining = aWarnings.filter(
+                        (oWarning, i) => i !== iIndex
+                    );
+                    oModel.setProperty("/warnings", aRemaining);
+                    oModel.setProperty(
+                        "/message",
+                        aRemaining.length > 0
+                            ? `${aRemaining.length} potential issue(s) found.`
+                            : "No issues remaining."
+                    );
+                },
                 onStartVoiceInput: function () {
                     const SpeechRecognition =
                         window.SpeechRecognition ||

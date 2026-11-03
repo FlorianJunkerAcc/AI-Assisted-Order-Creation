@@ -156,11 +156,17 @@
 <core:Icon id="clarificationIcon" src="sap-icon://ai" class="clarificationIcon sapUiTinyMarginEnd"/>
 <Text id="clarificationHeaderText" text="PICO needs clarification" class="clarificationHeaderText"/>
 </HBox>
-<Text id="clarificationQuestionText" text="{clarification>/question}" class="clarificationQuestionText"/>
+<Text id="clarificationQuestionText" text="{clarification>/question}" wrapping="true" class="clarificationQuestionText"/>
 </VBox>
-<FlexBox id="clarificationSuggestions" wrap="Wrap" items="{clarification>/suggestions}">
-<Button id="clarificationSuggestionButton" text="{clarification>productName}" type="Default" press=".onSelectClarificationSuggestion" class="sapUiTinyMarginEnd sapUiTinyMarginBottom"/>
-</FlexBox>
+<Text id="clarificationSuggestionTitle" text="{i18n>draftSuggestionsTitle}" class="draftSectionTitle"/>
+<VBox id="clarificationSuggestions" items="{clarification>/suggestions}" width="100%">
+<VBox class="validationWarningItem">
+<HBox alignItems="Center" justifyContent="SpaceBetween">
+<Text text="{= ${clarification>productName} + ' (Qty ' + ${clarification>/quantity} + ')'}" class="validationWarningTitle"/>
+<Button id="clarificationSuggestionButton" text="{i18n>draftAdd}" type="Default" press=".onSelectClarificationSuggestion"/>
+</HBox>
+</VBox>
+</VBox>
 </VBox>
 <!--   AI order draft (Ergebnis von generate_order_draft): dd
                              sichere Items wurden bereits in den Auftrag uebernommen,
@@ -250,7 +256,10 @@
 </VBox>
 <VBox id="validationWarnings" items="{validation>/warnings}" width="100%">
 <VBox class="validationWarningItem">
+<HBox alignItems="Center" justifyContent="SpaceBetween">
 <Text text="{= 'Position ' + ${validation>position} + ' \u2014 ' + ${validation>productName}}" class="validationWarningTitle"/>
+<Button text="{i18n>ignore}" type="Default" press=".onIgnoreValidationWarning"/>
+</HBox>
 <Text text="{validation>message}" wrapping="true" class="validationWarningMessage"/>
 </VBox>
 </VBox>
