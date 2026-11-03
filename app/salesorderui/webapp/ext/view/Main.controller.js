@@ -1337,8 +1337,10 @@ sap.ui.define(
                  * auf bzw. zu.
                  */
                 onToggleDraftWhy: function (oEvent) {
+                    const oSource = oEvent.getSource();
                     const oContext =
-                        oEvent.getSource().getBindingContext("draft");
+                        oSource.getBindingContext("draft") ||
+                        oSource.getBindingContext("recommendation");
                     if (!oContext) {
                         return;
                     }
@@ -1473,7 +1475,12 @@ sap.ui.define(
 
                         oRecommendationModel.setData({
                             visible: true,
-                            recommendations: aRecommendations
+                            message: oResult.message || "",
+                            recommendations: aRecommendations.map(
+                                (oItem) => Object.assign(
+                                    {}, oItem, { showWhy: false }
+                                )
+                            )
                         });
 
                     } catch (oError) {
@@ -1529,6 +1536,7 @@ sap.ui.define(
                         );
                     oRecommendationModel.setData({
                         visible: aRemainingRecommendations.length > 0,
+                        message: oRecommendationModel.getProperty("/message"),
                         recommendations: aRemainingRecommendations
                     });
                     MessageToast.show(

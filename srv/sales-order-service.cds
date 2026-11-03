@@ -46,9 +46,17 @@ type ProductRecommendation {
     productName   : String;
     orderCount    : Integer;
     totalQuantity : Integer;
+    averageQuantity : Integer;
+    quantity      : Integer;
     reason        : String;
     unitPrice     : Decimal(9,2);
+    totalPrice    : Decimal(15,2);
     unit          : String;
+    totalOrders      : Integer;
+    frequencyPercent : Integer;
+    reasonProduct    : String;
+    reasonQuantity   : String;
+    reasonDecision   : String;
 }
 
 type RecommendationResult {

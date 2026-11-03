@@ -1188,35 +1188,39 @@ if (validatedSuggestions.length === 0) {
                 totalOrders
             );
 
-            let topRecommendations = rankedRecommendations
+            // Gleiche Struktur wie beim Order Draft: Menge, Gesamtpreis und
+            // drei kurze, deterministische Begruendungen ("Why?").
+            const topRecommendations = rankedRecommendations
                 .slice(0, 5)
-                .map((item) => ({
-                    ...item,
-                    reason:
-                        `Ordered in ${item.orderCount} of ${item.totalOrders} ` +
-                        `orders (${Math.round(item.relativeFrequency * 100)}%), ` +
-                        `avg. ${item.averageQuantity} units per order.`
-                }));
-
-            if (ENABLE_AI_RECOMMENDATION_REASONS) {
-                try {
-                    topRecommendations =
-                        await generateRecommendationReasonsWithAI(
-                            topRecommendations
-                        );
-                } catch (error) {
-                    console.error(
-                        "AI recommendation reason generation failed; " +
-                            "using history-based reasons:",
-                        error
-                    );
-                }
-            }
+                .map((item) => {
+                    const pctValue = Math.round(item.relativeFrequency * 100);
+                    return {
+                        ...item,
+                        quantity: item.averageQuantity,
+                        totalPrice: Number(
+                            (item.unitPrice * item.averageQuantity).toFixed(2)
+                        ),
+                        frequencyPercent: pctValue,
+                        reason:
+                            `Ordered in ${item.orderCount} of ` +
+                            `${item.totalOrders} orders (${pctValue}%).`,
+                        reasonProduct:
+                            `Ordered in ${item.orderCount} of ` +
+                            `${item.totalOrders} orders (${pctValue}%).`,
+                        reasonQuantity:
+                            `Average ${item.averageQuantity} ` +
+                            `${item.unit}`.trim() + " per order.",
+                        reasonDecision:
+                            "Suggestion: ranked by order frequency, " +
+                            "please confirm."
+                    };
+                });
 
             return {
                 success: true,
-                message: "Product recommendations are ranked by this " +
-                    "customer's relative and absolute order frequency.",
+                message:
+                    `${topRecommendations.length} suggestion(s) need your ` +
+                    `confirmation (based on ${totalOrders} orders).`,
                 recommendations: topRecommendations
             };
 

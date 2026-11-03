@@ -219,14 +219,25 @@
 <core:Icon id="recommendationIcon" src="sap-icon://ai" class="clarificationIcon sapUiTinyMarginEnd"/>
 <Text id="recommendationHeaderText" text="{i18n>aiProductRecommendations}" class="clarificationHeaderText"/>
 </HBox>
-<Text id="recommendationDescription" text="{i18n>recommendationDescription}" class="clarificationQuestionText"/>
+<Text id="recommendationDescription" text="{recommendation>/message}" wrapping="true" class="clarificationQuestionText"/>
 </VBox>
-<FlexBox id="productRecommendations" wrap="Wrap" items="{recommendation>/recommendations}">
-<VBox id="productRecommendation" width="100%" class="sapUiTinyMarginBottom">
-<Button id="recommendedProductButton" text="{= ${recommendation>productName} + ' (Qty ' + ${recommendation>averageQuantity} + ')'}" type="Default" press=".onSelectRecommendedProduct" width="100%" class="sapUiTinyMarginBottom"/>
-<Text id="recommendedProductReason" text="{recommendation>reason}" wrapping="true" class="recommendationReasonText"/>
+<Text id="recommendationSuggestionTitle" text="{i18n>draftSuggestionsTitle}" class="draftSectionTitle"/>
+<VBox id="productRecommendations" items="{recommendation>/recommendations}" width="100%">
+<VBox id="productRecommendation" class="validationWarningItem">
+<HBox alignItems="Center" justifyContent="SpaceBetween">
+<Text text="{= ${recommendation>productName} + ' (Qty ' + ${recommendation>quantity} + ')'}" class="validationWarningTitle"/>
+<HBox alignItems="Center">
+<Link text="{i18n>why}" press=".onToggleDraftWhy" class="sapUiTinyMarginEnd"/>
+<Button id="recommendedProductButton" text="{i18n>draftAdd}" type="Default" press=".onSelectRecommendedProduct"/>
+</HBox>
+</HBox>
+<VBox visible="{recommendation>showWhy}" class="draftWhyBox">
+<Text text="{= 'Why this product? ' + ${recommendation>reasonProduct}}" wrapping="true" class="recommendationReasonText"/>
+<Text text="{= 'Why this quantity? ' + ${recommendation>reasonQuantity}}" wrapping="true" class="recommendationReasonText"/>
+<Text text="{= 'Decision: ' + ${recommendation>reasonDecision}}" wrapping="true" class="recommendationReasonText"/>
 </VBox>
-</FlexBox>
+</VBox>
+</VBox>
 </VBox>
 <!--   AI order validation (Ergebnis von validate_order)   -->
 <VBox id="validationArea" visible="{validation>/visible}" width="100%" class="sapUiSmallMarginBottom">
