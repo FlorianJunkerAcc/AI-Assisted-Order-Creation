@@ -1872,10 +1872,16 @@ Return exactly this structure:
                 const purchasedRecently =
                     orderIDs.some((id) => recentIDs.has(id));
 
+                // Produkte, die die strengen Kriterien nicht erfuellen,
+                // werden nicht verworfen, sondern als schwaecherer
+                // Vorschlag (Fallback) angeboten.
+                let fallbackReason = "";
                 if (frequency < DRAFT_SUGGEST_MIN_FREQUENCY ||
                     !purchasedRecently) {
-                    skipped += 1;
-                    continue;
+                    fallbackReason =
+                        "Suggestion only: ordered less regularly or not " +
+                        `within the last ${DRAFT_RECENT_WINDOW} orders, so ` +
+                        "PICO does not add it automatically. Please confirm.";
                 }
 
                 // Reorder-Timing aus den Bestelldaten.
@@ -1907,14 +1913,21 @@ Return exactly this structure:
                 }
 
                 let decision;
-                if (reorderKnown) {
+                if (fallbackReason) {
+                    decision = "suggested";
+                } else if (reorderKnown) {
                     if (reorderRatio < DRAFT_MIN_REORDER_RATIO) {
-                        skipped += 1;
-                        continue;
+                        fallbackReason =
+                            "Suggestion only: ordered regularly, but the " +
+                            "next reorder is not due yet " +
+                            `(${pct(reorderRatio)}% of the usual interval). ` +
+                            "Please confirm.";
+                        decision = "suggested";
+                    } else {
+                        decision = frequency >= DRAFT_AUTO_MIN_FREQUENCY
+                            ? "auto"
+                            : "suggested";
                     }
-                    decision = frequency >= DRAFT_AUTO_MIN_FREQUENCY
-                        ? "auto"
-                        : "suggested";
                 } else {
                     // Fälligkeit nicht prüfbar -> nie automatisch hinzufügen.
                     decision = "suggested";
@@ -1947,6 +1960,8 @@ Return exactly this structure:
                         `${pct(DRAFT_AUTO_MIN_FREQUENCY)}% of recent orders, ` +
                         `bought within the last ${DRAFT_RECENT_WINDOW} orders ` +
                         "and a reorder is due.";
+                } else if (fallbackReason) {
+                    reasonDecision = fallbackReason;
                 } else if (reorderKnown) {
                     reasonDecision =
                         "Suggestion only: ordered in " +
@@ -1975,14 +1990,17 @@ Return exactly this structure:
                     reasonProduct,
                     reasonQuantity,
                     reasonDecision,
-                    _frequency: frequency
+                    _frequency: frequency,
+                    _fallback: Boolean(fallbackReason)
                 };
                 (decision === "auto" ? autoItems : suggestions).push(entry);
             }
 
+            // Regulaere Vorschlaege zuerst, Fallback-Vorschlaege danach.
             const byFrequency = (a, b) =>
+                Number(a._fallback) - Number(b._fallback) ||
                 b._frequency - a._frequency || b.orderCount - a.orderCount;
-            const strip = ({ _frequency, ...rest }) => rest;
+            const strip = ({ _frequency, _fallback, ...rest }) => rest;
 
             const finalAuto = autoItems
                 .sort(byFrequency)
