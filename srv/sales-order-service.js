@@ -1301,8 +1301,8 @@ if (validatedSuggestions.length === 0) {
                     success: true,
                     message:
                         `Insufficient order history (${totalOrders} of ` +
-                        `${MIN_ORDERS_FOR_VALIDATION} required historical orders) ` +
-                        "to reliably validate this order. No checks were performed.",
+                        `${MIN_ORDERS_FOR_VALIDATION} required orders); ` +
+                        "no checks performed.",
                     warnings: []
                 };
             }
@@ -1391,10 +1391,7 @@ if (validatedSuggestions.length === 0) {
                         position,
                         productName: "Unknown product",
                         warningType: "unknown_product",
-                        message:
-                            `Position ${position}: this product could not be ` +
-                            "found in the active SAP Sales Cloud catalog and " +
-                            "could not be validated."
+                        message: "Product not found in the catalog; not validated."
                     });
                     continue;
                 }
@@ -1416,12 +1413,8 @@ if (validatedSuggestions.length === 0) {
                         productName: product.name,
                         warningType: "rare_category",
                         message:
-                            `Position ${position} (${product.name}): belongs to ` +
-                            `product category "${categoryID}", which this ` +
-                            `customer has never ordered from before (0 of ` +
-                            `${totalOrders} historical orders, 0.0% vs. the ` +
-                            `${Math.round(RARE_CATEGORY_THRESHOLD * 100)}% ` +
-                            "rarity threshold used to flag uncommon categories)."
+                            `Category "${categoryID}" was never ordered ` +
+                            `before (0 of ${totalOrders} orders).`
                     });
                 } else if (categoryRelativeFrequency < RARE_CATEGORY_THRESHOLD) {
                     warnings.push({
@@ -1429,24 +1422,18 @@ if (validatedSuggestions.length === 0) {
                         productName: product.name,
                         warningType: "rare_category",
                         message:
-                            `Position ${position} (${product.name}): belongs to ` +
-                            `category "${categoryID}", ordered in only ` +
-                            `${categoryOrderCount} of ${totalOrders} historical ` +
-                            `orders (${Math.round(categoryRelativeFrequency * 100)}%), ` +
-                            `which is below the ` +
-                            `${Math.round(RARE_CATEGORY_THRESHOLD * 100)}% threshold ` +
-                            "used to flag uncommon categories."
+                            `Category "${categoryID}" is rarely ordered ` +
+                            `(${categoryOrderCount} of ${totalOrders} orders, ` +
+                            `${Math.round(categoryRelativeFrequency * 100)}%).`
                     });
                 }
 
                 let baseline = productStats.get(productNumber);
-                let baselineSource = `this exact product (${product.name})`;
+                let baselineSource = "this product";
 
                 if (!baseline || baseline.quantities.length === 0) {
                     baseline = categoryStats.get(categoryID);
-                    baselineSource =
-                        `products in category "${categoryID}" (this exact ` +
-                        "product has no order history)";
+                    baselineSource = `category "${categoryID}"`;
                 }
 
                 if (baseline && baseline.quantities.length > 0) {
@@ -1460,16 +1447,10 @@ if (validatedSuggestions.length === 0) {
                             productName: product.name,
                             warningType: "unusual_quantity_high",
                             message:
-                                `Position ${position} (${product.name}): ordered ` +
-                                `quantity ${quantity} is ` +
+                                `Quantity ${quantity} is unusually high: ` +
                                 `${(quantity / avgQuantity).toFixed(1)}x the ` +
-                                `historical average of ${avgQuantity.toFixed(1)} ` +
-                                `units for ${baselineSource} (based on ` +
-                                `${baseline.quantities.length} past order ` +
-                                "line(s)). Threshold: quantities at or above " +
-                                `${QUANTITY_HIGH_FACTOR}x the average ` +
-                                `(${highThreshold.toFixed(1)}) are flagged as ` +
-                                "unusually high."
+                                `average of ${avgQuantity.toFixed(1)} for ` +
+                                `${baselineSource}.`
                         });
                     } else if (
                         avgQuantity >= MIN_AVERAGE_FOR_LOW_CHECK &&
@@ -1480,16 +1461,10 @@ if (validatedSuggestions.length === 0) {
                             productName: product.name,
                             warningType: "unusual_quantity_low",
                             message:
-                                `Position ${position} (${product.name}): ordered ` +
-                                `quantity ${quantity} is only ` +
+                                `Quantity ${quantity} is unusually low: ` +
                                 `${(quantity / avgQuantity).toFixed(1)}x the ` +
-                                `historical average of ${avgQuantity.toFixed(1)} ` +
-                                `units for ${baselineSource} (based on ` +
-                                `${baseline.quantities.length} past order ` +
-                                "line(s)). Threshold: quantities at or below " +
-                                `${QUANTITY_LOW_FACTOR}x the average ` +
-                                `(${lowThreshold.toFixed(1)}) are flagged as ` +
-                                "unusually low."
+                                `average of ${avgQuantity.toFixed(1)} for ` +
+                                `${baselineSource}.`
                         });
                     }
                 }
@@ -1500,11 +1475,8 @@ if (validatedSuggestions.length === 0) {
             return {
                 success: true,
                 message: warnings.length > 0
-                    ? `${warnings.length} potential issue(s) found across ` +
-                        `${items.length} order position(s).`
-                    : `No issues found. All ${items.length} position(s) are ` +
-                        "consistent with this customer's order history " +
-                        `(${totalOrders} orders analyzed).`,
+                    ? `${warnings.length} potential issue(s) found.`
+                    : `No issues found (${totalOrders} orders analyzed).`,
                 warnings
             };
 
