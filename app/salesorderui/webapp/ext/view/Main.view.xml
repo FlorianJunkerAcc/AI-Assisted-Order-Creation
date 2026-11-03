@@ -162,7 +162,7 @@
 <Button id="clarificationSuggestionButton" text="{clarification>productName}" type="Default" press=".onSelectClarificationSuggestion" class="sapUiTinyMarginEnd sapUiTinyMarginBottom"/>
 </FlexBox>
 </VBox>
-<!--   AI order draft (Ergebnis von generate_order_draft):
+<!--   AI order draft (Ergebnis von generate_order_draft): dd
                              sichere Items wurden bereits in den Auftrag uebernommen,
                              unsichere erscheinen als Vorschlag mit "Add"-Button.
                              Jedes Item hat hinter "Why?" eine Begruendung.   -->
