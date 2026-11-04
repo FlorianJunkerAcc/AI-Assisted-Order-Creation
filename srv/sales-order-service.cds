@@ -20,6 +20,10 @@ service SalesOrderService @(path: '/sales-order') {
     totalPrice    : Decimal(9,2);
     confidence    : Decimal(3,2);
     message       : String;
+    // "add" | "update" | "remove"; position verweist bei update/remove
+    // auf eine bestehende Auftragsposition.
+    action        : String;
+    position      : Integer;
 }
 
 type ProductSuggestion {
@@ -30,6 +34,8 @@ type ProductSuggestion {
 type ClarificationRequest {
     question    : String;
     quantity    : Integer;
+    action      : String;
+    position    : Integer;
     suggestions : many ProductSuggestion;
 }
 
@@ -66,7 +72,9 @@ type RecommendationResult {
 }
 
 action interpretOrderItems(
-    orderRequest : String
+    orderRequest : String,
+    // JSON-Array der aktuellen Positionen: [{position, product_ID, productName, quantity}]
+    currentItems : LargeString
 ) returns InterpretationResult;
 
 action recommendProducts(

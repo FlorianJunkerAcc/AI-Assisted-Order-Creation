@@ -739,7 +739,7 @@ export default cds.service.impl(async function () {
      * Die Action speichert keinen Sales Order.
      */
     this.on("interpretOrderItems", async (req) => {
-        const { orderRequest } = req.data;
+        const { orderRequest, currentItems: currentItemsJson } = req.data;
 
         if (!orderRequest?.trim()) {
             return req.reject(
@@ -747,6 +747,32 @@ export default cds.service.impl(async function () {
                 "The order request must not be empty."
             );
         }
+
+        let currentItems = [];
+        try {
+            const parsed = JSON.parse(currentItemsJson || "[]");
+            if (Array.isArray(parsed)) {
+                currentItems = parsed.filter(
+                    (line) => Number.isFinite(Number(line.position)) &&
+                        line.product_ID
+                );
+            }
+        } catch {
+            return req.reject(
+                400,
+                "The current items must be valid JSON."
+            );
+        }
+        const currentLineByPosition = new Map(
+            currentItems.map((line) => [Number(line.position), line])
+        );
+        const currentOrderText = currentItems.length > 0
+            ? currentItems
+                .map((line) =>
+                    `position ${line.position} | ${line.productName} | ` +
+                    `quantity ${line.quantity}`)
+                .join("\n")
+            : "(the order draft is currently empty)";
 
         console.log("Order request received:", orderRequest);
 
@@ -781,11 +807,17 @@ export default cds.service.impl(async function () {
                 messages: [
                     {
                         role: "system",
-                        content: `You extract order items from a sales representative's input.
+                        content: `You extract order item changes from a sales representative's input.
+The representative can ADD new items, EDIT existing items (change the product
+and/or the quantity) and REMOVE existing items.
 
 You must match every requested product against the following product catalog:
 
 ${productCatalog}
+
+The order draft currently contains these lines:
+
+${currentOrderText}
 
 For every requested product, decide for yourself whether you are confident
 which catalog product is meant, or whether the request is ambiguous.
@@ -806,6 +838,19 @@ Rules:
   suggested productId exactly matches the productName from the same
   catalog line. Never pair a productId from one line with a productName
   from a different line.
+- Every item has an "action": "add" (new line), "update" (change an existing
+  line) or "remove" (delete an existing line). Use "add" unless the user
+  clearly refers to something already in the order draft (for example
+  "change", "make it", "instead of", "replace", "remove", "delete", "drop").
+- For "update" and "remove", set "position" to the position of the existing
+  line from the order draft above. Refer to existing lines only by the
+  positions listed above.
+- For "update", set "productId"/"productName" only if the product itself
+  changes (use the same clarification rules as above if the new product is
+  ambiguous); otherwise omit them. Set "quantity" only if the quantity
+  changes; otherwise omit it.
+- If an edit or removal cannot be matched to exactly one existing line, return
+  status "not_applicable" with a short "message" instead of guessing.
 - Base your confidence only on how well the request matches the catalog.
 - Do not invent products, product IDs, prices, or quantities.
 - Do not create, save, or submit a sales order.
@@ -820,12 +865,28 @@ Return exactly this structure:
   "items": [
     {
       "status": "resolved",
+      "action": "add",
       "productId": "ID from catalog",
       "productName": "exact name from catalog",
       "quantity": 1
     },
     {
+      "status": "resolved",
+      "action": "update",
+      "position": 10,
+      "productId": "ID from catalog (only if the product changes)",
+      "productName": "exact name from catalog (only if the product changes)",
+      "quantity": 5
+    },
+    {
+      "status": "resolved",
+      "action": "remove",
+      "position": 20
+    },
+    {
       "status": "clarification_required",
+      "action": "add or update",
+      "position": 10,
       "question": "Which product did you mean?",
       "quantity": 1,
       "suggestions": [
@@ -834,6 +895,10 @@ Return exactly this structure:
           "productName": "exact name from catalog"
         }
       ]
+    },
+    {
+      "status": "not_applicable",
+      "message": "Short explanation"
     }
   ]
 }`
@@ -867,13 +932,55 @@ Return exactly this structure:
 
             const validatedItems = [];
             const clarifications = [];
+            const notes = [];
 
             for (const item of parsedResponse.items) {
 
+                if (item.status === "not_applicable") {
+                    notes.push(
+                        String(item.message || "A change could not be applied.")
+                    );
+                    continue;
+                }
+
                 if (item.status === "resolved") {
 
+                    const action = ["update", "remove"].includes(item.action)
+                        ? item.action
+                        : "add";
+                    const position = Number(item.position);
+                    const line = action === "add"
+                        ? null
+                        : currentLineByPosition.get(position);
+
+                    if (action !== "add" && !line) {
+                        notes.push(
+                            `Position ${item.position} does not exist in ` +
+                                "the order draft."
+                        );
+                        continue;
+                    }
+
+                    if (action === "remove") {
+                        validatedItems.push({
+                            action,
+                            position,
+                            product_ID: line.product_ID,
+                            productName: line.productName,
+                            quantity: Number(line.quantity) || 0,
+                            confidence: 1,
+                            message: ""
+                        });
+                        continue;
+                    }
+
+                    // add: Produkt aus dem Katalog. update: neues Produkt,
+                    // falls angegeben, sonst das Produkt der bestehenden Zeile.
+                    const productId = action === "update" && !item.productId
+                        ? line.product_ID
+                        : item.productId;
                     const product = products.find(
-                        (candidate) => candidate.ID === item.productId
+                        (candidate) => candidate.ID === productId
                     );
 
                     if (!product) {
@@ -882,7 +989,11 @@ Return exactly this structure:
                         );
                     }
 
-                    const quantity = Number(item.quantity);
+                    const quantity =
+                        action === "update" &&
+                        (item.quantity === undefined || item.quantity === null)
+                            ? Number(line.quantity)
+                            : Number(item.quantity);
                     const unitPrice = Number(product.price);
 
                     if (!Number.isInteger(quantity) || quantity <= 0) {
@@ -892,6 +1003,8 @@ Return exactly this structure:
                     }
 
                     validatedItems.push({
+                        action,
+                        position: action === "update" ? position : null,
                         product_ID: product.ID,
                         productNumber: product.productNumber,
                         productName: product.name,
@@ -935,9 +1048,27 @@ if (validatedSuggestions.length === 0) {
     );
 }
 
+                    const clarificationAction =
+                        item.action === "update" ? "update" : "add";
+                    const clarificationPosition = Number(item.position);
+                    if (clarificationAction === "update" &&
+                        !currentLineByPosition.has(clarificationPosition)) {
+                        notes.push(
+                            `Position ${item.position} does not exist in ` +
+                                "the order draft."
+                        );
+                        continue;
+                    }
+
                     clarifications.push({
                         question: item.question,
-                        quantity: Number(item.quantity) || 1,
+                        // Bei update bleibt die Menge ohne Angabe unveraendert.
+                        quantity: Number(item.quantity) ||
+                            (clarificationAction === "update" ? null : 1),
+                        action: clarificationAction,
+                        position: clarificationAction === "update"
+                            ? clarificationPosition
+                            : null,
                         suggestions: validatedSuggestions
                     });
 
@@ -955,12 +1086,24 @@ if (validatedSuggestions.length === 0) {
             let message;
 
             if (validatedItems.length > 0 && hasClarifications) {
-                message = `${validatedItems.length} product(s) identified. ` +
+                message = `${validatedItems.length} change(s) identified. ` +
                            `${clarifications.length} product(s) need clarification.`;
             } else if (hasClarifications) {
                 message = `${clarifications.length} product(s) need clarification.`;
             } else {
-                message = `${validatedItems.length} product(s) successfully identified.`;
+                message = `${validatedItems.length} change(s) successfully identified.`;
+            }
+
+            if (notes.length > 0) {
+                if (validatedItems.length === 0 && !hasClarifications) {
+                    return {
+                        success: false,
+                        message: notes.join(" "),
+                        items: [],
+                        clarifications: []
+                    };
+                }
+                message += " " + notes.join(" ");
             }
 
             return {
@@ -2062,7 +2205,7 @@ PICO can perform exactly five functions:
 
 1. select_customer - identify and select the customer for the order, based on the customer's name and/or customer number.
 2. generate_order_draft - automatically build an order draft from the customer's order history: frequently ordered products that are due for reorder are added to the order, less certain ones are offered as suggestions to confirm. Typical commands: "create an order draft", "prepare the usual order", "fill the order based on history".
-3. add_items - interpret spoken or typed product names and quantities and add them as order line items to the current order draft.
+3. add_items - interpret spoken or typed product names and quantities and add them as order line items to the current order draft, change the product or quantity of existing line items (for example "make it 10 instead", "replace X with Y"), or remove line items from the order draft (for example "remove the Nutella").
 4. recommend_products - suggest products to consider adding to the order, based on the customer's historical order data, without adding anything automatically.
 5. validate_order - check the current order draft's line items against the customer's order history and flag unusual product categories or quantities.
 

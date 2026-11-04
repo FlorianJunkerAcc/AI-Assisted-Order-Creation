@@ -162,7 +162,7 @@
 <VBox id="clarificationSuggestions" items="{clarification>/suggestions}" width="100%">
 <VBox class="validationWarningItem">
 <HBox alignItems="Center" justifyContent="SpaceBetween">
-<Text text="{= ${clarification>productName} + ' (Qty ' + ${clarification>/quantity} + ')'}" class="validationWarningTitle"/>
+<Text text="{= ${clarification>productName} + (${clarification>/quantity} ? ' (Qty ' + ${clarification>/quantity} + ')' : '')}" class="validationWarningTitle"/>
 <Button id="clarificationSuggestionButton" text="{i18n>draftAdd}" type="Default" press=".onSelectClarificationSuggestion"/>
 </HBox>
 </VBox>

@@ -610,14 +610,100 @@ sap.ui.define(
                     oOrderModel.setProperty("/items", aExistingItems);
                     this._calculateOrderTotal();
                 },
+                /**
+                 * Wendet die vom Backend gelieferten Aenderungen an:
+                 * action "add" (neue Position), "update" (Produkt und/oder
+                 * Menge einer bestehenden Position) und "remove" (Position
+                 * loeschen). Bestehende Positionen werden ueber ihre
+                 * Positionsnummer gefunden; diese wird vor dem Aendern
+                 * einmalig aufgeloest, damit Loeschungen keine Zuordnung
+                 * verschieben.
+                 */
+                _applyAiItemChanges: function (aChanges) {
+                    const oOrderModel = this.getView().getModel("order");
+                    const aLines = oOrderModel.getProperty("/items") || [];
+                    const mByPosition = new Map(
+                        aLines.map((oLine) => [Number(oLine.position), oLine])
+                    );
+                    const oToRemove = new Set();
+                    const aToAdd = [];
+
+                    aChanges.forEach((oChange) => {
+                        if (oChange.action === "remove") {
+                            const oLine =
+                                mByPosition.get(Number(oChange.position));
+                            if (oLine) {
+                                oToRemove.add(oLine);
+                            }
+                        } else if (oChange.action === "update") {
+                            const oLine =
+                                mByPosition.get(Number(oChange.position));
+                            if (!oLine) {
+                                return;
+                            }
+                            const fUnitPrice = Number(oChange.unitPrice);
+                            const iQuantity = Number(oChange.quantity);
+                            if (oChange.product_ID &&
+                                oChange.product_ID !== oLine.product_ID) {
+                                oLine.product_ID = oChange.product_ID;
+                                oLine.productName = oChange.productName || "";
+                                oLine.unit = oChange.unit || "";
+                                oLine.unitPrice = (
+                                    Number.isFinite(fUnitPrice) ? fUnitPrice : 0
+                                ).toFixed(2);
+                            }
+                            if (Number.isFinite(iQuantity) && iQuantity > 0) {
+                                oLine.quantity = iQuantity;
+                            }
+                            oLine.totalPrice = (
+                                Number(oLine.quantity) *
+                                Number(oLine.unitPrice)
+                            ).toFixed(2);
+
+                            // Hat die geaenderte Zeile jetzt dasselbe Produkt
+                            // wie eine andere, werden beide zusammengefuehrt.
+                            const oOther = aLines.find((oCandidate) =>
+                                oCandidate !== oLine &&
+                                !oToRemove.has(oCandidate) &&
+                                oCandidate.product_ID === oLine.product_ID);
+                            if (oOther) {
+                                oOther.quantity =
+                                    Number(oOther.quantity) +
+                                    Number(oLine.quantity);
+                                oOther.totalPrice = (
+                                    oOther.quantity * Number(oOther.unitPrice)
+                                ).toFixed(2);
+                                oToRemove.add(oLine);
+                            }
+                        } else {
+                            aToAdd.push(oChange);
+                        }
+                    });
+
+                    oOrderModel.setProperty(
+                        "/items",
+                        aLines.filter((oLine) => !oToRemove.has(oLine))
+                    );
+                    if (aToAdd.length > 0) {
+                        this._addAiItemsToOrder(aToAdd);
+                    } else {
+                        this._calculateOrderTotal();
+                    }
+                },
                 onSelectClarificationSuggestion: function (oEvent) {
                     const oButton = oEvent.getSource();
                     const oContext = oButton.getBindingContext("clarification");
                     const oSuggestion = oContext.getObject();
                     const oClarificationModel =
                         this.getView().getModel("clarification");
+                    const bUpdate =
+                        oClarificationModel.getProperty("/action") === "update";
+                    const sTargetProductID =
+                        oClarificationModel.getProperty("/targetProductID");
+                    // Bei "update" ohne Mengenangabe bleibt die Menge erhalten.
                     const iQuantity =
-                        oClarificationModel.getProperty("/quantity") || 1;
+                        oClarificationModel.getProperty("/quantity") ||
+                        (bUpdate ? null : 1);
                     const oODataModel = this.getView().getModel();
                     const oProductBinding = oODataModel.bindContext(
                         `/Products(${oSuggestion.productId})`
@@ -627,6 +713,35 @@ sap.ui.define(
                         .then(
                             function (oProduct) {
                                 const fUnitPrice = Number(oProduct.price);
+                                if (bUpdate) {
+                                    const oLine = (
+                                        this.getView().getModel("order")
+                                            .getProperty("/items") || []
+                                    ).find((oItem) =>
+                                        oItem.product_ID === sTargetProductID);
+                                    if (!oLine) {
+                                        MessageBox.error(
+                                            "The order line to change no " +
+                                            "longer exists."
+                                        );
+                                    } else {
+                                        this._applyAiItemChanges([{
+                                            action: "update",
+                                            position: Number(oLine.position),
+                                            product_ID: oSuggestion.productId,
+                                            productName:
+                                                oSuggestion.productName,
+                                            unit: oProduct.unit || "",
+                                            quantity: iQuantity,
+                                            unitPrice: fUnitPrice
+                                        }]);
+                                        MessageToast.show(
+                                            `${oSuggestion.productName} updated in the order draft`
+                                        );
+                                    }
+                                    this._advanceToNextClarification();
+                                    return;
+                                }
                                 const fTotalPrice = fUnitPrice * iQuantity;
                                 this._addAiItemsToOrder([{
                                     product_ID: oSuggestion.productId,
@@ -665,6 +780,8 @@ sap.ui.define(
                             visible: true,
                             question: oNextClarification.question,
                             quantity: oNextClarification.quantity,
+                            action: oNextClarification.action,
+                            targetProductID: oNextClarification.targetProductID,
                             suggestions: oNextClarification.suggestions,
                             pending: aRemainingClarifications
                         });
@@ -674,6 +791,8 @@ sap.ui.define(
                         visible: false,
                         question: "",
                         quantity: 1,
+                        action: "add",
+                        targetProductID: null,
                         suggestions: [],
                         pending: []
                     });
@@ -1120,6 +1239,23 @@ sap.ui.define(
                         "orderRequest",
                         sOrderRequest
                     );
+                    // Aktuelle Positionen mitsenden, damit Items auch
+                    // bearbeitet oder geloescht werden koennen.
+                    const aCurrentLines = (
+                        this.getView().getModel("order")
+                            .getProperty("/items") || []
+                    )
+                        .filter((oItem) => oItem.product_ID)
+                        .map((oItem) => ({
+                            position: Number(oItem.position),
+                            product_ID: oItem.product_ID,
+                            productName: oItem.productName,
+                            quantity: Number(oItem.quantity)
+                        }));
+                    oActionBinding.setParameter(
+                        "currentItems",
+                        JSON.stringify(aCurrentLines)
+                    );
 
                     try {
                         await oActionBinding.execute();
@@ -1156,20 +1292,48 @@ sap.ui.define(
                             : [];
 
                         if (aClarifications.length > 0) {
+                            // Positionen veraendern sich, sobald andere
+                            // Zeilen geloescht werden. Deshalb wird das Ziel
+                            // einer Bearbeitungs-Rueckfrage ueber die
+                            // Produkt-ID der Zeile festgehalten.
+                            const aOrderLines =
+                                this.getView().getModel("order")
+                                    .getProperty("/items") || [];
+                            const aPreparedClarifications =
+                                aClarifications.map((oClarification) => {
+                                    const oLine = oClarification.action ===
+                                        "update"
+                                        ? aOrderLines.find((oItem) =>
+                                            Number(oItem.position) ===
+                                            Number(oClarification.position))
+                                        : null;
+                                    return Object.assign(
+                                        {},
+                                        oClarification,
+                                        {
+                                            targetProductID:
+                                                oLine ? oLine.product_ID : null
+                                        }
+                                    );
+                                });
                             const oClarificationModel =
                                 this.getView().getModel("clarification");
-                            const oFirstClarification = aClarifications[0];
+                            const oFirstClarification =
+                                aPreparedClarifications[0];
                             const aRemainingClarifications =
-                                aClarifications.slice(1);
+                                aPreparedClarifications.slice(1);
                             oClarificationModel.setData({
                                 visible: true,
                                 question: oFirstClarification.question,
                                 quantity: oFirstClarification.quantity,
+                                action: oFirstClarification.action,
+                                targetProductID:
+                                    oFirstClarification.targetProductID,
                                 suggestions: oFirstClarification.suggestions,
                                 pending: aRemainingClarifications
                             });
                             if (aResolvedItems.length > 0) {
-                                this._addAiItemsToOrder(aResolvedItems);
+                                this._applyAiItemChanges(aResolvedItems);
                             }
                             MessageToast.show(
                                 "Please clarify the highlighted product."
@@ -1185,9 +1349,10 @@ sap.ui.define(
                             return;
                         }
 
-                        this._addAiItemsToOrder(aResolvedItems);
+                        this._applyAiItemChanges(aResolvedItems);
                         MessageToast.show(
-                            `${aResolvedItems.length} item(s) added to the order draft`
+                            oResult.message ||
+                            `${aResolvedItems.length} change(s) applied to the order draft`
                         );
 
                     } catch (oError) {
