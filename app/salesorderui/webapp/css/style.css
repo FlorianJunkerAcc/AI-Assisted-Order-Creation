@@ -410,3 +410,12 @@
 .picoBubbleChips {
     margin-top: 0.25rem;
 }
+
+/* Hinweiszeile ueber den Vorschlaegen in PICOs Sprechblase */
+.picoBubbleChipsLabel {
+    display: block;
+    margin-top: 0.5rem;
+    font-size: 0.8125rem;
+    font-style: italic;
+    color: #6C3483;
+}

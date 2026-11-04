@@ -207,7 +207,7 @@ sap.ui.define(
                  * Chat-Verlauf: haengt eine Sprechblase an und scrollt nach
                  * unten. role "user" = Eingabe des Nutzers, "pico" = Antwort.
                  */
-                _addChatMessage: function (sRole, sText, aChips) {
+                _addChatMessage: function (sRole, sText, aChips, sChipsLabel) {
                     const oPicoModel = this.getView().getModel("pico");
                     if (!oPicoModel || !sText) {
                         return;
@@ -222,6 +222,7 @@ sap.ui.define(
                         role: sRole,
                         text: sText,
                         chips: aChips || [],
+                        chipsLabel: sChipsLabel || "",
                         askNext: Boolean(aChips)
                     }]);
                     oPicoModel.setProperty("/messages", aMessages);
@@ -255,12 +256,17 @@ sap.ui.define(
                     ).map((oChip) => Object.assign({}, oChip));
                     // bAskNext === "chips": nur die Vorschlaege anhaengen, ohne
                     // die Frage (der Text stellt bereits eine eigene Frage).
+                    // Die Vorschlaege bekommen dann eine eigene Zeile darueber,
+                    // damit klar ist, dass man damit auch weitermachen kann.
                     this._addChatMessage(
                         "pico",
                         bAskNext === "chips"
                             ? sText
                             : `${sText} What would you like to do next?`,
-                        aChips
+                        aChips,
+                        bAskNext === "chips"
+                            ? "Or you can simply continue with:"
+                            : ""
                     );
                 },
                 /**
