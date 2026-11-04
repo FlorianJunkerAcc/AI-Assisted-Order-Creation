@@ -133,7 +133,6 @@
 <!--   PICO-Blase: Text und - falls PICO nach dem naechsten Schritt fragt - die Vorschlaege direkt darin   -->
 <VBox class="picoBubble picoBubblePico">
 <Text text="{pico>text}" wrapping="true"/>
-<Text text="{pico>chipsLabel}" visible="{= !!${pico>chipsLabel}}" wrapping="true" class="picoBubbleChipsLabel"/>
 <FlexBox wrap="Wrap" items="{pico>chips}" class="picoBubbleChips">
 <Button text="{pico>label}" icon="{pico>icon}" type="{pico>type}" tooltip="{pico>tooltip}" press=".onPicoChipPress" class="sapUiTinyMarginEnd sapUiTinyMarginTop"/>
 </FlexBox>
