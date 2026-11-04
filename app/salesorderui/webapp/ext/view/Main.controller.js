@@ -253,9 +253,13 @@ sap.ui.define(
                         this.getView().getModel("pico").getProperty("/chips") ||
                         []
                     ).map((oChip) => Object.assign({}, oChip));
+                    // bAskNext === "chips": nur die Vorschlaege anhaengen, ohne
+                    // die Frage (der Text stellt bereits eine eigene Frage).
                     this._addChatMessage(
                         "pico",
-                        `${sText} What would you like to do next?`,
+                        bAskNext === "chips"
+                            ? sText
+                            : `${sText} What would you like to do next?`,
                         aChips
                     );
                 },
@@ -1797,7 +1801,7 @@ sap.ui.define(
                         // Vorschlaege, fragt PICO nach dem naechsten Schritt.
                         this._picoSay(
                             oResult.message || "Your draft is ready.",
-                            aSuggestions.length === 0
+                            aSuggestions.length === 0 ? true : "chips"
                         );
 
                     } catch (oError) {
@@ -1873,7 +1877,7 @@ sap.ui.define(
 
                     this._picoSay(
                         `Added ${oSuggestion.productName} (Qty ${iQuantity}) to your draft.`,
-                        aRemaining.length === 0
+                        aRemaining.length === 0 ? true : "chips"
                     );
                 },
                 /**
@@ -1953,7 +1957,10 @@ sap.ui.define(
                             return;
                         }
 
-                        this._picoSay(oResult.message || "Here are my suggestions.");
+                        this._picoSay(
+                            oResult.message || "Here are my suggestions.",
+                            "chips"
+                        );
                         oRecommendationModel.setData({
                             visible: true,
                             message: oResult.message || "",
@@ -2022,7 +2029,7 @@ sap.ui.define(
                     });
                     this._picoSay(
                         `Added ${oRecommendation.productName} (Qty ${iRecommendedQuantity}) to your draft.`,
-                        aRemainingRecommendations.length === 0
+                        aRemainingRecommendations.length === 0 ? true : "chips"
                     );
                 },
                 /**
@@ -2109,7 +2116,7 @@ sap.ui.define(
 
                         this._picoSay(
                             oResult.message || "I've checked your order.",
-                            aWarnings.length === 0
+                            aWarnings.length === 0 ? true : "chips"
                         );
 
                     } catch (oError) {
@@ -2146,7 +2153,7 @@ sap.ui.define(
                         aRemaining.length > 0
                             ? `Okay, I've ignored that. ${aRemaining.length === 1 ? "One thing is" : aRemaining.length + " things are"} still worth a second look.`
                             : "Okay, I've ignored that - nothing left to check.",
-                        aRemaining.length === 0
+                        aRemaining.length === 0 ? true : "chips"
                     );
                 },
                 onStartVoiceInput: function () {
