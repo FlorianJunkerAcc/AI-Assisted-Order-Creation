@@ -377,3 +377,31 @@
         bottom: calc(1rem + env(safe-area-inset-bottom));
     }
 }
+
+/* --- PICO-Chatverlauf: Sprechblasen --- */
+.picoBubbleRow {
+    margin-bottom: 0.5rem;
+}
+
+.picoBubble {
+    display: inline-block;
+    max-width: 85%;
+    padding: 0.5rem 0.75rem;
+    border-radius: 1rem;
+    line-height: 1.35;
+    word-break: break-word;
+}
+
+/* Eigene Eingabe: rechts, kraeftige Farbe */
+.picoBubbleUser {
+    background-color: #8E44AD;
+    color: #FFFFFF;
+    border-bottom-right-radius: 0.25rem;
+}
+
+/* Antwort von PICO: links, helle Farbe */
+.picoBubblePico {
+    background-color: #F1EAF7;
+    color: #32363A;
+    border-bottom-left-radius: 0.25rem;
+}

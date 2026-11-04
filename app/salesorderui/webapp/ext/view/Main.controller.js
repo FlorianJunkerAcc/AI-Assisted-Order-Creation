@@ -98,7 +98,9 @@ sap.ui.define(
                             messageVisible: false,
                             message: "",
                             showAllSkills: false,
-                            chips: []
+                            chips: [],
+                            // Chat-Verlauf: { role: "user" | "pico", text }
+                            messages: []
                         }),
                         "pico"
                     );
@@ -188,6 +190,43 @@ sap.ui.define(
                             };
                         }
                     ));
+                },
+                /**
+                 * Chat-Verlauf: haengt eine Sprechblase an und scrollt nach
+                 * unten. role "user" = Eingabe des Nutzers, "pico" = Antwort.
+                 */
+                _addChatMessage: function (sRole, sText) {
+                    const oPicoModel = this.getView().getModel("pico");
+                    if (!oPicoModel || !sText) {
+                        return;
+                    }
+                    const aMessages = (
+                        oPicoModel.getProperty("/messages") || []
+                    ).concat([{ role: sRole, text: sText }]);
+                    oPicoModel.setProperty("/messages", aMessages);
+                    setTimeout(() => {
+                        const oBody = this.byId("picoChatBody");
+                        const oDom = oBody && oBody.getDomRef();
+                        if (oDom) {
+                            oDom.scrollTop = oDom.scrollHeight;
+                        }
+                    }, 50);
+                },
+                _userSay: function (sText) {
+                    this._addChatMessage("user", sText);
+                },
+                /**
+                 * PICO antwortet im Chat. Mit bAskNext fragt PICO am Ende,
+                 * wie es weitergehen soll; passende Vorschlaege dazu stehen
+                 * als Chips unter dem Verlauf.
+                 */
+                _picoSay: function (sText, bAskNext) {
+                    this._addChatMessage(
+                        "pico",
+                        bAskNext
+                            ? `${sText} What would you like to do next?`
+                            : sText
+                    );
                 },
                 /**
                  * Klick auf einen Beispiel-Chip: Befehl ins Eingabefeld
@@ -826,7 +865,7 @@ sap.ui.define(
                                     ).find((oItem) =>
                                         oItem.product_ID === sTargetProductID);
                                     if (!oLine) {
-                                        MessageBox.error(
+                                        this._picoSay(
                                             "The order line to change no " +
                                             "longer exists."
                                         );
@@ -841,7 +880,7 @@ sap.ui.define(
                                             quantity: iQuantity,
                                             unitPrice: fUnitPrice
                                         }]);
-                                        MessageToast.show(
+                                        this._picoSay(
                                             `${oSuggestion.productName} updated in the order draft`
                                         );
                                     }
@@ -856,8 +895,8 @@ sap.ui.define(
                                     unitPrice: fUnitPrice,
                                     totalPrice: fTotalPrice
                                 }]);
-                                MessageToast.show(
-                                    `${oSuggestion.productName} added to the order draft`
+                                this._picoSay(
+                                    `Added ${oSuggestion.productName} to your order draft.`
                                 );
                                 this._advanceToNextClarification();
                             }.bind(this)
@@ -868,10 +907,10 @@ sap.ui.define(
                                     "Could not load selected product:",
                                     oError
                                 );
-                                MessageBox.error(
-                                    "The selected product could not be loaded."
+                                this._picoSay(
+                                    "Sorry, I couldn't load that product."
                                 );
-                            }
+                            }.bind(this)
                         );
                 },
                 _advanceToNextClarification: function () {
@@ -985,6 +1024,7 @@ sap.ui.define(
                         this._clearAiResultAreas();
 
                         oPicoModel.setProperty("/showAllSkills", false);
+                        oPicoModel.setProperty("/messages", []);
                         this._refreshPicoChips();
                         oPicoModel.setProperty(
                             "/greetingVisible",
@@ -1040,11 +1080,18 @@ sap.ui.define(
                     ).trim();
 
                     if (!sCommand) {
-                        MessageBox.warning(
-                            "Please enter a command for PICO."
+                        this._picoSay(
+                            "Tell me what you'd like to do first, and I'll take care of it."
                         );
                         return;
                     }
+
+                    // Wie in einer Chat-App: die eigene Eingabe erscheint
+                    // als Sprechblase und das Eingabefeld wird geleert.
+                    this._userSay(sCommand);
+                    oUiModel.setProperty("/recognizedCommand", "");
+                    this.byId("aiOrderInput").setValue("");
+                    this._chipPrefix = null;
 
                     const oModel = this.getView().getModel();
                     const oActionBinding = oModel.bindContext(
@@ -1078,14 +1125,9 @@ sap.ui.define(
                             case "multiple_intents":
                             case "unknown_intent":
                             case "clarification_required":
-                                // Eingabe bewusst NICHT leeren, damit der
-                                // Nutzer sie direkt praezisieren kann.
-                                oPicoModel.setData({
-                                    chatOpen: true,
-                                    greetingVisible: false,
-                                    messageVisible: true,
-                                    message: oResult.message || ""
-                                });
+                                // PICO antwortet im Chat (Rueckfrage, Hinweis
+                                // auf mehrere Funktionen, freundliche Ablehnung).
+                                this._picoSay(oResult.message || "");
                                 break;
 
                             case "ok": {
@@ -1139,23 +1181,23 @@ sap.ui.define(
                                         oResult.customerReference
                                     );
                                 } else {
-                                    MessageBox.error(
-                                        "PICO returned an unrecognized function."
+                                    this._picoSay(
+                                        "Sorry, I didn't quite understand what you'd like me to do."
                                     );
                                 }
                                 break;
                             }
 
                             default:
-                                MessageBox.error(
-                                    "PICO returned an unexpected response."
+                                this._picoSay(
+                                    "Sorry, something went wrong on my side. Could you try again?"
                                 );
                         }
 
                     } catch (oError) {
                         console.error("PICO routing failed:", oError);
-                        MessageBox.error(
-                            "PICO Error: " +
+                        this._picoSay(
+                            "Sorry, I ran into a problem: " +
                             (oError.message || String(oError))
                         );
                     } finally {
@@ -1203,16 +1245,17 @@ sap.ui.define(
                             );
 
                             if (bApplied) {
-                                MessageToast.show(
-                                    `Customer ${oResult.customerName} selected.`
+                                this._picoSay(
+                                    `Got it, I've selected ${oResult.customerName}.`,
+                                    !this._pendingCopyLastOrder &&
+                                        !this._copyAfterSelect
                                 );
                             } else {
-                                MessageBox.error(
-                                    "PICO identified customer " +
-                                    oResult.customerName +
-                                    ", but it could not be found in the " +
-                                    "customer dropdown. Please select the " +
-                                    "customer manually."
+                                this._picoSay(
+                                    "I recognized " + oResult.customerName +
+                                    ", but I couldn't find them in the " +
+                                    "customer dropdown. Could you select the " +
+                                    "customer there yourself?"
                                 );
                             }
                             return bApplied ? "resolved" : "failed";
@@ -1228,14 +1271,14 @@ sap.ui.define(
                                 question: oResult.question,
                                 suggestions: oResult.suggestions
                             });
-                            MessageToast.show(
-                                "Please clarify which customer you mean."
+                            this._picoSay(
+                                "I need a bit of help: which customer do you mean?"
                             );
                             return "clarification";
                         }
 
-                        MessageBox.error(
-                            "Customer selection returned an unexpected result."
+                        this._picoSay(
+                            "Sorry, I couldn't work out which customer you mean."
                         );
                         return "failed";
 
@@ -1244,8 +1287,8 @@ sap.ui.define(
                             "Customer selection failed:",
                             oError
                         );
-                        MessageBox.error(
-                            "Customer selection failed: " +
+                        this._picoSay(
+                            "Sorry, I couldn't select the customer: " +
                             (oError.message || String(oError))
                         );
                         return "failed";
@@ -1261,7 +1304,13 @@ sap.ui.define(
                  */
                 _runCopyLastOrder: async function (sCommand, sCustomerReference) {
                     if (sCustomerReference) {
-                        const sStatus = await this._runSelectCustomer(sCommand);
+                        this._copyAfterSelect = true;
+                        let sStatus;
+                        try {
+                            sStatus = await this._runSelectCustomer(sCommand);
+                        } finally {
+                            this._copyAfterSelect = false;
+                        }
                         if (sStatus === "clarification") {
                             this._pendingCopyLastOrder = true;
                             return;
@@ -1276,8 +1325,8 @@ sap.ui.define(
                     const oCustomerItem =
                         this.byId("customerSelect").getSelectedItem();
                     if (!oCustomerItem) {
-                        MessageBox.warning(
-                            "Please select a customer before copying their last order."
+                        this._picoSay(
+                            "Please pick a customer first, then I can copy their last order for you."
                         );
                         return;
                     }
@@ -1308,9 +1357,9 @@ sap.ui.define(
                             : [];
 
                         if (!oResult.success || aItems.length === 0) {
-                            MessageBox.warning(
+                            this._picoSay(
                                 oResult.message ||
-                                "No order could be copied."
+                                "Sorry, I couldn't copy an order this time."
                             );
                             return;
                         }
@@ -1323,8 +1372,8 @@ sap.ui.define(
                         if (bHasItems) {
                             const bReplace = await new Promise((resolve) => {
                                 MessageBox.confirm(
-                                    "The order draft already contains items. " +
-                                    "Replace them with the copied items?",
+                                    "Your order draft already has items in it. " +
+                                    "Should I replace them with the copied ones?",
                                     {
                                         title: "Copy last order",
                                         actions: [
@@ -1345,12 +1394,12 @@ sap.ui.define(
                         }
 
                         this._addAiItemsToOrder(aItems);
-                        MessageToast.show(oResult.message);
+                        this._picoSay(oResult.message, true);
 
                     } catch (oError) {
                         console.error("Copying the last order failed:", oError);
-                        MessageBox.error(
-                            "The last order could not be copied: " +
+                        this._picoSay(
+                            "Sorry, I couldn't copy the last order: " +
                             (oError.message || String(oError))
                         );
                     }
@@ -1378,8 +1427,9 @@ sap.ui.define(
                         });
 
                     if (bApplied) {
-                        MessageToast.show(
-                            `Customer ${oSuggestion.customerName} selected.`
+                        this._picoSay(
+                            `Got it, I've selected ${oSuggestion.customerName}.`,
+                            !this._pendingCopyLastOrder
                         );
                         // Wartete ein "copy last order" auf die Kundenauswahl,
                         // jetzt fortsetzen.
@@ -1389,10 +1439,9 @@ sap.ui.define(
                         }
                     } else {
                         this._pendingCopyLastOrder = false;
-                        MessageBox.error(
-                            "The selected customer could not be found in " +
-                            "the customer dropdown. Please select the " +
-                            "customer manually."
+                        this._picoSay(
+                            "I couldn't find that customer in the dropdown. " +
+                            "Could you select them there yourself?"
                         );
                     }
                 },
@@ -1507,9 +1556,9 @@ sap.ui.define(
                         );
 
                         if (!oResult.success) {
-                            MessageBox.warning(
+                            this._picoSay(
                                 oResult.message ||
-                                "The request could not be processed."
+                                "Sorry, I couldn't process that request."
                             );
                             return;
                         }
@@ -1565,24 +1614,26 @@ sap.ui.define(
                             if (aResolvedItems.length > 0) {
                                 this._applyAiItemChanges(aResolvedItems);
                             }
-                            MessageToast.show(
-                                "Please clarify the highlighted product."
+                            this._picoSay(
+                                oResult.message ||
+                                "I need your help with one product - please pick one below."
                             );
                             return;
                         }
 
                         if (aResolvedItems.length === 0) {
-                            MessageBox.warning(
+                            this._picoSay(
                                 oResult.message ||
-                                "No matching products were identified."
+                                "Hmm, I couldn't find a matching product. Could you rephrase that?"
                             );
                             return;
                         }
 
                         this._applyAiItemChanges(aResolvedItems);
-                        MessageToast.show(
+                        this._picoSay(
                             oResult.message ||
-                            `${aResolvedItems.length} change(s) applied to the order draft`
+                            `Done, I've updated your order draft.`,
+                            true
                         );
 
                     } catch (oError) {
@@ -1590,8 +1641,8 @@ sap.ui.define(
                             "AI order interpretation failed:",
                             oError
                         );
-                        MessageBox.error(
-                            "AI Error: " +
+                        this._picoSay(
+                            "Sorry, I ran into a problem: " +
                             (oError.message || String(oError))
                         );
                     }
@@ -1608,8 +1659,8 @@ sap.ui.define(
                     const oCustomerItem =
                         this.byId("customerSelect").getSelectedItem();
                     if (!oCustomerItem) {
-                        MessageBox.warning(
-                            "Please select a customer before generating an order draft."
+                        this._picoSay(
+                            "Please pick a customer first, then I can prepare a draft for you."
                         );
                         return;
                     }
@@ -1682,9 +1733,9 @@ sap.ui.define(
                                 autoItems: [],
                                 suggestions: []
                             });
-                            MessageToast.show(
+                            this._picoSay(
                                 oResult.message ||
-                                    "No order draft could be generated."
+                                    "Sorry, I couldn't put a draft together this time."
                             );
                             return;
                         }
@@ -1710,19 +1761,21 @@ sap.ui.define(
                             suggestions: aSuggestions
                         });
 
-                        if (aAuto.length > 0) {
-                            MessageToast.show(
-                                `${aAuto.length} item(s) added to the order draft.`
-                            );
-                        }
+                        // Bestaetigung + ggf. Rueckfrage zu den Vorschlaegen
+                        // kommt aus der Backend-Nachricht; gibt es keine
+                        // Vorschlaege, fragt PICO nach dem naechsten Schritt.
+                        this._picoSay(
+                            oResult.message || "Your draft is ready.",
+                            aSuggestions.length === 0
+                        );
 
                     } catch (oError) {
                         console.error(
                             "Order draft generation failed:",
                             oError
                         );
-                        MessageBox.error(
-                            "The order draft could not be generated: " +
+                        this._picoSay(
+                            "Sorry, I couldn't generate the draft: " +
                                 (oError.message || String(oError))
                         );
                     }
@@ -1753,8 +1806,8 @@ sap.ui.define(
                         oEvent.getSource().getBindingContext("draft");
                     const oSuggestion = oContext?.getObject();
                     if (!oSuggestion?.product_ID) {
-                        MessageBox.error(
-                            "The selected suggestion is invalid."
+                        this._picoSay(
+                            "Sorry, something is off with that suggestion."
                         );
                         return;
                     }
@@ -1787,8 +1840,9 @@ sap.ui.define(
                         aRemaining.length > 0
                     );
 
-                    MessageToast.show(
-                        `${oSuggestion.productName} (Qty ${iQuantity}) added to the order draft.`
+                    this._picoSay(
+                        `Added ${oSuggestion.productName} (Qty ${iQuantity}) to your draft.`,
+                        aRemaining.length === 0
                     );
                 },
                 /**
@@ -1801,8 +1855,8 @@ sap.ui.define(
                     const oCustomerItem =
                         this.byId("customerSelect").getSelectedItem();
                     if (!oCustomerItem) {
-                        MessageBox.warning(
-                            "Please select a customer to get product recommendations."
+                        this._picoSay(
+                            "Please pick a customer first, then I can suggest products for you."
                         );
                         return;
                     }
@@ -1861,13 +1915,14 @@ sap.ui.define(
                                 visible: false,
                                 recommendations: []
                             });
-                            MessageToast.show(
+                            this._picoSay(
                                 oResult.message ||
-                                    "No product recommendations were found."
+                                    "Sorry, I don't have any product suggestions right now."
                             );
                             return;
                         }
 
+                        this._picoSay(oResult.message || "Here are my suggestions.");
                         oRecommendationModel.setData({
                             visible: true,
                             message: oResult.message || "",
@@ -1883,8 +1938,8 @@ sap.ui.define(
                             "Could not load product recommendations:",
                             oError
                         );
-                        MessageBox.error(
-                            "Product recommendations could not be loaded: " +
+                        this._picoSay(
+                            "Sorry, I couldn't load suggestions: " +
                                 (oError.message || String(oError))
                         );
                     }
@@ -1898,8 +1953,8 @@ sap.ui.define(
                         oEvent.getSource().getBindingContext("recommendation");
                     const oRecommendation = oContext?.getObject();
                     if (!oRecommendation?.product_ID) {
-                        MessageBox.error(
-                            "The selected product recommendation is invalid."
+                        this._picoSay(
+                            "Sorry, something is off with that suggestion."
                         );
                         return;
                     }
@@ -1934,8 +1989,9 @@ sap.ui.define(
                         message: oRecommendationModel.getProperty("/message"),
                         recommendations: aRemainingRecommendations
                     });
-                    MessageToast.show(
-                        `${oRecommendation.productName} (Qty ${iRecommendedQuantity}) added to the order draft.`
+                    this._picoSay(
+                        `Added ${oRecommendation.productName} (Qty ${iRecommendedQuantity}) to your draft.`,
+                        aRemainingRecommendations.length === 0
                     );
                 },
                 /**
@@ -1948,8 +2004,8 @@ sap.ui.define(
                     const oCustomerItem =
                         this.byId("customerSelect").getSelectedItem();
                     if (!oCustomerItem) {
-                        MessageBox.warning(
-                            "Please select a customer before validating the order."
+                        this._picoSay(
+                            "Please pick a customer first, then I can check the order for you."
                         );
                         return;
                     }
@@ -1962,8 +2018,8 @@ sap.ui.define(
                     );
 
                     if (aValidItems.length === 0) {
-                        MessageBox.warning(
-                            "Please add at least one product before validating the order."
+                        this._picoSay(
+                            "Your order is still empty - add a product first, then I can check it."
                         );
                         return;
                     }
@@ -2020,20 +2076,18 @@ sap.ui.define(
                             warnings: aWarnings
                         });
 
-                        if (aWarnings.length === 0) {
-                            MessageToast.show(
-                                oResult.message ||
-                                    "No issues found in this order."
-                            );
-                        }
+                        this._picoSay(
+                            oResult.message || "I've checked your order.",
+                            aWarnings.length === 0
+                        );
 
                     } catch (oError) {
                         console.error(
                             "Order validation failed:",
                             oError
                         );
-                        MessageBox.error(
-                            "Order validation could not be completed: " +
+                        this._picoSay(
+                            "Sorry, I couldn't check the order: " +
                                 (oError.message || String(oError))
                         );
                     }
@@ -2057,11 +2111,11 @@ sap.ui.define(
                         (oWarning, i) => i !== iIndex
                     );
                     oModel.setProperty("/warnings", aRemaining);
-                    oModel.setProperty(
-                        "/message",
+                    this._picoSay(
                         aRemaining.length > 0
-                            ? `${aRemaining.length} potential issue(s) found.`
-                            : "No issues remaining."
+                            ? `Okay, I've ignored that. ${aRemaining.length === 1 ? "One thing is" : aRemaining.length + " things are"} still worth a second look.`
+                            : "Okay, I've ignored that - nothing left to check.",
+                        aRemaining.length === 0
                     );
                 },
                 onStartVoiceInput: function () {
@@ -2301,7 +2355,10 @@ sap.ui.define(
                             chatOpen: false,
                             greetingVisible: false,
                             messageVisible: false,
-                            message: ""
+                            message: "",
+                            showAllSkills: false,
+                            chips: [],
+                            messages: []
                         });
                     this._clearAiResultAreas();
                     this.getView()

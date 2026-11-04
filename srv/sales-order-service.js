@@ -120,6 +120,11 @@ function getResultRows(result) {
     return [];
 }
 
+// Einfache Pluralbildung fuer die Chat-Texte von PICO ("1 item", "3 items").
+function countOf(count, singular, plural = `${singular}s`) {
+    return `${count} ${count === 1 ? singular : plural}`;
+}
+
 function average(numbers) {
     return numbers.reduce((sum, value) => sum + value, 0) / numbers.length;
 }
@@ -888,7 +893,7 @@ Return exactly this structure:
       "status": "clarification_required",
       "action": "add or update",
       "position": 10,
-      "question": "Which product did you mean?",
+      "question": "Friendly, conversational question in English, e.g. 'I found a few Nutella products - which one did you mean?'",
       "quantity": 1,
       "suggestions": [
         {
@@ -926,7 +931,8 @@ Return exactly this structure:
             if (parsedResponse.items.length === 0) {
                 return {
                     success: false,
-                    message: "No matching products were identified.",
+                    message: "Hmm, I couldn't find a matching product for that. " +
+                        "Could you tell me again what you'd like to change?",
                     items: []
                 };
             }
@@ -956,8 +962,8 @@ Return exactly this structure:
 
                     if (action !== "add" && !line) {
                         notes.push(
-                            `Position ${item.position} does not exist in ` +
-                                "the order draft."
+                            `I couldn't find position ${item.position} in ` +
+                                "your order draft."
                         );
                         continue;
                     }
@@ -1055,8 +1061,8 @@ if (validatedSuggestions.length === 0) {
                     if (clarificationAction === "update" &&
                         !currentLineByPosition.has(clarificationPosition)) {
                         notes.push(
-                            `Position ${item.position} does not exist in ` +
-                                "the order draft."
+                            `I couldn't find position ${item.position} in ` +
+                                "your order draft."
                         );
                         continue;
                     }
@@ -1087,12 +1093,17 @@ if (validatedSuggestions.length === 0) {
             let message;
 
             if (validatedItems.length > 0 && hasClarifications) {
-                message = `${validatedItems.length} change(s) identified. ` +
-                           `${clarifications.length} product(s) need clarification.`;
+                message = `Done, I've applied ` +
+                    `${countOf(validatedItems.length, "change")}. ` +
+                    `For ${countOf(clarifications.length, "product")} I need ` +
+                    "your help to pick the right one.";
             } else if (hasClarifications) {
-                message = `${clarifications.length} product(s) need clarification.`;
+                message = "I need your help to pick the right " +
+                    `${clarifications.length === 1 ? "product" : "products"}.`;
             } else {
-                message = `${validatedItems.length} change(s) successfully identified.`;
+                message = `Done, I've applied ` +
+                    `${countOf(validatedItems.length, "change")} to your ` +
+                    "order draft.";
             }
 
             if (notes.length > 0) {
@@ -1186,7 +1197,8 @@ if (validatedSuggestions.length === 0) {
             if (totalOrders === 0) {
                 return {
                     success: false,
-                    message: "No order history was found for this customer.",
+                    message: "I couldn't find any past orders for this customer, " +
+                        "so I have nothing to base suggestions on yet.",
                     recommendations: []
                 };
             }
@@ -1194,7 +1206,8 @@ if (validatedSuggestions.length === 0) {
             if (historicalItems.length === 0) {
                 return {
                     success: false,
-                    message: "No order items were found in this customer's history.",
+                    message: "This customer's past orders don't contain any " +
+                        "items I could learn from.",
                     recommendations: []
                 };
             }
@@ -1320,9 +1333,10 @@ if (validatedSuggestions.length === 0) {
                 return {
                     success: false,
                     message: aggregatesByProductNumber.size === 0
-                        ? "No products could be aggregated from the order history."
-                        : "No historical products matched the active Sales Cloud " +
-                            "catalog, or all matching products are already in the draft.",
+                        ? "I couldn't pick out any products from the order history."
+                        : "I have no new suggestions: the products this " +
+                            "customer used to order are either no longer " +
+                            "available or already in your draft.",
                     recommendations: []
                 };
             }
@@ -1346,25 +1360,26 @@ if (validatedSuggestions.length === 0) {
                         ),
                         frequencyPercent: pctValue,
                         reason:
-                            `Ordered in ${item.orderCount} of ` +
+                            `This customer ordered it in ${item.orderCount} of ` +
                             `${item.totalOrders} orders (${pctValue}%).`,
                         reasonProduct:
-                            `Ordered in ${item.orderCount} of ` +
+                            `This customer ordered it in ${item.orderCount} of ` +
                             `${item.totalOrders} orders (${pctValue}%).`,
                         reasonQuantity:
-                            `Average ${item.averageQuantity} ` +
+                            `They usually take about ${item.averageQuantity} ` +
                             `${item.unit}`.trim() + " per order.",
                         reasonDecision:
-                            "Suggestion: ranked by order frequency, " +
-                            "please confirm."
+                            "It's one of their most frequently ordered " +
+                            "products, so I'm suggesting it. Your call!"
                     };
                 });
 
             return {
                 success: true,
                 message:
-                    `${topRecommendations.length} suggestion(s) need your ` +
-                    `confirmation (based on ${totalOrders} orders).`,
+                    `I found ${countOf(topRecommendations.length, "product")} ` +
+                    `this customer often orders (based on ${totalOrders} past ` +
+                    "orders). Which of them should I add?",
                 recommendations: topRecommendations
             };
 
@@ -1444,9 +1459,9 @@ if (validatedSuggestions.length === 0) {
                 return {
                     success: true,
                     message:
-                        `Insufficient order history (${totalOrders} of ` +
-                        `${MIN_ORDERS_FOR_VALIDATION} required orders); ` +
-                        "no checks performed.",
+                        `I can't check this order yet: this customer has only ` +
+                        `${totalOrders} past ${totalOrders === 1 ? "order" : "orders"} ` +
+                        `and I need at least ${MIN_ORDERS_FOR_VALIDATION} to compare with.`,
                     warnings: []
                 };
             }
@@ -1535,7 +1550,8 @@ if (validatedSuggestions.length === 0) {
                         position,
                         productName: "Unknown product",
                         warningType: "unknown_product",
-                        message: "Product not found in the catalog; not validated."
+                        message: "I couldn't find this product in the catalog, " +
+                            "so I wasn't able to check it."
                     });
                     continue;
                 }
@@ -1557,8 +1573,8 @@ if (validatedSuggestions.length === 0) {
                         productName: product.name,
                         warningType: "rare_category",
                         message:
-                            `Category "${categoryID}" was never ordered ` +
-                            `before (0 of ${totalOrders} orders).`
+                            `This customer has never ordered from category ` +
+                            `"${categoryID}" before. Is that intended?`
                     });
                 } else if (categoryRelativeFrequency < RARE_CATEGORY_THRESHOLD) {
                     warnings.push({
@@ -1566,9 +1582,9 @@ if (validatedSuggestions.length === 0) {
                         productName: product.name,
                         warningType: "rare_category",
                         message:
-                            `Category "${categoryID}" is rarely ordered ` +
-                            `(${categoryOrderCount} of ${totalOrders} orders, ` +
-                            `${Math.round(categoryRelativeFrequency * 100)}%).`
+                            `This customer rarely orders from category ` +
+                            `"${categoryID}" (only ${categoryOrderCount} of ` +
+                            `${totalOrders} orders). Is that intended?`
                     });
                 }
 
@@ -1591,10 +1607,11 @@ if (validatedSuggestions.length === 0) {
                             productName: product.name,
                             warningType: "unusual_quantity_high",
                             message:
-                                `Quantity ${quantity} is unusually high: ` +
-                                `${(quantity / avgQuantity).toFixed(1)}x the ` +
-                                `average of ${avgQuantity.toFixed(1)} for ` +
-                                `${baselineSource}.`
+                                `${quantity} looks quite high: that's ` +
+                                `${(quantity / avgQuantity).toFixed(1)}x what ` +
+                                `this customer usually orders ` +
+                                `(about ${avgQuantity.toFixed(1)} for ` +
+                                `${baselineSource}). Is that right?`
                         });
                     } else if (
                         avgQuantity >= MIN_AVERAGE_FOR_LOW_CHECK &&
@@ -1605,10 +1622,11 @@ if (validatedSuggestions.length === 0) {
                             productName: product.name,
                             warningType: "unusual_quantity_low",
                             message:
-                                `Quantity ${quantity} is unusually low: ` +
-                                `${(quantity / avgQuantity).toFixed(1)}x the ` +
-                                `average of ${avgQuantity.toFixed(1)} for ` +
-                                `${baselineSource}.`
+                                `${quantity} looks quite low: that's only ` +
+                                `${(quantity / avgQuantity).toFixed(1)}x what ` +
+                                `this customer usually orders ` +
+                                `(about ${avgQuantity.toFixed(1)} for ` +
+                                `${baselineSource}). Is that right?`
                         });
                     }
                 }
@@ -1619,8 +1637,10 @@ if (validatedSuggestions.length === 0) {
             return {
                 success: true,
                 message: warnings.length > 0
-                    ? `${warnings.length} potential issue(s) found.`
-                    : `No issues found (${totalOrders} orders analyzed).`,
+                    ? `I took a look and found ${countOf(warnings.length, "thing")} ` +
+                        "worth a second look:"
+                    : "All good! Your order looks just like what this customer " +
+                        `usually orders (I compared it with ${totalOrders} past orders).`,
                 warnings
             };
 
@@ -1704,8 +1724,8 @@ ${customerCatalog}
 Rules:
 
 - If you are confident which single customer is meant (by name, by customer number, or both), return status "resolved" with that customer's exact ID, customer number, and name from the catalog.
-- If the command could reasonably match more than one customer (for example, a partial or generic name), do not guess. Return status "clarification_required", a short clarifying question, and list every catalog customer that could reasonably match as suggestions.
-- If the command does not match any customer in the catalog at all, return status "clarification_required", a short question asking the user to repeat or clarify the customer name or number, and an empty suggestions list.
+- If the command could reasonably match more than one customer (for example, a partial or generic name), do not guess. Return status "clarification_required", a short, friendly, conversational clarifying question in English written as PICO speaking to the user (for example "I found a few customers that fit - which one did you mean?"), and list every catalog customer that could reasonably match as suggestions.
+- If the command does not match any customer in the catalog at all, return status "clarification_required", a short, friendly, conversational question in English (as PICO speaking to the user) asking the user to repeat or clarify the customer name or number, and an empty suggestions list.
 - Never invent a customer ID, customer number, or name that is not in the catalog.
 - Base your decision only on the provided catalog.
 - Do not create, save, or submit a sales order. Your only job is to identify the customer.
@@ -1797,7 +1817,7 @@ Return exactly this structure:
                 customerName: "",
                 question:
                     parsedResponse.question ||
-                    "Which customer did you mean?",
+                    "Sorry, I am not sure which customer you mean. Could you tell me again?",
                 suggestions: validatedSuggestions
             };
 
@@ -1904,9 +1924,9 @@ Return exactly this structure:
 
             if (analyzedOrders < DRAFT_MIN_ORDERS) {
                 return emptyResult(
-                    `Insufficient order history (${analyzedOrders} of ` +
-                        `${DRAFT_MIN_ORDERS} required orders) to generate ` +
-                        "a reliable order draft.",
+                    `I can't build a reliable draft yet: this customer has only ` +
+                        `${analyzedOrders} past ${analyzedOrders === 1 ? "order" : "orders"} ` +
+                        `and I need at least ${DRAFT_MIN_ORDERS}.`,
                     analyzedOrders
                 );
             }
@@ -1999,7 +2019,8 @@ Return exactly this structure:
                 if (frequency < DRAFT_SUGGEST_MIN_FREQUENCY ||
                     !purchasedRecently) {
                     fallbackReason =
-                        "Suggestion: ordered rarely or not recently.";
+                        "They order it rarely or not recently, so I'm only " +
+                        "suggesting it.";
                 }
 
                 // Reorder-Timing aus den Bestelldaten.
@@ -2036,8 +2057,8 @@ Return exactly this structure:
                 } else if (reorderKnown) {
                     if (reorderRatio < DRAFT_MIN_REORDER_RATIO) {
                         fallbackReason =
-                            "Suggestion: ordered regularly, reorder not due " +
-                            "yet.";
+                            "They order it regularly, but it's probably " +
+                            "not due again yet, so I'm only suggesting it.";
                         decision = "suggested";
                     } else {
                         decision = frequency >= DRAFT_AUTO_MIN_FREQUENCY
@@ -2055,27 +2076,32 @@ Return exactly this structure:
                 const unit = product.unit || "";
 
                 const reasonProduct =
-                    `Ordered in ${orderCount} of ${analyzedOrders} orders ` +
-                    `(${pct(frequency)}%)` +
+                    `This customer ordered it in ${orderCount} of ` +
+                    `${analyzedOrders} orders (${pct(frequency)}%)` +
                     (reorderKnown
-                        ? `, last ${Math.round(daysSinceLast)} days ago ` +
-                          `(usually every ${Math.round(avgIntervalDays)}).`
+                        ? `, most recently ${Math.round(daysSinceLast)} days ` +
+                          `ago (usually every ${Math.round(avgIntervalDays)} days).`
                         : ".");
 
                 const reasonQuantity =
-                    `Average ${averageQuantity.toFixed(1)} ${unit}`.trim() +
-                    ` \u2192 ${quantity}.`;
+                    `They usually take about ${averageQuantity.toFixed(1)}` +
+                    (unit ? ` ${unit}` : "") +
+                    `, so I went with ${quantity}.`;
 
                 let reasonDecision;
                 if (decision === "auto") {
-                    reasonDecision = "Added automatically: frequent and due.";
+                    reasonDecision =
+                        "They order it often and it's due again, so I added it.";
                 } else if (fallbackReason) {
                     reasonDecision = fallbackReason;
                 } else if (reorderKnown) {
-                    reasonDecision = "Suggestion: less certain, please confirm.";
+                    reasonDecision =
+                        "I'm not completely sure about this one, so I'm " +
+                        "only suggesting it.";
                 } else {
                     reasonDecision =
-                        "Suggestion: timing unknown, please confirm.";
+                        "I can't tell when they'd reorder it, so I'm only " +
+                        "suggesting it.";
                 }
 
                 const entry = {
@@ -2122,20 +2148,25 @@ Return exactly this structure:
 
             if (finalAuto.length === 0 && finalSuggestions.length === 0) {
                 return emptyResult(
-                    "No products met the criteria for an order draft " +
-                        `(based on the last ${analyzedOrders} orders). ` +
-                        "Either nothing is due for reorder yet, or the " +
-                        "products are already in the draft.",
+                    "I don't have anything to put into a draft right now. " +
+                        `Looking at the last ${analyzedOrders} orders, nothing ` +
+                        "is due for a reorder yet, or it's already in your draft.",
                     analyzedOrders
                 );
             }
 
             return {
                 success: true,
-                message:
-                    `${finalAuto.length} item(s) added automatically, ` +
-                    `${finalSuggestions.length} suggestion(s) need your ` +
-                    `confirmation (based on the last ${analyzedOrders} orders).`,
+                message: (finalAuto.length > 0
+                    ? `I've added ${countOf(finalAuto.length, "item")} to your ` +
+                        "draft that this customer is due to reorder. "
+                    : "") +
+                    (finalSuggestions.length > 0
+                        ? `I'm not sure about ${finalSuggestions.length === 1 ? "this one" : "these " + finalSuggestions.length} ` +
+                            "- should I add " +
+                            `${finalSuggestions.length === 1 ? "it" : "them"}? `
+                        : "") +
+                    `(Based on the last ${analyzedOrders} orders.)`,
                 analyzedOrders,
                 autoItems: finalAuto,
                 suggestions: finalSuggestions
@@ -2211,7 +2242,7 @@ Return exactly this structure:
                 lastOrder = orders[0];
                 if (!lastOrder) {
                     return emptyResult(
-                        "No previous order was found for this customer."
+                        "I couldn't find any previous order for this customer."
                     );
                 }
 
@@ -2297,8 +2328,8 @@ Return exactly this structure:
             if (items.length === 0) {
                 return {
                     ...emptyResult(
-                        `The last order (${lastOrder.id}) has no items that ` +
-                            "can be copied."
+                        `I found the last order (${lastOrder.id}), but there's ` +
+                            "nothing in it I can copy."
                     ),
                     orderNumber: lastOrder.id,
                     orderDate
@@ -2308,13 +2339,16 @@ Return exactly this structure:
             return {
                 success: true,
                 message:
-                    `Copied ${items.length} item(s) from order ` +
-                    `${lastOrder.id}` +
-                    (orderDate ? ` (${orderDate})` : "") +
+                    `Done! I copied ${countOf(items.length, "item")} from the ` +
+                    `last order (${lastOrder.id}` +
+                    (orderDate ? `, ${orderDate}` : "") +
+                    ")." +
                     (skipped > 0
-                        ? `; ${skipped} item(s) skipped (product no longer ` +
-                          "available)."
-                        : "."),
+                        ? ` I had to skip ${countOf(skipped, "item")} because ` +
+                          (skipped === 1 ? "that product is" : "those products are") +
+                          " no longer available."
+                        : "") +
+                    " Feel free to adjust it.",
                 orderNumber: lastOrder.id,
                 orderDate,
                 items
@@ -2400,7 +2434,7 @@ Rules:
 - If the command could reasonably match more than one function, or its meaning is unclear, respond with status "clarification_required", intent set to an empty string, and a short clarifying question that helps determine which of the six functions is meant.
 - If the command does not relate to any of the six functions at all (for example small talk, unrelated topics, or requests PICO cannot fulfill), respond with status "unknown_intent", intent set to an empty string, and a very friendly message explaining that PICO cannot help with this, briefly restating the six things PICO can help with.
 
-Always write the "message" field in English, regardless of the language of the input command.
+Always write the "message" field in English, regardless of the language of the input command. Write it as PICO speaking directly to the user in a warm, natural, conversational first-person tone ("I", "you"), in one or two short sentences, like a helpful colleague in a chat. Avoid technical or system-like wording.
 
 Do not invent order data or customer data. Do not decide which specific customer, products, or quantities are meant - that happens later in a separate step. Your only job is to decide WHICH of the six functions applies.
 
