@@ -109,7 +109,12 @@
 <!--   Begruessung: wird jedes Mal gezeigt, wenn PICO geoeffnet wird.   -->
 <VBox id="picoGreetingArea" visible="{pico>/greetingVisible}" class="clarificationBox sapUiSmallMarginBottom">
 <Text id="picoGreetingIntroText" text="{i18n>picoGreetingIntro}" class="clarificationQuestionText sapUiTinyMarginBottom"/>
-<VBox id="picoGreetingBulletList" class="sapUiTinyMarginBottom">
+<!--   Beispiel-Chips passend zum aktuellen Zustand (Kunde/Positionen)   -->
+<FlexBox id="picoChips" wrap="Wrap" items="{pico>/chips}" class="sapUiTinyMarginBottom">
+<Button text="{pico>label}" type="Default" press=".onPicoChipPress" class="sapUiTinyMarginEnd sapUiTinyMarginBottom"/>
+</FlexBox>
+<Link id="picoShowSkillsLink" text="{= ${pico>/showAllSkills} ? ${i18n>picoHideSkills} : ${i18n>picoShowSkills}}" press=".onToggleAllSkills" class="sapUiTinyMarginBottom"/>
+<VBox id="picoGreetingBulletList" visible="{pico>/showAllSkills}" class="sapUiTinyMarginBottom">
 <Text id="picoGreetingBullet1Text" text="{i18n>picoGreetingBullet1}" class="clarificationQuestionText"/>
 <Text id="picoGreetingBullet2Text" text="{i18n>picoGreetingBullet2}" class="clarificationQuestionText"/>
 <Text id="picoGreetingBullet3Text" text="{i18n>picoGreetingBullet3}" class="clarificationQuestionText"/>
@@ -117,7 +122,6 @@
 <Text id="picoGreetingBullet5Text" text="{i18n>picoGreetingBullet5}" class="clarificationQuestionText"/>
 <Text id="picoGreetingBullet6Text" text="{i18n>picoGreetingBullet6}" class="clarificationQuestionText"/>
 </VBox>
-<Text id="picoGreetingOutroText" text="{i18n>picoGreetingOutro}" class="clarificationQuestionText"/>
 </VBox>
 <!--   Router-Nachrichten: Rueckfrage, Hinweis auf mehrere Funktionen,
                              oder freundliche Ablehnung bei unbekannten Anfragen.   -->

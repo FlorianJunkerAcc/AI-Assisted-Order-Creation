@@ -96,7 +96,9 @@ sap.ui.define(
                             chatOpen: false,
                             greetingVisible: false,
                             messageVisible: false,
-                            message: ""
+                            message: "",
+                            showAllSkills: false,
+                            chips: []
                         }),
                         "pico"
                     );
@@ -117,6 +119,97 @@ sap.ui.define(
                 onHeaderChange: function () {
                     this._clearAiResultAreas();
                     this._updateCreateEnabled();
+                    this._refreshPicoChips();
+                },
+                /**
+                 * Baut die Beispiel-Chips der PICO-Begruessung passend zum
+                 * aktuellen Zustand auf (Kunde gewaehlt? Positionen im
+                 * Entwurf?). "send" = Befehl ist vollstaendig und wird
+                 * direkt abgeschickt; sonst nur ins Eingabefeld geschrieben,
+                 * damit der Nutzer ihn ergaenzen kann.
+                 */
+                _refreshPicoChips: function () {
+                    const oPicoModel = this.getView().getModel("pico");
+                    const oOrderModel = this.getView().getModel("order");
+                    const oCustomerSelect = this.byId("customerSelect");
+                    if (!oPicoModel || !oOrderModel) {
+                        return;
+                    }
+                    const bCustomer = Boolean(
+                        oCustomerSelect && oCustomerSelect.getSelectedItem()
+                    );
+                    const bItems = (oOrderModel.getProperty("/items") || [])
+                        .some((oItem) => oItem.product_ID);
+                    const oBundle =
+                        this.getView().getModel("i18n").getResourceBundle();
+
+                    let aChips;
+                    if (!bCustomer) {
+                        aChips = [
+                            ["picoChipSelectCustomer", false],
+                            ["picoChipCopyOtherCustomer", false],
+                            ["picoChipAddItems", false]
+                        ];
+                    } else if (!bItems) {
+                        aChips = [
+                            ["picoChipDraft", true],
+                            ["picoChipCopyLast", true],
+                            ["picoChipSuggest", true],
+                            ["picoChipAddItems", false]
+                        ];
+                    } else {
+                        aChips = [
+                            ["picoChipValidate", true],
+                            ["picoChipSuggestMore", true],
+                            ["picoChipChangeQuantity", false],
+                            ["picoChipRemove", false]
+                        ];
+                    }
+
+                    oPicoModel.setProperty("/chips", aChips.map(
+                        ([sKey, bSend]) => {
+                            const sText = oBundle.getText(sKey).trim();
+                            return {
+                                // Unvollstaendige Befehle enden mit einem
+                                // Leerzeichen (zum Weitertippen) und werden
+                                // mit "..." angezeigt.
+                                command: bSend ? sText : sText + " ",
+                                label: bSend ? sText : sText + " …",
+                                send: bSend
+                            };
+                        }
+                    ));
+                },
+                /**
+                 * Klick auf einen Beispiel-Chip: Befehl ins Eingabefeld
+                 * uebernehmen und - falls vollstaendig - direkt senden.
+                 */
+                onPicoChipPress: function (oEvent) {
+                    const oChip = oEvent.getSource()
+                        .getBindingContext("pico").getObject();
+                    const oUiModel = this.getView().getModel("ui");
+                    const oInput = this.byId("aiOrderInput");
+
+                    oUiModel.setProperty("/recognizedCommand", oChip.command);
+                    oInput.setValue(oChip.command);
+                    this._updateAiSubmitState();
+
+                    if (oChip.send) {
+                        this.onAskPico();
+                    } else {
+                        oInput.focus();
+                    }
+                },
+                /**
+                 * Zeigt bzw. verbirgt die vollstaendige Funktionsliste
+                 * ("What can PICO do?").
+                 */
+                onToggleAllSkills: function () {
+                    const oPicoModel = this.getView().getModel("pico");
+                    oPicoModel.setProperty(
+                        "/showAllSkills",
+                        !oPicoModel.getProperty("/showAllSkills")
+                    );
                 },
                 onAIInputChange: function () {
                     const sValue =
@@ -826,6 +919,7 @@ sap.ui.define(
                         "/orderTotal",
                         fOrderTotal.toFixed(2)
                     );
+                    this._refreshPicoChips();
                     oOrderModel.setProperty(
                         "/itemCount",
                         aItems.length
@@ -877,6 +971,8 @@ sap.ui.define(
                         // parallel zur Begruessung sichtbar sein.
                         this._clearAiResultAreas();
 
+                        oPicoModel.setProperty("/showAllSkills", false);
+                        this._refreshPicoChips();
                         oPicoModel.setProperty(
                             "/greetingVisible",
                             true
