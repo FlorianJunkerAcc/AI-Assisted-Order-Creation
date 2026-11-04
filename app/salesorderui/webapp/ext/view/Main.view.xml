@@ -293,7 +293,7 @@
 <Text id="voiceListeningText" text="Listening..." class="sapUiTinyMarginTop"/>
 </VBox>
 <TextArea id="aiOrderInput" width="100%" rows="2" value="{ui>/recognizedCommand}" liveChange=".onAIInputChange" valueLiveUpdate="true" placeholder="{i18n>voicePlaceholder}" class="sapUiTinyMarginBottom"/>
-<Button id="askPicoButton" text="{i18n>askPico}" type="Emphasized" enabled="{ui>/canSubmitAiCommand}" press=".onAskPico" width="100%"/>
+<Button id="askPicoButton" text="{i18n>askPico}" icon="sap-icon://paper-plane" type="Emphasized" enabled="{ui>/canSubmitAiCommand}" press=".onAskPico" width="100%"/>
 </VBox>
 </VBox>
 <!--   Ende picoChatPanel   -->
