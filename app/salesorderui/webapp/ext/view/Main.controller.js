@@ -176,10 +176,10 @@ sap.ui.define(
                                 command: bSend ? sText : sText + " ",
                                 label: bSend ? sText : sText + " …",
                                 send: bSend,
-                                // Sofort ausfuehren = Blitz + hervorgehoben;
-                                // ergaenzen = Stift + Standard.
+                                // Sofort ausfuehren = Papierflieger +
+                                // hervorgehoben; ergaenzen = Stift + Standard.
                                 icon: bSend
-                                    ? "sap-icon://lightning-bolt"
+                                    ? "sap-icon://paper-plane"
                                     : "sap-icon://edit",
                                 type: bSend ? "Emphasized" : "Default",
                                 tooltip: oBundle.getText(
