@@ -109,6 +109,10 @@
 <!--   Begruessung: wird jedes Mal gezeigt, wenn PICO geoeffnet wird.   -->
 <VBox id="picoGreetingArea" visible="{pico>/greetingVisible}" class="clarificationBox sapUiSmallMarginBottom">
 <Text id="picoGreetingIntroText" text="{i18n>picoGreetingIntro}" class="clarificationQuestionText sapUiTinyMarginBottom"/>
+<!--   Start-Vorschlaege (solange noch kein Chat-Verlauf existiert); danach stehen die Vorschlaege in PICOs Sprechblasen   -->
+<FlexBox id="picoChips" visible="{= ${pico>/messages}.length === 0}" wrap="Wrap" items="{pico>/chips}" class="sapUiTinyMarginBottom">
+<Button text="{pico>label}" icon="{pico>icon}" type="{pico>type}" tooltip="{pico>tooltip}" press=".onPicoChipPress" class="sapUiTinyMarginEnd sapUiTinyMarginBottom"/>
+</FlexBox>
 <Link id="picoShowSkillsLink" text="{= ${pico>/showAllSkills} ? ${i18n>picoHideSkills} : ${i18n>picoShowSkills}}" press=".onToggleAllSkills" class="sapUiTinyMarginBottom"/>
 <VBox id="picoGreetingBulletList" visible="{pico>/showAllSkills}" class="sapUiTinyMarginBottom">
 <Text id="picoGreetingBullet1Text" text="{i18n>picoGreetingBullet1}" class="clarificationQuestionText"/>
@@ -126,7 +130,13 @@
 <Text text="{pico>text}" wrapping="true" class="picoBubble picoBubbleUser"/>
 </HBox>
 <HBox visible="{= ${pico>role} !== 'user'}" justifyContent="Start" width="100%" class="picoBubbleRow">
-<Text text="{pico>text}" wrapping="true" class="picoBubble picoBubblePico"/>
+<!--   PICO-Blase: Text und - falls PICO nach dem naechsten Schritt fragt - die Vorschlaege direkt darin   -->
+<VBox class="picoBubble picoBubblePico">
+<Text text="{pico>text}" wrapping="true"/>
+<FlexBox wrap="Wrap" items="{pico>chips}" class="picoBubbleChips">
+<Button text="{pico>label}" icon="{pico>icon}" type="{pico>type}" tooltip="{pico>tooltip}" press=".onPicoChipPress" class="sapUiTinyMarginEnd sapUiTinyMarginTop"/>
+</FlexBox>
+</VBox>
 </HBox>
 </VBox>
 </VBox>
@@ -273,13 +283,6 @@
 </VBox>
 </VBox>
 </VBox>
-</VBox>
-<!--   Vorschlaege fuer den naechsten Schritt (passend zum aktuellen Zustand)   -->
-<VBox id="picoNextSteps" visible="{= ${pico>/chips}.length > 0}" width="100%" class="sapUiSmallMarginTop">
-<Text id="picoNextStepsTitle" text="{i18n>picoNextSteps}" class="draftSectionTitle"/>
-<FlexBox id="picoChips" wrap="Wrap" items="{pico>/chips}">
-<Button text="{pico>label}" icon="{pico>icon}" type="{pico>type}" tooltip="{pico>tooltip}" press=".onPicoChipPress" class="sapUiTinyMarginEnd sapUiTinyMarginBottom"/>
-</FlexBox>
 </VBox>
 <!--   Ende picoChatBody   -->
 <!--   Fest positionierter Eingabebereich am unteren Rand des Panels   -->

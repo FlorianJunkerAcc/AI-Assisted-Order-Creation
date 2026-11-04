@@ -405,3 +405,8 @@
     color: #32363A;
     border-bottom-left-radius: 0.25rem;
 }
+
+/* Vorschlaege innerhalb von PICOs Sprechblase */
+.picoBubbleChips {
+    margin-top: 0.25rem;
+}

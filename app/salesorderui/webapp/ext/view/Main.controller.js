@@ -168,7 +168,7 @@ sap.ui.define(
                         ];
                     }
 
-                    oPicoModel.setProperty("/chips", aChips.map(
+                    const aChipObjects = aChips.map(
                         ([sKey, bSend]) => {
                             const sText = oBundle.getText(sKey).trim();
                             return {
@@ -189,20 +189,41 @@ sap.ui.define(
                                 )
                             };
                         }
-                    ));
+                    );
+                    oPicoModel.setProperty("/chips", aChipObjects);
+
+                    // Fragt die neueste Sprechblase gerade nach dem naechsten
+                    // Schritt, bleiben ihre Vorschlaege aktuell.
+                    const aMessages = oPicoModel.getProperty("/messages") || [];
+                    const iLast = aMessages.length - 1;
+                    if (iLast >= 0 && aMessages[iLast].askNext) {
+                        oPicoModel.setProperty(
+                            `/messages/${iLast}/chips`,
+                            aChipObjects.map((oChip) => Object.assign({}, oChip))
+                        );
+                    }
                 },
                 /**
                  * Chat-Verlauf: haengt eine Sprechblase an und scrollt nach
                  * unten. role "user" = Eingabe des Nutzers, "pico" = Antwort.
                  */
-                _addChatMessage: function (sRole, sText) {
+                _addChatMessage: function (sRole, sText, aChips) {
                     const oPicoModel = this.getView().getModel("pico");
                     if (!oPicoModel || !sText) {
                         return;
                     }
+                    // Vorschlaege stehen nur in der jeweils neuesten
+                    // Sprechblase; aeltere werden entfernt.
                     const aMessages = (
                         oPicoModel.getProperty("/messages") || []
-                    ).concat([{ role: sRole, text: sText }]);
+                    ).map((oMessage) => Object.assign(
+                        {}, oMessage, { chips: [], askNext: false }
+                    )).concat([{
+                        role: sRole,
+                        text: sText,
+                        chips: aChips || [],
+                        askNext: Boolean(aChips)
+                    }]);
                     oPicoModel.setProperty("/messages", aMessages);
                     setTimeout(() => {
                         const oBody = this.byId("picoChatBody");
@@ -221,11 +242,21 @@ sap.ui.define(
                  * als Chips unter dem Verlauf.
                  */
                 _picoSay: function (sText, bAskNext) {
+                    if (!bAskNext) {
+                        this._addChatMessage("pico", sText);
+                        return;
+                    }
+                    // Stand der Vorschlaege aktualisieren und direkt in
+                    // die Sprechblase legen.
+                    this._refreshPicoChips();
+                    const aChips = (
+                        this.getView().getModel("pico").getProperty("/chips") ||
+                        []
+                    ).map((oChip) => Object.assign({}, oChip));
                     this._addChatMessage(
                         "pico",
-                        bAskNext
-                            ? `${sText} What would you like to do next?`
-                            : sText
+                        `${sText} What would you like to do next?`,
+                        aChips
                     );
                 },
                 /**
