@@ -112,9 +112,7 @@
 <!--   Beispiel-Chips passend zum aktuellen Zustand (Kunde/Positionen)   -->
 <FlexBox id="picoChips" wrap="Wrap" items="{pico>/chips}" class="sapUiTinyMarginBottom">
 <Button text="{pico>label}" icon="{pico>icon}" type="{pico>type}" tooltip="{pico>tooltip}" press=".onPicoChipPress" class="sapUiTinyMarginEnd sapUiTinyMarginBottom"/>
-</FlexBox>
-<Text id="picoChipLegend" text="{i18n>picoChipLegend}" wrapping="true" class="recommendationReasonText sapUiTinyMarginBottom"/>
-<Link id="picoShowSkillsLink" text="{= ${pico>/showAllSkills} ? ${i18n>picoHideSkills} : ${i18n>picoShowSkills}}" press=".onToggleAllSkills" class="sapUiTinyMarginBottom"/>
+</FlexBox><Link id="picoShowSkillsLink" text="{= ${pico>/showAllSkills} ? ${i18n>picoHideSkills} : ${i18n>picoShowSkills}}" press=".onToggleAllSkills" class="sapUiTinyMarginBottom"/>
 <VBox id="picoGreetingBulletList" visible="{pico>/showAllSkills}" class="sapUiTinyMarginBottom">
 <Text id="picoGreetingBullet1Text" text="{i18n>picoGreetingBullet1}" class="clarificationQuestionText"/>
 <Text id="picoGreetingBullet2Text" text="{i18n>picoGreetingBullet2}" class="clarificationQuestionText"/>
