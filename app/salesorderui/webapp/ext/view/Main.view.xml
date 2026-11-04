@@ -102,7 +102,8 @@
 <!--   Chat-Header (rein informativ, kein Schliessen-Button)   -->
 <HBox id="picoChatHeader" alignItems="Center" class="picoChatHeader">
 <core:Icon id="picoChatHeaderIcon" src="sap-icon://ai" class="picoChatHeaderIcon sapUiTinyMarginEnd"/>
-<Text id="picoChatHeaderTitle" text="PICO" class="picoChatHeaderTitle"/>
+<Text id="picoChatHeaderTitle" text="PICO" class="picoChatHeaderTitle"><layoutData><FlexItemData growFactor="1"/></layoutData></Text>
+<Button id="picoSpeechButton" visible="{pico>/speechSupported}" icon="{= ${pico>/speechEnabled} ? 'sap-icon://sound' : 'sap-icon://sound-off'}" type="Transparent" tooltip="{= ${pico>/speechEnabled} ? ${i18n>picoSpeechOff} : ${i18n>picoSpeechOn}}" press=".onToggleSpeech" class="picoSpeechButton"/>
 </HBox>
 <!--   Scrollbarer Ergebnisbereich   -->
 <VBox id="picoChatBody" class="picoChatBody">

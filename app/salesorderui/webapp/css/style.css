@@ -410,3 +410,7 @@
 .picoBubbleChips {
     margin-top: 0.25rem;
 }
+
+.picoSpeechButton .sapMBtnIcon {
+    color: #FFFFFF;
+}

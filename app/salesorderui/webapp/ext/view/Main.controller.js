@@ -98,6 +98,9 @@ sap.ui.define(
                             messageVisible: false,
                             message: "",
                             showAllSkills: false,
+                            // Sprachausgabe (Vorlesen von PICOs Antworten)
+                            speechEnabled: this._loadSpeechEnabled(),
+                            speechSupported: Boolean(window.speechSynthesis),
                             chips: [],
                             // Chat-Verlauf: { role: "user" | "pico", text }
                             messages: []
@@ -225,6 +228,9 @@ sap.ui.define(
                         askNext: Boolean(aChips)
                     }]);
                     oPicoModel.setProperty("/messages", aMessages);
+                    if (sRole === "pico") {
+                        this._speak(sText);
+                    }
                     setTimeout(() => {
                         const oBody = this.byId("picoChatBody");
                         const oDom = oBody && oBody.getDomRef();
@@ -232,6 +238,53 @@ sap.ui.define(
                             oDom.scrollTop = oDom.scrollHeight;
                         }
                     }, 50);
+                },
+                /**
+                 * Sprachausgabe (Web Speech API, laeuft im Browser).
+                 * Die Einstellung wird im localStorage gemerkt.
+                 */
+                _loadSpeechEnabled: function () {
+                    try {
+                        return window.localStorage.getItem("picoSpeech") === "on";
+                    } catch (e) {
+                        return false;
+                    }
+                },
+                _speak: function (sText) {
+                    const oPicoModel = this.getView().getModel("pico");
+                    if (!window.speechSynthesis || !oPicoModel ||
+                        !oPicoModel.getProperty("/speechEnabled")) {
+                        return;
+                    }
+                    // Laufende Ausgabe beenden, damit sich nichts staut.
+                    window.speechSynthesis.cancel();
+                    const oUtterance = new SpeechSynthesisUtterance(sText);
+                    oUtterance.lang = "en-US";
+                    window.speechSynthesis.speak(oUtterance);
+                },
+                _stopSpeaking: function () {
+                    if (window.speechSynthesis) {
+                        window.speechSynthesis.cancel();
+                    }
+                },
+                onToggleSpeech: function () {
+                    const oPicoModel = this.getView().getModel("pico");
+                    const bEnabled = !oPicoModel.getProperty("/speechEnabled");
+                    oPicoModel.setProperty("/speechEnabled", bEnabled);
+                    try {
+                        window.localStorage.setItem(
+                            "picoSpeech", bEnabled ? "on" : "off"
+                        );
+                    } catch (e) {
+                        // localStorage nicht verfuegbar: Einstellung gilt nur
+                        // fuer diese Sitzung.
+                    }
+                    if (bEnabled) {
+                        // Kurze Rueckmeldung, damit man hoert, dass es klappt.
+                        this._speak("Voice output is on.");
+                    } else {
+                        this._stopSpeaking();
+                    }
                 },
                 _userSay: function (sText) {
                     this._addChatMessage("user", sText);
@@ -1050,6 +1103,9 @@ sap.ui.define(
                     const bNewOpen = !bCurrentlyOpen;
 
                     oPicoModel.setProperty("/chatOpen", bNewOpen);
+                    if (!bNewOpen) {
+                        this._stopSpeaking();
+                    }
 
                     if (bNewOpen) {
                         // WICHTIG: Zuerst alle Ergebnisbereiche leeren,
@@ -2395,6 +2451,8 @@ sap.ui.define(
                             messageVisible: false,
                             message: "",
                             showAllSkills: false,
+                            speechEnabled: this._loadSpeechEnabled(),
+                            speechSupported: Boolean(window.speechSynthesis),
                             chips: [],
                             messages: []
                         });
