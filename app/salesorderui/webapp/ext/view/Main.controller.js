@@ -994,6 +994,7 @@ sap.ui.define(
                                 // Validierungsergebnis angezeigt wird. Erst
                                 // danach die neue Funktion ausfuehren.
                                 this._clearAiResultAreas();
+                                this._pendingCopyLastOrder = false;
 
                                 // Befehl wurde eindeutig erkannt und wird
                                 // jetzt ausgefuehrt - Eingabefeld leeren.
@@ -1021,6 +1022,13 @@ sap.ui.define(
                                     oResult.intent === "validate_order"
                                 ) {
                                     await this._runValidateOrder();
+                                } else if (
+                                    oResult.intent === "copy_last_order"
+                                ) {
+                                    await this._runCopyLastOrder(
+                                        sCommand,
+                                        oResult.customerReference
+                                    );
                                 } else {
                                     MessageBox.error(
                                         "PICO returned an unrecognized function."
@@ -1098,7 +1106,7 @@ sap.ui.define(
                                     "customer manually."
                                 );
                             }
-                            return;
+                            return bApplied ? "resolved" : "failed";
                         }
 
                         if (oResult.status === "clarification_required") {
@@ -1114,12 +1122,13 @@ sap.ui.define(
                             MessageToast.show(
                                 "Please clarify which customer you mean."
                             );
-                            return;
+                            return "clarification";
                         }
 
                         MessageBox.error(
                             "Customer selection returned an unexpected result."
                         );
+                        return "failed";
 
                     } catch (oError) {
                         console.error(
@@ -1128,6 +1137,111 @@ sap.ui.define(
                         );
                         MessageBox.error(
                             "Customer selection failed: " +
+                            (oError.message || String(oError))
+                        );
+                        return "failed";
+                    }
+                },
+                /**
+                 * Kopiert die letzte Bestellung eines Kunden in den
+                 * Auftragsentwurf (copyLastOrder). Nennt der Befehl einen
+                 * Kunden, wird dieser zuerst ausgewaehlt; ist er nicht
+                 * eindeutig, wird nach der Kunden-Rueckfrage fortgesetzt.
+                 * Ohne Kundenangabe wird der aktuell gewaehlte Kunde
+                 * verwendet.
+                 */
+                _runCopyLastOrder: async function (sCommand, sCustomerReference) {
+                    if (sCustomerReference) {
+                        const sStatus = await this._runSelectCustomer(sCommand);
+                        if (sStatus === "clarification") {
+                            this._pendingCopyLastOrder = true;
+                            return;
+                        }
+                        if (sStatus !== "resolved") {
+                            return;
+                        }
+                    }
+                    await this._copyLastOrderForSelectedCustomer();
+                },
+                _copyLastOrderForSelectedCustomer: async function () {
+                    const oCustomerItem =
+                        this.byId("customerSelect").getSelectedItem();
+                    if (!oCustomerItem) {
+                        MessageBox.warning(
+                            "Please select a customer before copying their last order."
+                        );
+                        return;
+                    }
+
+                    const oActionBinding =
+                        this.getView().getModel().bindContext(
+                            "/copyLastOrder(...)"
+                        );
+
+                    try {
+                        const sCustomerID = await oCustomerItem
+                            .getBindingContext()
+                            .requestProperty("ID");
+                        oActionBinding.setParameter("customerId", sCustomerID);
+
+                        await oActionBinding.execute();
+
+                        const oResultContext =
+                            oActionBinding.getBoundContext();
+                        if (!oResultContext) {
+                            throw new Error(
+                                "The copy service returned no result."
+                            );
+                        }
+                        const oResult = await oResultContext.requestObject();
+                        const aItems = Array.isArray(oResult.items)
+                            ? oResult.items
+                            : [];
+
+                        if (!oResult.success || aItems.length === 0) {
+                            MessageBox.warning(
+                                oResult.message ||
+                                "No order could be copied."
+                            );
+                            return;
+                        }
+
+                        const oOrderModel = this.getView().getModel("order");
+                        const bHasItems = (
+                            oOrderModel.getProperty("/items") || []
+                        ).some((oItem) => oItem.product_ID);
+
+                        if (bHasItems) {
+                            const bReplace = await new Promise((resolve) => {
+                                MessageBox.confirm(
+                                    "The order draft already contains items. " +
+                                    "Replace them with the copied items?",
+                                    {
+                                        title: "Copy last order",
+                                        actions: [
+                                            MessageBox.Action.OK,
+                                            MessageBox.Action.CANCEL
+                                        ],
+                                        emphasizedAction: MessageBox.Action.OK,
+                                        onClose: (sAction) => resolve(
+                                            sAction === MessageBox.Action.OK
+                                        )
+                                    }
+                                );
+                            });
+                            if (!bReplace) {
+                                return;
+                            }
+                            oOrderModel.setProperty("/items", []);
+                        }
+
+                        this._addAiItemsToOrder(aItems);
+                        MessageToast.show(oResult.message);
+
+                    } catch (oError) {
+                        console.error("Copying the last order failed:", oError);
+                        MessageBox.error(
+                            "The last order could not be copied: " +
                             (oError.message || String(oError))
                         );
                     }
@@ -1158,7 +1272,14 @@ sap.ui.define(
                         MessageToast.show(
                             `Customer ${oSuggestion.customerName} selected.`
                         );
+                        // Wartete ein "copy last order" auf die Kundenauswahl,
+                        // jetzt fortsetzen.
+                        if (this._pendingCopyLastOrder) {
+                            this._pendingCopyLastOrder = false;
+                            await this._copyLastOrderForSelectedCustomer();
+                        }
                     } else {
+                        this._pendingCopyLastOrder = false;
                         MessageBox.error(
                             "The selected customer could not be found in " +
                             "the customer dropdown. Please select the " +

@@ -115,6 +115,7 @@
 <Text id="picoGreetingBullet3Text" text="{i18n>picoGreetingBullet3}" class="clarificationQuestionText"/>
 <Text id="picoGreetingBullet4Text" text="{i18n>picoGreetingBullet4}" class="clarificationQuestionText"/>
 <Text id="picoGreetingBullet5Text" text="{i18n>picoGreetingBullet5}" class="clarificationQuestionText"/>
+<Text id="picoGreetingBullet6Text" text="{i18n>picoGreetingBullet6}" class="clarificationQuestionText"/>
 </VBox>
 <Text id="picoGreetingOutroText" text="{i18n>picoGreetingOutro}" class="clarificationQuestionText"/>
 </VBox>

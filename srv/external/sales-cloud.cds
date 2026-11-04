@@ -35,10 +35,12 @@ service SalesCloud {
             ID           : String(35);
             BuyerPartyID : String(60);
             SalesUnitPartyID : String(60);
+            DateTime     : Timestamp;
     }
 
     entity CustomerOrderItemCollection {
         key ObjectID   : String(70);
+            ParentObjectID : String(70);
             SalesOrderID : String(35);
             ProductID    : String(40);
             ID           : String(35);

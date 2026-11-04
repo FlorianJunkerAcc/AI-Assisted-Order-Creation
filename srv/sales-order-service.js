@@ -67,7 +67,8 @@ const PICO_ALLOWED_INTENTS = [
     "generate_order_draft",
     "add_items",
     "recommend_products",
-    "validate_order"
+    "validate_order",
+    "copy_last_order"
 ];
 
 function getSalesCloudErrorCode(error) {
@@ -2156,10 +2157,189 @@ Return exactly this structure:
     });
 
     /**
+     * PICO: Copy last order.
+     *
+     * Ermittelt die neueste Order des Kunden (Filter BuyerPartyID, neueste
+     * per DateTime, Fallback Order-ID) und liest deren Positionen ueber
+     * ParentObjectID = ObjectID der Order. Die Positionen werden gegen den
+     * aktiven Produktkatalog geprueft und mit aktuellem Preis geliefert.
+     * Die Action aendert nichts in der Sales Cloud.
+     */
+    this.on("copyLastOrder", async (req) => {
+        const { customerId } = req.data;
+
+        if (!customerId) {
+            return req.reject(400, "A customer must be selected.");
+        }
+
+        const emptyResult = (message) => ({
+            success: false,
+            message,
+            orderNumber: "",
+            orderDate: "",
+            items: []
+        });
+
+        try {
+            const customerNumber = await resolveCustomerNumber(customerId);
+            if (!customerNumber) {
+                return req.reject(
+                    404,
+                    "The selected customer could not be found in the local " +
+                        "customer catalog or SAP Sales Cloud."
+                );
+            }
+
+            let lastOrder;
+            let itemRows;
+            try {
+                const orderRows = getResultRows(await salesCloud.run(
+                    SELECT.from(CustomerOrderCollection)
+                        .columns("ObjectID", "ID", "DateTime")
+                        .where({ BuyerPartyID: customerNumber })
+                ));
+
+                const orders = orderRows
+                    .filter((order) => order.ObjectID && order.ID)
+                    .map((order) => ({
+                        id: order.ID,
+                        objectID: order.ObjectID,
+                        timestamp: getOrderTimestamp(order)
+                    }))
+                    .sort(compareOrdersNewestFirst);
+
+                lastOrder = orders[0];
+                if (!lastOrder) {
+                    return emptyResult(
+                        "No previous order was found for this customer."
+                    );
+                }
+
+                itemRows = getResultRows(await salesCloud.run(
+                    SELECT.from(CustomerOrderItemCollection)
+                        .where({ ParentObjectID: lastOrder.objectID })
+                ));
+            } catch (error) {
+                console.error(
+                    "Could not read the last order from SAP Sales Cloud:",
+                    error
+                );
+                return req.reject(
+                    502,
+                    `SALES_CLOUD_LAST_ORDER_${getSalesCloudErrorCode(error)}: ` +
+                        getSalesCloudErrorMessage(error)
+                );
+            }
+
+            let catalog;
+            try {
+                catalog = await loadSalesCloudProducts();
+            } catch (error) {
+                console.error(
+                    "Could not load the active SAP Sales Cloud catalog:",
+                    error
+                );
+                return req.reject(
+                    502,
+                    `SALES_CLOUD_PRODUCT_CATALOG_${getSalesCloudErrorCode(error)}: ` +
+                        getSalesCloudErrorMessage(error)
+                );
+            }
+            const catalogByNumber = new Map(
+                catalog.map((product) => [
+                    String(product.productNumber || "").trim().toUpperCase(),
+                    product
+                ])
+            );
+
+            // Positionen in Original-Reihenfolge; gleiche Produkte werden
+            // summiert, nicht mehr aktive Produkte uebersprungen.
+            itemRows.sort((a, b) =>
+                (Number(a.ID) || 0) - (Number(b.ID) || 0));
+            const itemsByProduct = new Map();
+            let skipped = 0;
+            for (const row of itemRows) {
+                const productNumber = String(row.ProductID || "")
+                    .trim()
+                    .toUpperCase();
+                const quantity = Math.round(Number(row.Quantity));
+                const product = catalogByNumber.get(productNumber);
+                const unitPrice = Number(product?.price);
+                if (!product || !Number.isFinite(unitPrice) ||
+                    !Number.isFinite(quantity) || quantity <= 0) {
+                    skipped += 1;
+                    continue;
+                }
+                const existing = itemsByProduct.get(productNumber);
+                if (existing) {
+                    existing.quantity += quantity;
+                } else {
+                    itemsByProduct.set(productNumber, {
+                        product_ID: product.ID,
+                        productNumber: product.productNumber,
+                        productName: product.name,
+                        unit: product.unit || "",
+                        quantity,
+                        unitPrice
+                    });
+                }
+            }
+
+            const items = [...itemsByProduct.values()].map((item) => ({
+                ...item,
+                totalPrice: Number((item.unitPrice * item.quantity).toFixed(2))
+            }));
+
+            const orderDate = lastOrder.timestamp !== null
+                ? new Date(lastOrder.timestamp).toISOString().slice(0, 10)
+                : "";
+
+            if (items.length === 0) {
+                return {
+                    ...emptyResult(
+                        `The last order (${lastOrder.id}) has no items that ` +
+                            "can be copied."
+                    ),
+                    orderNumber: lastOrder.id,
+                    orderDate
+                };
+            }
+
+            return {
+                success: true,
+                message:
+                    `Copied ${items.length} item(s) from order ` +
+                    `${lastOrder.id}` +
+                    (orderDate ? ` (${orderDate})` : "") +
+                    (skipped > 0
+                        ? `; ${skipped} item(s) skipped (product no longer ` +
+                          "available)."
+                        : "."),
+                orderNumber: lastOrder.id,
+                orderDate,
+                items
+            };
+
+        } catch (error) {
+            const statusCode = Number(
+                error.statusCode || error.status || error.code
+            );
+            if (statusCode >= 400 && statusCode < 600) {
+                return req.reject(statusCode, error.message);
+            }
+            console.error("Copying the last order failed:", error);
+            return req.reject(
+                500,
+                `COPY_LAST_ORDER_FAILED: ${error.message}`
+            );
+        }
+    });
+
+    /**
      * PICO Intent Router (routeAiCommand).
      *
      * Empfängt einen beliebigen Freitext-Befehl aus dem EINEN PICO-
-     * Eingabefeld und entscheidet mittels Sonnet, welche der fünf
+     * Eingabefeld und entscheidet mittels Sonnet, welche der sechs
      * Funktionen gemeint ist:
      *
      *   select_customer      -> selectCustomer
@@ -2167,6 +2347,7 @@ Return exactly this structure:
      *   add_items            -> interpretOrderItems
      *   recommend_products   -> recommendProducts
      *   validate_order       -> validateOrderItems
+     *   copy_last_order      -> copyLastOrder
      *
      * PICO führt selbst NICHTS aus - er liefert nur die Entscheidung
      * (status + intent) und ggf. einen Text, der dem Nutzer direkt
@@ -2201,33 +2382,37 @@ Return exactly this structure:
                         role: "system",
                         content: `You are the intent router for PICO, an AI assistant that helps sales representatives create customer sales orders in a SAP-based application.
 
-PICO can perform exactly five functions:
+PICO can perform exactly six functions:
 
 1. select_customer - identify and select the customer for the order, based on the customer's name and/or customer number.
 2. generate_order_draft - automatically build an order draft from the customer's order history: frequently ordered products that are due for reorder are added to the order, less certain ones are offered as suggestions to confirm. Typical commands: "create an order draft", "prepare the usual order", "fill the order based on history".
 3. add_items - interpret spoken or typed product names and quantities and add them as order line items to the current order draft, change the product or quantity of existing line items (for example "make it 10 instead", "replace X with Y"), or remove line items from the order draft (for example "remove the Nutella").
 4. recommend_products - suggest products to consider adding to the order, based on the customer's historical order data, without adding anything automatically.
 5. validate_order - check the current order draft's line items against the customer's order history and flag unusual product categories or quantities.
+6. copy_last_order - copy the line items of the customer's most recent order into the order draft so that they can be adjusted afterwards. The command may name the customer (for example "copy the last order of customer Acme" or "copy the last order"). Naming the customer here is only a parameter of this function and does NOT make it a multiple-intent command.
 
 Analyze the user's command and decide which single function is meant.
 
 Rules:
 
-- If the command clearly and unambiguously matches exactly ONE of the five functions, respond with status "ok" and set intent to that function's identifier (select_customer, generate_order_draft, add_items, recommend_products, or validate_order). The message field can be a short one-sentence acknowledgement.
-- If the command explicitly or implicitly asks for TWO OR MORE of the five functions to be performed together (for example "select customer Acme and add 5 Nutella"), respond with status "multiple_intents", intent set to an empty string, and a friendly message explaining that PICO can only execute one function per command and asking the user to submit the requests one at a time.
-- If the command could reasonably match more than one function, or its meaning is unclear, respond with status "clarification_required", intent set to an empty string, and a short clarifying question that helps determine which of the five functions is meant.
-- If the command does not relate to any of the five functions at all (for example small talk, unrelated topics, or requests PICO cannot fulfill), respond with status "unknown_intent", intent set to an empty string, and a very friendly message explaining that PICO cannot help with this, briefly restating the five things PICO can help with.
+- If the command clearly and unambiguously matches exactly ONE of the six functions, respond with status "ok" and set intent to that function's identifier (select_customer, generate_order_draft, add_items, recommend_products, validate_order, or copy_last_order). The message field can be a short one-sentence acknowledgement.
+- If the command explicitly or implicitly asks for TWO OR MORE of the six functions to be performed together (for example "select customer Acme and add 5 Nutella"), respond with status "multiple_intents", intent set to an empty string, and a friendly message explaining that PICO can only execute one function per command and asking the user to submit the requests one at a time.
+- If the command could reasonably match more than one function, or its meaning is unclear, respond with status "clarification_required", intent set to an empty string, and a short clarifying question that helps determine which of the six functions is meant.
+- If the command does not relate to any of the six functions at all (for example small talk, unrelated topics, or requests PICO cannot fulfill), respond with status "unknown_intent", intent set to an empty string, and a very friendly message explaining that PICO cannot help with this, briefly restating the six things PICO can help with.
 
 Always write the "message" field in English, regardless of the language of the input command.
 
-Do not invent order data or customer data. Do not decide which specific customer, products, or quantities are meant - that happens later in a separate step. Your only job is to decide WHICH of the five functions applies.
+Do not invent order data or customer data. Do not decide which specific customer, products, or quantities are meant - that happens later in a separate step. Your only job is to decide WHICH of the six functions applies.
+
+For intent "copy_last_order" only: set "customerReference" to the customer name and/or number exactly as the user wrote it in the command, or to an empty string if the command does not name a customer. For all other intents set "customerReference" to an empty string.
 
 Return only valid JSON in exactly this structure. Do not wrap the JSON in Markdown code fences.
 
 {
   "status": "ok" | "clarification_required" | "multiple_intents" | "unknown_intent",
-  "intent": "select_customer" | "generate_order_draft" | "add_items" | "recommend_products" | "validate_order" | "",
-  "message": "string"
+  "intent": "select_customer" | "generate_order_draft" | "add_items" | "recommend_products" | "validate_order" | "copy_last_order" | "",
+  "message": "string",
+  "customerReference": "string"
 }`
                     },
                     {
@@ -2261,7 +2446,12 @@ Return only valid JSON in exactly this structure. Do not wrap the JSON in Markdo
                 intent: parsedResponse.status === "ok"
                     ? parsedResponse.intent
                     : "",
-                message: parsedResponse.message || ""
+                message: parsedResponse.message || "",
+                customerReference:
+                    parsedResponse.status === "ok" &&
+                    parsedResponse.intent === "copy_last_order"
+                        ? String(parsedResponse.customerReference || "").trim()
+                        : ""
             };
 
         } catch (error) {

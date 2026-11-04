@@ -121,6 +121,9 @@ type PicoRouteResult {
     // Für "ok": kurze Bestätigung. Für die anderen Status: Rückfrage bzw.
     // Erklärung, die dem Nutzer direkt angezeigt wird.
     message : String;
+    // Nur bei intent "copy_last_order": der im Befehl genannte Kunde
+    // (Name/Nummer), sonst leer.
+    customerReference : String;
 }
 
 action routeAiCommand(
@@ -176,5 +179,28 @@ type OrderDraftResult {
 }
 
 action generateOrderDraft(customerId : String, excludedProductIDs : String) returns OrderDraftResult;
+
+type CopiedOrderItem {
+    product_ID    : String;
+    productNumber : String;
+    productName   : String;
+    unit          : String;
+    quantity      : Integer;
+    unitPrice     : Decimal(15, 2);
+    totalPrice    : Decimal(15, 2);
+}
+
+type CopyOrderResult {
+    success     : Boolean;
+    message     : String;
+    orderNumber : String;
+    orderDate   : String;
+    items       : many CopiedOrderItem;
+}
+
+// Liest die zuletzt angelegte Order des Kunden aus der Sales Cloud und
+// liefert deren Positionen zum Uebernehmen in den Entwurf. Aendert nichts
+// in der Sales Cloud.
+action copyLastOrder(customerId : String) returns CopyOrderResult;
 
 }
