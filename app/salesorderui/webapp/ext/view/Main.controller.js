@@ -175,7 +175,16 @@ sap.ui.define(
                                 // mit "..." angezeigt.
                                 command: bSend ? sText : sText + " ",
                                 label: bSend ? sText : sText + " …",
-                                send: bSend
+                                send: bSend,
+                                // Sofort ausfuehren = Blitz + hervorgehoben;
+                                // ergaenzen = Stift + Standard.
+                                icon: bSend
+                                    ? "sap-icon://lightning-bolt"
+                                    : "sap-icon://edit",
+                                type: bSend ? "Emphasized" : "Default",
+                                tooltip: oBundle.getText(
+                                    bSend ? "picoChipTipSend" : "picoChipTipEdit"
+                                )
                             };
                         }
                     ));
