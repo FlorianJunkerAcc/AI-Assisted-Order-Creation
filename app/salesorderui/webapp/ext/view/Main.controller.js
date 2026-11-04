@@ -195,8 +195,12 @@ sap.ui.define(
                     this._updateAiSubmitState();
 
                     if (oChip.send) {
+                        this._chipPrefix = null;
                         this.onAskPico();
                     } else {
+                        // Merken, damit eine anschliessende Spracheingabe
+                        // den Anfang nicht ersetzt, sondern ergaenzt.
+                        this._chipPrefix = oChip.command;
                         oInput.focus();
                     }
                 },
@@ -2086,10 +2090,22 @@ sap.ui.define(
                             "Voice input:",
                             sTranscript
                         );
-                        oController.getView().getModel("ui").setProperty(
-                            "/recognizedCommand",
-                            sTranscript
-                        );
+                        // Wurde ein unvollstaendiger Chip ("Remove ...")
+                        // gewaehlt und noch nichts ergaenzt, wird das
+                        // Gesprochene an den Chip-Anfang angehaengt.
+                        const oUiModel = oController.getView().getModel("ui");
+                        const sPrefix = oController._chipPrefix;
+                        const sCurrent =
+                            oUiModel.getProperty("/recognizedCommand") || "";
+                        let sCommand = sTranscript;
+                        if (sPrefix && sCurrent === sPrefix &&
+                            !sTranscript.toLowerCase().startsWith(
+                                sPrefix.trim().toLowerCase()
+                            )) {
+                            sCommand = sPrefix + sTranscript;
+                        }
+                        oController._chipPrefix = null;
+                        oUiModel.setProperty("/recognizedCommand", sCommand);
                         oController._updateAiSubmitState();
                     };
                     oRecognition.onend = function () {
