@@ -241,12 +241,6 @@
 </VBox>
 <!--   AI product recommendations (Ergebnis von recommend_products)   -->
 <VBox id="recommendationArea" visible="{recommendation>/visible}" width="100%" class="sapUiSmallMarginBottom">
-<VBox id="recommendationBox" class="clarificationBox sapUiSmallMarginBottom">
-<HBox id="recommendationHeaderBox" alignItems="Center" class="sapUiTinyMarginBottom">
-<core:Icon id="recommendationIcon" src="sap-icon://ai" class="clarificationIcon sapUiTinyMarginEnd"/>
-<Text id="recommendationHeaderText" text="{i18n>aiProductRecommendations}" class="clarificationHeaderText"/>
-</HBox>
-</VBox>
 <Text id="recommendationSuggestionTitle" text="{i18n>draftSuggestionsTitle}" class="draftSectionTitle"/>
 <VBox id="productRecommendations" items="{recommendation>/recommendations}" width="100%">
 <VBox id="productRecommendation" class="validationWarningItem">
@@ -266,13 +260,9 @@
 </VBox>
 </VBox>
 <!--   AI order validation (Ergebnis von validate_order)   -->
-<VBox id="validationArea" visible="{validation>/visible}" width="100%" class="sapUiSmallMarginBottom">
-<VBox id="validationBox" class="clarificationBox sapUiSmallMarginBottom">
-<HBox id="validationHeaderBox" alignItems="Center" class="sapUiTinyMarginBottom">
-<core:Icon id="validationIcon" src="sap-icon://ai" class="clarificationIcon sapUiTinyMarginEnd"/>
-<Text id="validationHeaderText" text="{i18n>aiOrderValidation}" class="clarificationHeaderText"/>
-</HBox>
-</VBox>
+<!--   Nur die einzelnen Hinweise; die Zusammenfassung steht in PICOs Sprechblase.
+                             Ohne Hinweise bleibt der Bereich ausgeblendet.   -->
+<VBox id="validationArea" visible="{= ${validation>/visible} &amp;&amp; ${validation>/warnings}.length > 0}" width="100%" class="sapUiSmallMarginBottom">
 <VBox id="validationWarnings" items="{validation>/warnings}" width="100%">
 <VBox class="validationWarningItem">
 <HBox alignItems="Center" justifyContent="SpaceBetween">
