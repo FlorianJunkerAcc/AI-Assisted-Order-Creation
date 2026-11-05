@@ -26,8 +26,11 @@ const MODEL_NAME = process.env.PICO_REALTIME_MODEL || "gpt-realtime";
 const MODEL_VERSION = process.env.PICO_REALTIME_MODEL_VERSION || "";
 const DEPLOYMENT_ID = process.env.PICO_REALTIME_DEPLOYMENT_ID || "";
 const VOICE =process.env.PICO_VOICE || "alloy";
-const TRANSCRIBE_MODEL =
-    process.env.PICO_TRANSCRIBE_MODEL || "gpt-4o-mini-transcribe";
+// Transkriptionsmodelle in Reihenfolge; schlaegt eines fehl, wird das
+// naechste probiert (PICO_TRANSCRIBE_MODEL erzwingt ein einzelnes).
+const TRANSCRIBE_MODELS = process.env.PICO_TRANSCRIBE_MODEL
+    ? [process.env.PICO_TRANSCRIBE_MODEL]
+    : ["whisper-1", "gpt-4o-mini-transcribe", "gpt-4o-transcribe"];
 const TRANSCRIBE_LANGUAGE = process.env.PICO_VOICE_LANGUAGE || "en";
 const MAX_CONNECTIONS = Number(process.env.PICO_VOICE_MAX_CONNECTIONS || 10);
 const MAX_TEXT_LENGTH = 1500;
@@ -39,7 +42,7 @@ const SESSION_INSTRUCTIONS =
     "orders. You only read out texts you are given, in a warm and natural " +
     "tone. Never add, omit or answer anything yourself.";
 
-function sessionConfig() {
+function sessionConfig(transcribeModel) {
     return {
         type: "session.update",
         session: {
@@ -50,7 +53,7 @@ function sessionConfig() {
                 input: {
                     format: { type: "audio/pcm", rate: 24000 },
                     transcription: {
-                        model: TRANSCRIBE_MODEL,
+                        model: transcribeModel,
                         language: TRANSCRIBE_LANGUAGE
                     },
                     // Server-VAD erkennt das Satzende. PICO antwortet nicht
@@ -175,6 +178,7 @@ function handleConnection(browser) {
     let configured = false;
     let responseActive = false;
     let audioChunks = 0;
+    let transcribeIndex = 0;
 
     const send = (payload) => {
         if (browser.readyState === WebSocket.OPEN) {
@@ -201,7 +205,7 @@ function handleConnection(browser) {
             return;
         }
         configured = true;
-        aiSend(sessionConfig());
+        aiSend(sessionConfig(TRANSCRIBE_MODELS[transcribeIndex]));
     };
 
     // Nachrichten, die vor dem fertigen Verbindungsaufbau eintreffen
@@ -312,8 +316,25 @@ function handleConnection(browser) {
                 (event) => {
                     const message =
                         event?.error?.message || "Transcription failed";
-                    LOG.error("Transcription failed:", message);
-                    send({ type: "error", message: "Transcription: " + message });
+                    LOG.error(
+                        `Transcription failed with "${TRANSCRIBE_MODELS[transcribeIndex]}":`,
+                        JSON.stringify(event?.error || {})
+                    );
+                    if (transcribeIndex + 1 < TRANSCRIBE_MODELS.length) {
+                        transcribeIndex++;
+                        LOG.info(
+                            `Switching transcription model to "${TRANSCRIBE_MODELS[transcribeIndex]}"`
+                        );
+                        aiSend(sessionConfig(TRANSCRIBE_MODELS[transcribeIndex]));
+                        send({
+                            type: "error",
+                            message:
+                                "Speech could not be transcribed. " +
+                                "Please try once more."
+                        });
+                    } else {
+                        send({ type: "error", message: "Transcription: " + message });
+                    }
                 }
             );
             aiClient.on(
