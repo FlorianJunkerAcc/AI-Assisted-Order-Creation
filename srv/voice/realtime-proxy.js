@@ -22,7 +22,8 @@ import { SapOpenAiRealtimeWs } from "@sap-ai-sdk/openai/realtime";
 const WS_PATH = "/pico-voice";
 const RESOURCE_GROUP = process.env.AICORE_RESOURCE_GROUP || "default";
 const MODEL_NAME = process.env.PICO_REALTIME_MODEL || "gpt-realtime";
-const MODEL_VERSION = process.env.PICO_REALTIME_MODEL_VERSION || "latest";
+// Ohne Angabe passt jede Version (die Deployments heissen z. B. 2025-08-28).
+const MODEL_VERSION = process.env.PICO_REALTIME_MODEL_VERSION || "";
 const DEPLOYMENT_ID = process.env.PICO_REALTIME_DEPLOYMENT_ID || "";
 const VOICE =process.env.PICO_VOICE || "alloy";
 const TRANSCRIBE_MODEL =
@@ -96,41 +97,52 @@ async function isAuthorized(req) {
 }
 
 /**
+ * Ermittelt die Deployment-ID selbst (statt der SDK-Suche, die bei
+ * Versionen wie "2025-08-28" nichts fand): feste ID aus
+ * PICO_REALTIME_DEPLOYMENT_ID, sonst das neueste laufende Deployment des
+ * Modells in der Resource Group.
+ */
+let cachedDeploymentId = DEPLOYMENT_ID;
+async function resolveDeploymentId() {
+    if (cachedDeploymentId) {
+        return cachedDeploymentId;
+    }
+    const { DeploymentApi } = await import("@sap-ai-sdk/ai-api");
+    const result = await DeploymentApi.deploymentQuery(
+        { status: "RUNNING" },
+        { "AI-Resource-Group": RESOURCE_GROUP }
+    ).execute();
+    const matches = (result.resources || [])
+        .filter((d) => {
+            const model = d.details?.resources?.backendDetails?.model;
+            return (
+                (model?.name === MODEL_NAME ||
+                    String(d.configurationName || "").startsWith(MODEL_NAME)) &&
+                (!MODEL_VERSION || model?.version === MODEL_VERSION)
+            );
+        })
+        .sort((a, b) =>
+            String(b.createdAt || "").localeCompare(String(a.createdAt || ""))
+        );
+    if (matches.length === 0) {
+        throw new Error(
+            `No running "${MODEL_NAME}" deployment in resource group ` +
+                `"${RESOURCE_GROUP}". No deployment matched.`
+        );
+    }
+    cachedDeploymentId = matches[0].id;
+    LOG.info(`Using ${MODEL_NAME} deployment ${cachedDeploymentId}`);
+    return cachedDeploymentId;
+}
+
+/**
  * Diagnose: listet die Deployments der Resource Group im Log, damit man
  * sieht, wie das gesuchte Deployment tatsaechlich heisst bzw. in welchem
  * Status es ist.
  */
 async function logAvailableDeployments() {
     try {
-        const { DeploymentApi, ResourceGroupApi } = await import(
-            "@sap-ai-sdk/ai-api"
-        );
-        // Hilfreich, falls das Deployment in einer anderen Resource Group liegt.
-        try {
-            const groups = await ResourceGroupApi.getAll().execute();
-            for (const group of groups.resources || []) {
-                const id = group.resourceGroupId;
-                const other = await DeploymentApi.deploymentQuery(
-                    {},
-                    { "AI-Resource-Group": id }
-                ).execute();
-                const realtime = (other.resources || []).filter((d) =>
-                    /realtime/i.test(
-                        `${d.configurationName} ` +
-                            (d.details?.resources?.backendDetails?.model?.name ||
-                                "")
-                    )
-                );
-                LOG.info(
-                    `Resource group "${id}": ${other.count ?? other.resources?.length} ` +
-                        `deployments, realtime: ` +
-                        (realtime.map((d) => `${d.id} (${d.status})`).join(", ") ||
-                            "none")
-                );
-            }
-        } catch (error) {
-            LOG.warn("Could not list resource groups:", error.message);
-        }
+        const { DeploymentApi } = await import("@sap-ai-sdk/ai-api");
         const result = await DeploymentApi.deploymentQuery(
             {},
             { "AI-Resource-Group": RESOURCE_GROUP }
@@ -264,12 +276,7 @@ function handleConnection(browser) {
             aiClient = await SapOpenAiRealtimeWs.createClient({
                 // Entweder feste Deployment-ID (PICO_REALTIME_DEPLOYMENT_ID)
                 // oder Suche nach Modellname/-version.
-                deployment: DEPLOYMENT_ID
-                    ? { deploymentId: DEPLOYMENT_ID }
-                    : {
-                          modelName: MODEL_NAME,
-                          modelVersion: MODEL_VERSION
-                      },
+                deployment: { deploymentId: await resolveDeploymentId() },
                 resourceGroup: RESOURCE_GROUP
             });
             if (closed) {
