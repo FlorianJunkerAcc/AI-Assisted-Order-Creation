@@ -1,6 +1,11 @@
 import cds from "@sap/cds";
 import { OrchestrationClient } from "@sap-ai-sdk/orchestration";
 
+// Waehlt zufaellig eine von mehreren Formulierungen, damit PICO nicht
+// jedes Mal exakt denselben Satz sagt.
+const pickOne = (...options) =>
+    options[Math.floor(Math.random() * options.length)];
+
 // Optionale Resource Group in AI Core (Standard: "default"). Gilt auch fuer
 // den Voice-Proxy (srv/voice/realtime-proxy.js).
 const AI_CORE_OPTIONS = process.env.AICORE_RESOURCE_GROUP
@@ -1101,15 +1106,22 @@ if (validatedSuggestions.length === 0) {
             if (validatedItems.length > 0 && hasClarifications) {
                 message = `Done, I've applied ` +
                     `${countOf(validatedItems.length, "change")}. ` +
-                    `For ${countOf(clarifications.length, "product")} I need ` +
-                    "your help to pick the right one.";
+                    `For ${countOf(clarifications.length, "product")} I'm ` +
+                    "not sure what you mean, so please pick the right " +
+                    `${clarifications.length === 1 ? "one" : "ones"} below.`;
             } else if (hasClarifications) {
-                message = "I need your help to pick the right " +
-                    `${clarifications.length === 1 ? "product" : "products"}.`;
+                message = pickOne(
+                    "I found a few products that could fit, so I need you to " +
+                        "decide. ",
+                    "I'm not sure which product you mean. "
+                ) + `Please pick the right ${clarifications.length === 1 ? "one" : "ones"} below.`;
             } else {
-                message = `Done, I've applied ` +
-                    `${countOf(validatedItems.length, "change")} to your ` +
-                    "order draft.";
+                message = pickOne(
+                    `Done, I've applied ${countOf(validatedItems.length, "change")} ` +
+                        "to your order draft.",
+                    `All set - ${countOf(validatedItems.length, "change")} ` +
+                        "made in your order draft."
+                );
             }
 
             if (notes.length > 0) {
@@ -1382,10 +1394,27 @@ if (validatedSuggestions.length === 0) {
 
             return {
                 success: true,
-                message:
-                    `I found ${countOf(topRecommendations.length, "product")} ` +
-                    `this customer often orders (based on ${totalOrders} past ` +
-                    "orders). Which of them should I add?",
+                message: topRecommendations.length === 1
+                    ? pickOne(
+                        `I found one product this customer often orders ` +
+                            `(based on ${totalOrders} past orders). Have a ` +
+                            "look below and add it if you like.",
+                        `Looking at ${totalOrders} past orders, one product ` +
+                            "stands out. It's listed below - add it if it fits."
+                    )
+                    : pickOne(
+                        `I found ${topRecommendations.length} products this ` +
+                            `customer keeps coming back to (based on ` +
+                            `${totalOrders} past orders). There are several, ` +
+                            "so please pick the ones you'd like me to add below.",
+                        `Looking at ${totalOrders} past orders, ` +
+                            `${topRecommendations.length} products stand out. ` +
+                            "They're listed below - choose the ones you want " +
+                            "in the order.",
+                        `Here are ${topRecommendations.length} ideas based ` +
+                            `on ${totalOrders} past orders. Please choose below ` +
+                            "which of them should go into the order."
+                    ),
                 recommendations: topRecommendations
             };
 
@@ -1644,9 +1673,18 @@ if (validatedSuggestions.length === 0) {
                 success: true,
                 message: warnings.length > 0
                     ? `I took a look and found ${countOf(warnings.length, "thing")} ` +
-                        "worth a second look:"
-                    : "All good! Your order looks just like what this customer " +
-                        `usually orders (I compared it with ${totalOrders} past orders).`,
+                        "worth a second look. Please go through " +
+                        `${warnings.length === 1 ? "it" : "them"} below: ` +
+                        "you can ignore a hint if it's fine, or change the " +
+                        "order yourself."
+                    : pickOne(
+                        "All good! Your order looks just like what this " +
+                            `customer usually orders (I compared it with ` +
+                            `${totalOrders} past orders).`,
+                        "Everything looks fine to me - it matches what this " +
+                            `customer usually orders (checked against ` +
+                            `${totalOrders} past orders).`
+                    ),
                 warnings
             };
 
@@ -2163,16 +2201,28 @@ Return exactly this structure:
 
             return {
                 success: true,
-                message: (finalAuto.length > 0
-                    ? `I've added ${countOf(finalAuto.length, "item")} to your ` +
-                        "draft that this customer is due to reorder. "
-                    : "") +
-                    (finalSuggestions.length > 0
-                        ? `I'm not sure about ${finalSuggestions.length === 1 ? "this one" : "these " + finalSuggestions.length} ` +
-                            "- should I add " +
-                            `${finalSuggestions.length === 1 ? "it" : "them"}? `
-                        : "") +
-                    `(Based on the last ${analyzedOrders} orders.)`,
+                message: finalAuto.length > 0 && finalSuggestions.length > 0
+                    ? `I've put ${countOf(finalAuto.length, "item")} into your ` +
+                        "draft that this customer is due to reorder " +
+                        `(based on the last ${analyzedOrders} orders). I'm ` +
+                        `not sure about ${finalSuggestions.length === 1 ? "one more" : finalSuggestions.length + " more"}, ` +
+                        "so please check the suggestions below and confirm " +
+                        "the ones you want."
+                    : finalAuto.length > 0
+                        ? pickOne(
+                            `I've added ${countOf(finalAuto.length, "item")} to ` +
+                                "your draft that this customer is due to " +
+                                `reorder (based on the last ${analyzedOrders} ` +
+                                "orders). Have a look and change anything you like.",
+                            `Your draft is ready: ${countOf(finalAuto.length, "item")} ` +
+                                "that this customer is due to reorder " +
+                                `(from the last ${analyzedOrders} orders). Adjust ` +
+                                "it as you see fit."
+                        )
+                        : `I'm not sure what is due for a reorder yet, so I ` +
+                            `collected ${finalSuggestions.length === 1 ? "one suggestion" : finalSuggestions.length + " suggestions"} ` +
+                            `from the last ${analyzedOrders} orders. Please ` +
+                            "check below and confirm what I should add.",
                 analyzedOrders,
                 autoItems: finalAuto,
                 suggestions: finalSuggestions
@@ -2365,7 +2415,10 @@ Return exactly this structure:
                           (skipped === 1 ? "that product is" : "those products are") +
                           " no longer available."
                         : "") +
-                    " Feel free to adjust it.",
+                    pickOne(
+                        " Feel free to adjust it.",
+                        " Have a look and change anything you like."
+                    ),
                 orderNumber: lastOrder.id,
                 orderDate,
                 items
@@ -2451,7 +2504,7 @@ Rules:
 - If the command could reasonably match more than one function, or its meaning is unclear, respond with status "clarification_required", intent set to an empty string, and a short clarifying question that helps determine which of the six functions is meant.
 - If the command does not relate to any of the six functions at all (for example small talk, unrelated topics, or requests PICO cannot fulfill), respond with status "unknown_intent", intent set to an empty string, and a very friendly message explaining that PICO cannot help with this, briefly restating the six things PICO can help with.
 
-Always write the "message" field in English, regardless of the language of the input command. Write it as PICO speaking directly to the user in a warm, natural, conversational first-person tone ("I", "you"), in one or two short sentences, like a helpful colleague in a chat. Avoid technical or system-like wording.
+Always write the "message" field in English, regardless of the language of the input command. Write it as PICO speaking directly to the user in a warm, natural, conversational first-person tone ("I", "you"), in one or two short sentences, like a helpful colleague in a chat. Avoid technical or system-like wording. Vary your wording from one answer to the next, so that it sounds like a real person and not like a template. Whenever you need an answer from the user, end the message with one clear, direct question that can be answered in a few words.
 
 Do not invent order data or customer data. Do not decide which specific customer, products, or quantities are meant - that happens later in a separate step. Your only job is to decide WHICH of the six functions applies.
 

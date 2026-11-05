@@ -1384,8 +1384,17 @@ sap.ui.define(
                                 question: oResult.question,
                                 suggestions: oResult.suggestions
                             });
+                            // PICO sagt, dass der Nutzer selbst waehlen muss.
+                            const bHasChoices =
+                                (oResult.suggestions || []).length > 0;
                             this._picoSay(
-                                "I need a bit of help: which customer do you mean?"
+                                bHasChoices
+                                    ? "I found a few customers that could fit, " +
+                                      "so I need your help. Please pick the " +
+                                      "right one below."
+                                    : (oResult.question ||
+                                      "I'm not sure which customer you mean. " +
+                                      "Could you tell me the name again?")
                             );
                             return "clarification";
                         }
