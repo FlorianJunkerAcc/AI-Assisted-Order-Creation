@@ -2289,9 +2289,8 @@ sap.ui.define(
                             oController._chipPrefix = null;
                             oUiModel.setProperty("/recognizedCommand", sCommand);
                             oController._updateAiSubmitState();
-                            // Gesprochener Befehl wird sofort ausgefuehrt
-                            // (Sonnet-Router wie beim Tippen).
-                            oController.onAskPico();
+                            // Der Text steht jetzt im Eingabefeld; abgeschickt
+                            // wird manuell ueber "Send".
                         }
                     });
                 },
