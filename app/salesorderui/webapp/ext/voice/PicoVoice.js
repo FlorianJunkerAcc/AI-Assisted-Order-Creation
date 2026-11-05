@@ -108,6 +108,9 @@ sap.ui.define([], function () {
     };
 
     PicoVoice.prototype._onMessage = function (oMessage) {
+        if (oMessage.type !== "audio") {
+            console.debug("PICO voice:", oMessage.type, oMessage.text || oMessage.message || "", "(sent chunks: " + (this._chunks || 0) + ")");
+        }
         switch (oMessage.type) {
             case "audio":
                 this._playChunk(oMessage.data);
@@ -249,9 +252,21 @@ sap.ui.define([], function () {
             const oSource = oCtx.createMediaStreamSource(oStream);
             const oNode = new AudioWorkletNode(oCtx, "pcm-capture");
             oNode.port.onmessage = (oEvent) => {
+                this._chunks = (this._chunks || 0) + 1;
                 this._send({ type: "audio", data: toBase64(oEvent.data) });
             };
             oSource.connect(oNode);
+            // Manche Browser (Firefox, Safari) verarbeiten einen Worklet-Knoten
+            // nur, wenn er mit dem Ausgang verbunden ist. Stumm geschaltet,
+            // damit man sich nicht selbst hoert.
+            const oMute = oCtx.createGain();
+            oMute.gain.value = 0;
+            oNode.connect(oMute);
+            oMute.connect(oCtx.destination);
+            if (oCtx.state === "suspended") {
+                await oCtx.resume();
+            }
+            this._chunks = 0;
 
             this._listen.capture = { stream: oStream, ctx: oCtx, node: oNode, source: oSource };
             this._send({ type: "clear" });

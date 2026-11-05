@@ -174,6 +174,7 @@ function handleConnection(browser) {
     let closed = false;
     let configured = false;
     let responseActive = false;
+    let audioChunks = 0;
 
     const send = (payload) => {
         if (browser.readyState === WebSocket.OPEN) {
@@ -209,6 +210,7 @@ function handleConnection(browser) {
         switch (message?.type) {
             case "audio":
                 if (typeof message.data === "string") {
+                    audioChunks++;
                     aiSend({
                         type: "input_audio_buffer.append",
                         audio: message.data
@@ -216,6 +218,7 @@ function handleConnection(browser) {
                 }
                 break;
             case "clear":
+                audioChunks = 0;
                 aiSend({ type: "input_audio_buffer.clear" });
                 break;
             case "speak": {
@@ -296,19 +299,30 @@ function handleConnection(browser) {
 
             aiClient.on("session.created", configure);
             aiClient.on("session.updated", () => send({ type: "ready" }));
-            aiClient.on("input_audio_buffer.speech_started", () =>
-                send({ type: "speech_started" })
-            );
-            aiClient.on("input_audio_buffer.speech_stopped", () =>
-                send({ type: "speech_stopped" })
+            aiClient.on("input_audio_buffer.speech_started", () => {
+                LOG.info("Speech started");
+                send({ type: "speech_started" });
+            });
+            aiClient.on("input_audio_buffer.speech_stopped", () => {
+                LOG.info(`Speech stopped (audio chunks received: ${audioChunks})`);
+                send({ type: "speech_stopped" });
+            });
+            aiClient.on(
+                "conversation.item.input_audio_transcription.failed",
+                (event) => {
+                    const message =
+                        event?.error?.message || "Transcription failed";
+                    LOG.error("Transcription failed:", message);
+                    send({ type: "error", message: "Transcription: " + message });
+                }
             );
             aiClient.on(
                 "conversation.item.input_audio_transcription.completed",
-                (event) =>
-                    send({
-                        type: "transcript",
-                        text: String(event.transcript || "").trim()
-                    })
+                (event) => {
+                    const text = String(event.transcript || "").trim();
+                    LOG.info(`Transcript: "${text}"`);
+                    send({ type: "transcript", text });
+                }
             );
             aiClient.on("response.created", () => {
                 responseActive = true;
