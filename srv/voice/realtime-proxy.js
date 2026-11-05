@@ -95,6 +95,40 @@ async function isAuthorized(req) {
     }
 }
 
+/**
+ * Diagnose: listet die Deployments der Resource Group im Log, damit man
+ * sieht, wie das gesuchte Deployment tatsaechlich heisst bzw. in welchem
+ * Status es ist.
+ */
+async function logAvailableDeployments() {
+    try {
+        const { DeploymentApi } = await import("@sap-ai-sdk/ai-api");
+        const result = await DeploymentApi.deploymentQuery(
+            {},
+            { "AI-Resource-Group": RESOURCE_GROUP }
+        ).execute();
+        const deployments = result.resources || [];
+        LOG.info(
+            `Deployments in resource group "${RESOURCE_GROUP}": ` +
+                deployments.length
+        );
+        for (const d of deployments) {
+            const model = d.details?.resources?.backendDetails?.model;
+            LOG.info(
+                [
+                    `id=${d.id}`,
+                    `status=${d.status}`,
+                    `scenario=${d.scenarioId}`,
+                    `config=${d.configurationName}`,
+                    `model=${model?.name}@${model?.version}`
+                ].join(" | ")
+            );
+        }
+    } catch (error) {
+        LOG.warn("Could not list deployments:", error.message);
+    }
+}
+
 function handleConnection(browser) {
     let aiClient;
     let closed = false;
@@ -260,6 +294,9 @@ function handleConnection(browser) {
             pending.splice(0).forEach(handleBrowserMessage);
         } catch (error) {
             LOG.error("Could not connect to SAP AI Core:", error.message);
+            if (/No deployment matched/i.test(error.message)) {
+                await logAvailableDeployments();
+            }
             send({ type: "error", message: error.message });
             browser.close(1011, "AI Core connection failed");
         }
