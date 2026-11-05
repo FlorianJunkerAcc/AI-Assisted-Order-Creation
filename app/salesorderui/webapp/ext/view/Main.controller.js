@@ -217,14 +217,6 @@ sap.ui.define(
                     if (!oPicoModel || !sText) {
                         return;
                     }
-                    // Waehrend GPT ein Tool ausfuehrt, wird PICOs Aussage
-                    // nur gesammelt (GPT formuliert die Antwort selbst).
-                    if (sRole === "pico" && this._capture) {
-                        this._capture.push(
-                            sText.replace(/ What would you like to do next\?$/, "")
-                        );
-                        return;
-                    }
                     // Vorschlaege stehen nur in der jeweils neuesten
                     // Sprechblase; aeltere werden entfernt.
                     const aMessages = (
@@ -238,7 +230,7 @@ sap.ui.define(
                         askNext: Boolean(aChips)
                     }]);
                     oPicoModel.setProperty("/messages", aMessages);
-                    if (sRole === "pico" && !this._suppressSpeak) {
+                    if (sRole === "pico") {
                         this._speak(sText);
                     }
                     setTimeout(() => {
@@ -269,11 +261,6 @@ sap.ui.define(
                         this._voice = new PicoVoice((sMessage) => {
                             console.error("PICO voice:", sMessage);
                             MessageToast.show("Voice: " + sMessage);
-                        }, {
-                            onToolCall: (sName, oArgs) =>
-                                this._runVoiceTool(sName, oArgs),
-                            onAssistantText: (sText) =>
-                                this._voiceAssistantSay(sText)
                         });
                     }
                     return this._voice;
@@ -319,75 +306,7 @@ sap.ui.define(
                     }
                 },
                 _userSay: function (sText) {
-                    // Per Sprache gesprochene Eingaben stehen schon im Chat.
-                    if (this._skipUserBubble) {
-                        this._skipUserBubble = false;
-                        return;
-                    }
                     this._addChatMessage("user", sText);
-                },
-                /**
-                 * Sprachgespraech: GPT Realtime ruft Funktionen auf. Sie laufen
-                 * hier im Browser (Entwurf und Kunde liegen in den UI-Modellen);
-                 * PICOs bisherige Aussagen gehen als Ergebnis an GPT zurueck.
-                 */
-                _runVoiceTool: async function (sName, oArgs) {
-                    const oUiModel = this.getView().getModel("ui");
-                    this._capture = [];
-                    const aSaid = this._capture;
-                    try {
-                        if (sName === "run_command") {
-                            const sCommand = String(oArgs.command || "").trim();
-                            oUiModel.setProperty("/recognizedCommand", sCommand);
-                            this.byId("aiOrderInput").setValue(sCommand);
-                            this._skipUserBubble = true;
-                            // Gleicher Weg wie beim Tippen (Router, Aktion).
-                            await this.onAskPico();
-                            this._skipUserBubble = false;
-                        } else {
-                            this._clearAiResultAreas();
-                            this._pendingCopyLastOrder = false;
-                            if (sName === "select_customer") {
-                                await this._runSelectCustomer(
-                                    "Select customer " + (oArgs.customer || "")
-                                );
-                            } else if (sName === "generate_order_draft") {
-                                await this._runGenerateOrderDraft();
-                            } else if (sName === "recommend_products") {
-                                await this._runRecommendProducts();
-                            } else if (sName === "validate_order") {
-                                await this._runValidateOrder();
-                            } else {
-                                aSaid.push("This action is not available.");
-                            }
-                        }
-                    } catch (oError) {
-                        aSaid.push(
-                            "The action failed: " + (oError.message || oError)
-                        );
-                    } finally {
-                        this._capture = null;
-                    }
-                    const oOrderModel = this.getView().getModel("order");
-                    const aItems =
-                        (oOrderModel && oOrderModel.getProperty("/items")) || [];
-                    const oCustomer =
-                        this.byId("customerSelect").getSelectedItem();
-                    return JSON.stringify({
-                        said: aSaid,
-                        customerSelected: oCustomer ? oCustomer.getText() : null,
-                        orderItemCount: aItems.length
-                    });
-                },
-                /** GPT hat im Gespraech geantwortet: als Blase mit Vorschlaegen zeigen. */
-                _voiceAssistantSay: function (sText) {
-                    // Ist schon gesprochen worden, daher nicht nochmal vorlesen.
-                    this._suppressSpeak = true;
-                    try {
-                        this._picoSay(sText, "chips");
-                    } finally {
-                        this._suppressSpeak = false;
-                    }
                 },
                 /**
                  * PICO antwortet im Chat. Mit bAskNext fragt PICO am Ende,
@@ -2336,10 +2255,6 @@ sap.ui.define(
                             oResourceBundle.getText("startVoiceInput")
                         );
                     };
-                    // Ist ein unvollstaendiger Chip gewaehlt ("Remove ..."), wird
-                    // nur diktiert. Sonst fuehrt GPT Realtime das Gespraech.
-                    const bConverse = !oController._chipPrefix;
-                    const oPicoModel = this.getView().getModel("pico");
                     // Waehrend der Verbindungsaufbau laeuft, schon sperren.
                     oVoiceButton.setEnabled(false);
                     this._getVoice().listen({
@@ -2355,12 +2270,7 @@ sap.ui.define(
                                 return;
                             }
                             console.log("Voice input:", sTranscript);
-                            if (bConverse) {
-                                // GPT handelt selbst; die eigene Aussage
-                                // erscheint als Sprechblase.
-                                oController._userSay(sTranscript);
-                                return;
-                            }
+
                             // Wurde ein unvollstaendiger Chip ("Remove ...")
                             // gewaehlt und noch nichts ergaenzt, wird das
                             // Gesprochene an den Chip-Anfang angehaengt.
@@ -2379,10 +2289,10 @@ sap.ui.define(
                             oController._chipPrefix = null;
                             oUiModel.setProperty("/recognizedCommand", sCommand);
                             oController._updateAiSubmitState();
+                            // Gesprochener Befehl wird sofort ausgefuehrt
+                            // (Sonnet-Router wie beim Tippen).
+                            oController.onAskPico();
                         }
-                    }, {
-                        converse: bConverse,
-                        audio: Boolean(oPicoModel.getProperty("/speechEnabled"))
                     });
                 },
                 /**
