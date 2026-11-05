@@ -1,6 +1,12 @@
 import cds from "@sap/cds";
 import { OrchestrationClient } from "@sap-ai-sdk/orchestration";
 
+// Optionale Resource Group in AI Core (Standard: "default"). Gilt auch fuer
+// den Voice-Proxy (srv/voice/realtime-proxy.js).
+const AI_CORE_OPTIONS = process.env.AICORE_RESOURCE_GROUP
+    ? { resourceGroup: process.env.AICORE_RESOURCE_GROUP }
+    : undefined;
+
 // SELECT wird für Datenbankabfragen benötigt.
 const { INSERT, SELECT, UPDATE } = cds.ql;
 
@@ -219,7 +225,7 @@ async function generateRecommendationReasonsWithAI(recommendations) {
                 name: "anthropic--claude-4.6-sonnet"
             }
         }
-    });
+    }, AI_CORE_OPTIONS);
 
     const response = await client.chatCompletion({
         messages: [
@@ -807,7 +813,7 @@ export default cds.service.impl(async function () {
                         name: "anthropic--claude-4.6-sonnet"
                     }
                 }
-            });
+            }, AI_CORE_OPTIONS);
 
             const response = await client.chatCompletion({
                 messages: [
@@ -1709,7 +1715,7 @@ if (validatedSuggestions.length === 0) {
                         name: "anthropic--claude-4.6-sonnet"
                     }
                 }
-            });
+            }, AI_CORE_OPTIONS);
 
             const response = await client.chatCompletion({
                 messages: [
@@ -2408,7 +2414,7 @@ Return exactly this structure:
                         name: "anthropic--claude-4.6-sonnet"
                     }
                 }
-            });
+            }, AI_CORE_OPTIONS);
 
             const response = await client.chatCompletion({
                 messages: [

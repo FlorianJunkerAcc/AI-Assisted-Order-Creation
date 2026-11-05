@@ -22,7 +22,9 @@ import { SapOpenAiRealtimeWs } from "@sap-ai-sdk/openai/realtime";
 const WS_PATH = "/pico-voice";
 const RESOURCE_GROUP = process.env.AICORE_RESOURCE_GROUP || "default";
 const MODEL_NAME = process.env.PICO_REALTIME_MODEL || "gpt-realtime";
-const VOICE = process.env.PICO_VOICE || "alloy";
+const MODEL_VERSION = process.env.PICO_REALTIME_MODEL_VERSION || "latest";
+const DEPLOYMENT_ID = process.env.PICO_REALTIME_DEPLOYMENT_ID || "";
+const VOICE =process.env.PICO_VOICE || "alloy";
 const TRANSCRIBE_MODEL =
     process.env.PICO_TRANSCRIBE_MODEL || "gpt-4o-mini-transcribe";
 const TRANSCRIBE_LANGUAGE = process.env.PICO_VOICE_LANGUAGE || "en";
@@ -198,10 +200,14 @@ function handleConnection(browser) {
     (async () => {
         try {
             aiClient = await SapOpenAiRealtimeWs.createClient({
-                deployment: {
-                    modelName: MODEL_NAME,
-                    modelVersion: "latest"
-                },
+                // Entweder feste Deployment-ID (PICO_REALTIME_DEPLOYMENT_ID)
+                // oder Suche nach Modellname/-version.
+                deployment: DEPLOYMENT_ID
+                    ? { deploymentId: DEPLOYMENT_ID }
+                    : {
+                          modelName: MODEL_NAME,
+                          modelVersion: MODEL_VERSION
+                      },
                 resourceGroup: RESOURCE_GROUP
             });
             if (closed) {
