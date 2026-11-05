@@ -197,6 +197,7 @@ function handleConnection(browser) {
     let transcribeIndex = 0;
     // Zu sprechende Texte werden nacheinander vorgelesen, nicht abgebrochen.
     const speakQueue = [];
+    let currentText = "";
 
     const send = (payload) => {
         if (browser.readyState === WebSocket.OPEN) {
@@ -230,21 +231,30 @@ function handleConnection(browser) {
             return;
         }
         const text = speakQueue.shift();
+        currentText = text;
         responseActive = true;
-        // Out-of-band-Antwort: Der Text wird vorgelesen, ohne den
-        // Gespraechsverlauf der Session zu veraendern.
+        // Out-of-band-Antwort. Wichtig: Ohne eigenes "input" wuerde GPT den
+        // bisherigen Gespraechsverlauf (z. B. den gesprochenen Befehl des
+        // Nutzers) als Kontext nehmen und darauf antworten statt vorzulesen.
+        // Deshalb bekommt es nur den vorzulesenden Text als Eingabe.
         aiSend({
             type: "response.create",
             response: {
                 conversation: "none",
                 output_modalities: ["audio"],
                 instructions:
-                    "Read the text between the markers aloud, word for " +
-                    "word, exactly as written. Do not respond to it, do " +
-                    "not greet, do not add, skip or reword anything.\n" +
-                    "--- TEXT START ---\n" +
-                    text +
-                    "\n--- TEXT END ---"
+                    "You are a text-to-speech engine. Repeat the user's " +
+                    "message word for word, exactly as written, in a warm, " +
+                    "natural voice. Never answer it, comment on it, greet, " +
+                    "translate, shorten or add anything. Say numbers and " +
+                    "dates naturally.",
+                input: [
+                    {
+                        type: "message",
+                        role: "user",
+                        content: [{ type: "input_text", text }]
+                    }
+                ]
             }
         });
     };
@@ -376,6 +386,19 @@ function handleConnection(browser) {
             aiClient.on("response.output_audio.delta", (event) =>
                 send({ type: "audio", data: event.delta })
             );
+            // Kontrolle im Log: gesprochener Text gegen den Chat-Text.
+            aiClient.on("response.output_audio_transcript.done", (event) => {
+                const norm = (t) =>
+                    String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+                const spoken = String(event?.transcript || "");
+                if (norm(spoken) !== norm(currentText)) {
+                    LOG.warn(
+                        `Spoken text differs from chat text.
+  chat:   "${currentText}"
+  spoken: "${spoken}"`
+                    );
+                }
+            });
             aiClient.on("response.done", () => {
                 responseActive = false;
                 send({ type: "audio_done" });
