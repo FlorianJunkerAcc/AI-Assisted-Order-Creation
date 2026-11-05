@@ -102,7 +102,35 @@ async function isAuthorized(req) {
  */
 async function logAvailableDeployments() {
     try {
-        const { DeploymentApi } = await import("@sap-ai-sdk/ai-api");
+        const { DeploymentApi, ResourceGroupApi } = await import(
+            "@sap-ai-sdk/ai-api"
+        );
+        // Hilfreich, falls das Deployment in einer anderen Resource Group liegt.
+        try {
+            const groups = await ResourceGroupApi.getAll().execute();
+            for (const group of groups.resources || []) {
+                const id = group.resourceGroupId;
+                const other = await DeploymentApi.deploymentQuery(
+                    {},
+                    { "AI-Resource-Group": id }
+                ).execute();
+                const realtime = (other.resources || []).filter((d) =>
+                    /realtime/i.test(
+                        `${d.configurationName} ` +
+                            (d.details?.resources?.backendDetails?.model?.name ||
+                                "")
+                    )
+                );
+                LOG.info(
+                    `Resource group "${id}": ${other.count ?? other.resources?.length} ` +
+                        `deployments, realtime: ` +
+                        (realtime.map((d) => `${d.id} (${d.status})`).join(", ") ||
+                            "none")
+                );
+            }
+        } catch (error) {
+            LOG.warn("Could not list resource groups:", error.message);
+        }
         const result = await DeploymentApi.deploymentQuery(
             {},
             { "AI-Resource-Group": RESOURCE_GROUP }
@@ -110,7 +138,7 @@ async function logAvailableDeployments() {
         const deployments = result.resources || [];
         LOG.info(
             `Deployments in resource group "${RESOURCE_GROUP}": ` +
-                deployments.length
+                `${result.count ?? deployments.length}`
         );
         for (const d of deployments) {
             const model = d.details?.resources?.backendDetails?.model;
