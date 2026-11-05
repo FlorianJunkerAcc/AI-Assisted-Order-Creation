@@ -4,9 +4,12 @@
   "type": "module",
   "dependencies": {
     "@cap-js/hana": "^3",
+    "@sap-ai-sdk/openai": "^2.15.0",
     "@sap-ai-sdk/orchestration": "^2.16.0",
     "@sap/cds": "^10",
-    "@sap/xssec": "^4"
+    "@sap/xssec": "^4",
+    "openai": "^7.4.0",
+    "ws": "^8.18.3"
   },
   "devDependencies": {
     "@cap-js/sqlite": "^3.1.1",

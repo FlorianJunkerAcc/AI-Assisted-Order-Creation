@@ -6,7 +6,8 @@ sap.ui.define(
         "sap/ui/model/Filter",
         "sap/ui/model/FilterOperator",
         "sap/m/MessageToast",
-        "sap/m/MessageBox"
+        "sap/m/MessageBox",
+        "com/prototype/salesorderai/salesorderui/ext/voice/PicoVoice"
     ],
     function (
         PageController,
@@ -15,7 +16,8 @@ sap.ui.define(
         Filter,
         FilterOperator,
         MessageToast,
-        MessageBox
+        MessageBox,
+        PicoVoice
     ) {
         "use strict";
         return PageController.extend(
@@ -100,7 +102,7 @@ sap.ui.define(
                             showAllSkills: false,
                             // Sprachausgabe (Vorlesen von PICOs Antworten)
                             speechEnabled: this._loadSpeechEnabled(),
-                            speechSupported: Boolean(window.speechSynthesis),
+                            speechSupported: PicoVoice.isSupported(),
                             chips: [],
                             // Chat-Verlauf: { role: "user" | "pico", text }
                             messages: []
@@ -250,21 +252,36 @@ sap.ui.define(
                         return false;
                     }
                 },
+                /**
+                 * Realtime-Stimme (GPT Realtime, Stimme "alloy") ueber den
+                 * CAP-Proxy /pico-voice.
+                 */
+                _getVoice: function () {
+                    if (!this._voice) {
+                        this._voice = new PicoVoice((sMessage) => {
+                            console.error("PICO voice:", sMessage);
+                            MessageToast.show("Voice: " + sMessage);
+                        });
+                    }
+                    return this._voice;
+                },
                 _speak: function (sText) {
                     const oPicoModel = this.getView().getModel("pico");
-                    if (!window.speechSynthesis || !oPicoModel ||
+                    if (!PicoVoice.isSupported() || !oPicoModel ||
                         !oPicoModel.getProperty("/speechEnabled")) {
                         return;
                     }
-                    // Laufende Ausgabe beenden, damit sich nichts staut.
-                    window.speechSynthesis.cancel();
-                    const oUtterance = new SpeechSynthesisUtterance(sText);
-                    oUtterance.lang = "en-US";
-                    window.speechSynthesis.speak(oUtterance);
+                    this._getVoice().speak(sText);
                 },
                 _stopSpeaking: function () {
-                    if (window.speechSynthesis) {
-                        window.speechSynthesis.cancel();
+                    if (this._voice) {
+                        this._voice.stopSpeaking();
+                    }
+                },
+                onExit: function () {
+                    if (this._voice) {
+                        this._voice.destroy();
+                        this._voice = null;
                     }
                 },
                 onToggleSpeech: function () {
@@ -280,6 +297,8 @@ sap.ui.define(
                         // fuer diese Sitzung.
                     }
                     if (bEnabled) {
+                        // Klick = Nutzergeste: Audio freischalten.
+                        this._getVoice().unlock();
                         // Kurze Rueckmeldung, damit man hoert, dass es klappt.
                         this._speak("Voice output is on.");
                     } else {
@@ -1105,6 +1124,9 @@ sap.ui.define(
                     oPicoModel.setProperty("/chatOpen", bNewOpen);
                     if (!bNewOpen) {
                         this._stopSpeaking();
+                        if (this._voice) {
+                            this._voice.stopListening();
+                        }
                     }
 
                     if (bNewOpen) {
@@ -2213,19 +2235,12 @@ sap.ui.define(
                     );
                 },
                 onStartVoiceInput: function () {
-                    const SpeechRecognition =
-                        window.SpeechRecognition ||
-                        window.webkitSpeechRecognition;
-                    if (!SpeechRecognition) {
+                    if (!PicoVoice.isSupported()) {
                         MessageBox.error(
-                            "Speech recognition is not supported by this browser."
+                            "Voice input is not supported by this browser."
                         );
                         return;
                     }
-                    const oRecognition = new SpeechRecognition();
-                    oRecognition.lang = "en-US";
-                    oRecognition.continuous = false;
-                    oRecognition.interimResults = false;
                     const oListeningIndicator =
                         this.byId("voiceListeningIndicator");
                     const oVoiceButton =
@@ -2233,61 +2248,48 @@ sap.ui.define(
                     const oController = this;
                     const oResourceBundle =
                         this.getView().getModel("i18n").getResourceBundle();
-                    oRecognition.onstart = function () {
-                        oListeningIndicator.setVisible(true);
-                        oVoiceButton.setEnabled(false);
+                    const fnReset = function () {
+                        oListeningIndicator.setVisible(false);
+                        oVoiceButton.setEnabled(true);
                         oVoiceButton.setText(
-                            oResourceBundle.getText("listening")
+                            oResourceBundle.getText("startVoiceInput")
                         );
                     };
-                    oRecognition.onresult = function (oEvent) {
-                        const sTranscript =
-                            oEvent.results[0][0].transcript;
-                        console.log(
-                            "Voice input:",
-                            sTranscript
-                        );
-                        // Wurde ein unvollstaendiger Chip ("Remove ...")
-                        // gewaehlt und noch nichts ergaenzt, wird das
-                        // Gesprochene an den Chip-Anfang angehaengt.
-                        const oUiModel = oController.getView().getModel("ui");
-                        const sPrefix = oController._chipPrefix;
-                        const sCurrent =
-                            oUiModel.getProperty("/recognizedCommand") || "";
-                        let sCommand = sTranscript;
-                        if (sPrefix && sCurrent === sPrefix &&
-                            !sTranscript.toLowerCase().startsWith(
-                                sPrefix.trim().toLowerCase()
-                            )) {
-                            sCommand = sPrefix + sTranscript;
+                    // Waehrend der Verbindungsaufbau laeuft, schon sperren.
+                    oVoiceButton.setEnabled(false);
+                    this._getVoice().listen({
+                        onStart: function () {
+                            oListeningIndicator.setVisible(true);
+                            oVoiceButton.setText(
+                                oResourceBundle.getText("listening")
+                            );
+                        },
+                        onEnd: function (sTranscript) {
+                            fnReset();
+                            if (!sTranscript) {
+                                return;
+                            }
+                            console.log("Voice input:", sTranscript);
+                            // Wurde ein unvollstaendiger Chip ("Remove ...")
+                            // gewaehlt und noch nichts ergaenzt, wird das
+                            // Gesprochene an den Chip-Anfang angehaengt.
+                            const oUiModel =
+                                oController.getView().getModel("ui");
+                            const sPrefix = oController._chipPrefix;
+                            const sCurrent =
+                                oUiModel.getProperty("/recognizedCommand") || "";
+                            let sCommand = sTranscript;
+                            if (sPrefix && sCurrent === sPrefix &&
+                                !sTranscript.toLowerCase().startsWith(
+                                    sPrefix.trim().toLowerCase()
+                                )) {
+                                sCommand = sPrefix + sTranscript;
+                            }
+                            oController._chipPrefix = null;
+                            oUiModel.setProperty("/recognizedCommand", sCommand);
+                            oController._updateAiSubmitState();
                         }
-                        oController._chipPrefix = null;
-                        oUiModel.setProperty("/recognizedCommand", sCommand);
-                        oController._updateAiSubmitState();
-                    };
-                    oRecognition.onend = function () {
-                        oListeningIndicator.setVisible(false);
-                        oVoiceButton.setEnabled(true);
-                        oVoiceButton.setText(
-                            oResourceBundle.getText("startVoiceInput")
-                        );
-                    };
-                    oRecognition.onerror = function (oEvent) {
-                        console.error(
-                            "Speech recognition error:",
-                            oEvent.error
-                        );
-                        oListeningIndicator.setVisible(false);
-                        oVoiceButton.setEnabled(true);
-                        oVoiceButton.setText(
-                            oResourceBundle.getText("startVoiceInput")
-                        );
-                        MessageBox.error(
-                            "Voice recognition failed: " +
-                            oEvent.error
-                        );
-                    };
-                    oRecognition.start();
+                    });
                 },
                 /**
                  * Speichert den vollständigen Sales Order.
@@ -2452,7 +2454,7 @@ sap.ui.define(
                             message: "",
                             showAllSkills: false,
                             speechEnabled: this._loadSpeechEnabled(),
-                            speechSupported: Boolean(window.speechSynthesis),
+                            speechSupported: PicoVoice.isSupported(),
                             chips: [],
                             messages: []
                         });
