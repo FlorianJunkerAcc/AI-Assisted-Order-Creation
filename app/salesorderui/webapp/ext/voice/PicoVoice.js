@@ -24,8 +24,11 @@ sap.ui.define([], function () {
         return btoa(binary);
     }
 
-    function PicoVoice(fnOnError) {
+    // oHandlers: { onToolCall(name, args) -> Promise<string>,
+    //              onAssistantText(text) }
+    function PicoVoice(fnOnError, oHandlers) {
         this._onError = fnOnError || function () {};
+        this._handlers = oHandlers || {};
         this._socket = null;
         this._socketReady = null; // Promise
         this._playCtx = null;
@@ -136,6 +139,14 @@ sap.ui.define([], function () {
                     this._finishListening(oMessage.text);
                 }
                 break;
+            case "tool_call":
+                this._runToolCall(oMessage);
+                break;
+            case "assistant_text":
+                if (this._handlers.onAssistantText) {
+                    this._handlers.onAssistantText(oMessage.text);
+                }
+                break;
             case "error":
                 this._onError(oMessage.message);
                 this._finishListening(null);
@@ -143,6 +154,27 @@ sap.ui.define([], function () {
             default:
                 break;
         }
+    };
+
+    // GPT ruft eine Funktion auf: im Browser ausfuehren (hier liegen
+    // Entwurf und Kunde) und das Ergebnis zurueckgeben.
+    PicoVoice.prototype._runToolCall = function (oCall) {
+        const fnDone = (sOutput) =>
+            this._send({
+                type: "tool_result",
+                callId: oCall.callId,
+                output: sOutput
+            });
+        if (!this._handlers.onToolCall) {
+            fnDone("This action is not available.");
+            return;
+        }
+        Promise.resolve()
+            .then(() => this._handlers.onToolCall(oCall.name, oCall.args || {}))
+            .then(fnDone)
+            .catch((oError) =>
+                fnDone("The action failed: " + ((oError && oError.message) || oError))
+            );
     };
 
     // ----- Sprachausgabe -----------------------------------------------
@@ -226,7 +258,8 @@ sap.ui.define([], function () {
      * Startet eine Aufnahme. Sie endet automatisch nach dem ersten Satz.
      * callbacks: onStart(), onSpeech(), onEnd(sTranscriptOrNull)
      */
-    PicoVoice.prototype.listen = async function (oCallbacks) {
+    PicoVoice.prototype.listen = async function (oCallbacks, oOptions) {
+        oOptions = oOptions || {};
         if (this._listen) {
             return;
         }
@@ -269,6 +302,12 @@ sap.ui.define([], function () {
             this._chunks = 0;
 
             this._listen.capture = { stream: oStream, ctx: oCtx, node: oNode, source: oSource };
+            // dictate: nur Transkript; converse: GPT antwortet und handelt.
+            this._send({
+                type: "mode",
+                mode: oOptions.converse ? "converse" : "dictate",
+                audio: Boolean(oOptions.audio)
+            });
             this._send({ type: "clear" });
             this._listen.timer = setTimeout(
                 () => this._finishListening(null),

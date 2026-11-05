@@ -11,10 +11,16 @@
 //                      { type: "clear" }            Eingabepuffer leeren
 //                      { type: "speak", text }      Text vorlesen (Stimme alloy)
 //                      { type: "cancel" }           Wiedergabe abbrechen
+//                      { type: "mode", mode: "dictate" | "converse", audio }
+//                                                   dictate: nur Transkript;
+//                                                   converse: GPT antwortet
+//                                                   selbst und ruft Tools auf
+//                      { type: "tool_result", callId, output }
 //   Proxy -> Browser:  { type: "ready" } | { type: "speech_started" } |
 //                      { type: "speech_stopped" } | { type: "transcript", text } |
 //                      { type: "audio", data } | { type: "audio_done" } |
-//                      { type: "error", message }
+//                      { type: "assistant_text", text } | { type: "tool_call",
+//                      callId, name, args } | { type: "error", message }
 import cds from "@sap/cds";
 import { WebSocketServer, WebSocket } from "ws";
 import { SapOpenAiRealtimeWs } from "@sap-ai-sdk/openai/realtime";
@@ -37,41 +43,117 @@ const MAX_TEXT_LENGTH = 1500;
 
 const LOG = cds.log("pico-voice");
 
-const SESSION_INSTRUCTIONS =
+const READER_INSTRUCTIONS =
     "You are the voice of PICO, a friendly assistant for creating sales " +
     "orders. You only read out texts you are given, in a warm and natural " +
     "tone. Never add, omit or answer anything yourself.";
 
-function sessionConfig(transcribeModel) {
-    return {
-        type: "session.update",
-        session: {
-            type: "realtime",
-            output_modalities: ["audio"],
-            instructions: SESSION_INSTRUCTIONS,
-            audio: {
-                input: {
-                    format: { type: "audio/pcm", rate: 24000 },
-                    transcription: {
-                        model: transcribeModel,
-                        language: TRANSCRIBE_LANGUAGE
-                    },
-                    // Server-VAD erkennt das Satzende. PICO antwortet nicht
-                    // selbst auf das Gesprochene: der Text wird in die
-                    // bestehende PICO-Logik (routeAiCommand) gegeben.
-                    turn_detection: {
-                        type: "server_vad",
-                        create_response: false,
-                        interrupt_response: false
-                    }
-                },
-                output: {
-                    format: { type: "audio/pcm", rate: 24000 },
-                    voice: VOICE
+const CONVERSE_INSTRUCTIONS =
+    "You are PICO, a friendly voice assistant that helps field sales reps " +
+    "create customer sales orders. Speak English, warm and brief: one or " +
+    "two short sentences. You can act ONLY through the provided tools. " +
+    "Use select_customer, generate_order_draft, recommend_products or " +
+    "validate_order when they fit. For everything else (adding, changing or " +
+    "removing items, copying the last order of a customer) call " +
+    "run_command with the user's request in their own words. After a tool " +
+    "returns, answer ONLY from its result: never invent customers, " +
+    "products, quantities or prices. Details are shown on screen, so do " +
+    "not read out long lists. If the result asks a question, ask it. You " +
+    "cannot create the order itself; the user does that with the Create " +
+    "Order button. If a request is unclear, ask a short question.";
+
+const EMPTY_PARAMETERS = { type: "object", properties: {} };
+const TOOLS = [
+    {
+        type: "function",
+        name: "select_customer",
+        description: "Select the customer for the order by name or number.",
+        parameters: {
+            type: "object",
+            properties: {
+                customer: {
+                    type: "string",
+                    description: "Customer name or number as spoken by the user."
                 }
+            },
+            required: ["customer"]
+        }
+    },
+    {
+        type: "function",
+        name: "generate_order_draft",
+        description:
+            "Create an order draft for the selected customer from their order history.",
+        parameters: EMPTY_PARAMETERS
+    },
+    {
+        type: "function",
+        name: "recommend_products",
+        description: "Suggest further products to add to the current order.",
+        parameters: EMPTY_PARAMETERS
+    },
+    {
+        type: "function",
+        name: "validate_order",
+        description: "Check the current order items for problems.",
+        parameters: EMPTY_PARAMETERS
+    },
+    {
+        type: "function",
+        name: "run_command",
+        description:
+            "Run any other order request: add, change or remove items, " +
+            "copy the last order of a customer, and so on.",
+        parameters: {
+            type: "object",
+            properties: {
+                command: {
+                    type: "string",
+                    description:
+                        "The user's request in their own words, e.g. " +
+                        "'add 5 tablets' or 'copy the last order of Intelligent Systems'."
+                }
+            },
+            required: ["command"]
+        }
+    }
+];
+const TOOL_NAMES = new Set(TOOLS.map((tool) => tool.name));
+const TOOL_TIMEOUT_MS = 90000;
+
+function sessionConfig(transcribeModel, mode = "dictate", audioOut = true) {
+    const converse = mode === "converse";
+    const session = {
+        type: "realtime",
+        output_modalities: converse && !audioOut ? ["text"] : ["audio"],
+        instructions: converse ? CONVERSE_INSTRUCTIONS : READER_INSTRUCTIONS,
+        audio: {
+            input: {
+                format: { type: "audio/pcm", rate: 24000 },
+                transcription: {
+                    model: transcribeModel,
+                    language: TRANSCRIBE_LANGUAGE
+                },
+                // Server-VAD erkennt das Satzende. Im Modus "dictate" wird
+                // nur transkribiert; im Modus "converse" antwortet GPT
+                // selbst (inkl. Tool-Aufrufen).
+                turn_detection: {
+                    type: "server_vad",
+                    create_response: converse,
+                    interrupt_response: false
+                }
+            },
+            output: {
+                format: { type: "audio/pcm", rate: 24000 },
+                voice: VOICE
             }
         }
     };
+    if (converse) {
+        session.tools = TOOLS;
+        session.tool_choice = "auto";
+    }
+    return { type: "session.update", session };
 }
 
 /**
@@ -179,6 +261,12 @@ function handleConnection(browser) {
     let responseActive = false;
     let audioChunks = 0;
     let transcribeIndex = 0;
+    let mode = "dictate";
+    let audioOut = true;
+    let ttsPending = 0; // vorgelesene Texte, deren Antwort noch nicht begann
+    const ttsResponses = new Set(); // IDs reiner Vorlese-Antworten
+    const pendingCalls = new Map(); // callId -> Timeout
+    const afterResponse = []; // Aktionen, die auf das Ende der Antwort warten
 
     const send = (payload) => {
         if (browser.readyState === WebSocket.OPEN) {
@@ -200,12 +288,14 @@ function handleConnection(browser) {
         }
         aiClient.send(payload);
     };
+    const applySession = () =>
+        aiSend(sessionConfig(TRANSCRIBE_MODELS[transcribeIndex], mode, audioOut));
     const configure = () => {
         if (configured) {
             return;
         }
         configured = true;
-        aiSend(sessionConfig(TRANSCRIBE_MODELS[transcribeIndex]));
+        applySession();
     };
 
     // Nachrichten, die vor dem fertigen Verbindungsaufbau eintreffen
@@ -225,6 +315,37 @@ function handleConnection(browser) {
                 audioChunks = 0;
                 aiSend({ type: "input_audio_buffer.clear" });
                 break;
+            case "mode":
+                mode = message.mode === "converse" ? "converse" : "dictate";
+                audioOut = message.audio !== false;
+                applySession();
+                break;
+            case "tool_result": {
+                const timer = pendingCalls.get(message.callId);
+                if (timer === undefined) {
+                    break; // unbekannte oder bereits beantwortete Anfrage
+                }
+                clearTimeout(timer);
+                pendingCalls.delete(message.callId);
+                const output = String(message.output ?? "").slice(0, 6000);
+                const finish = () => {
+                    aiSend({
+                        type: "conversation.item.create",
+                        item: {
+                            type: "function_call_output",
+                            call_id: message.callId,
+                            output
+                        }
+                    });
+                    aiSend({ type: "response.create", response: {} });
+                };
+                if (responseActive) {
+                    afterResponse.push(finish);
+                } else {
+                    finish();
+                }
+                break;
+            }
             case "speak": {
                 const text = String(message.text || "")
                     .trim()
@@ -235,12 +356,14 @@ function handleConnection(browser) {
                 if (responseActive) {
                     aiSend({ type: "response.cancel" });
                 }
+                ttsPending++;
                 // Out-of-band-Antwort: Der Text wird vorgelesen, ohne den
                 // Gespraechsverlauf der Session zu veraendern.
                 aiSend({
                     type: "response.create",
                     response: {
                         conversation: "none",
+                        tool_choice: "none",
                         output_modalities: ["audio"],
                         instructions:
                             "Read the following text aloud exactly as " +
@@ -281,6 +404,8 @@ function handleConnection(browser) {
 
     browser.on("close", () => {
         closed = true;
+        pendingCalls.forEach((timer) => clearTimeout(timer));
+        pendingCalls.clear();
         try {
             aiClient?.close();
         } catch {
@@ -325,7 +450,7 @@ function handleConnection(browser) {
                         LOG.info(
                             `Switching transcription model to "${TRANSCRIBE_MODELS[transcribeIndex]}"`
                         );
-                        aiSend(sessionConfig(TRANSCRIBE_MODELS[transcribeIndex]));
+                        applySession();
                         send({
                             type: "error",
                             message:
@@ -345,15 +470,72 @@ function handleConnection(browser) {
                     send({ type: "transcript", text });
                 }
             );
-            aiClient.on("response.created", () => {
+            aiClient.on("response.created", (event) => {
                 responseActive = true;
+                const id = event?.response?.id;
+                if (ttsPending > 0 && id) {
+                    ttsPending--;
+                    ttsResponses.add(id);
+                }
             });
             aiClient.on("response.output_audio.delta", (event) =>
                 send({ type: "audio", data: event.delta })
             );
-            aiClient.on("response.done", () => {
+            // Text, den GPT im Gespraech gesagt hat (fuer die Chat-Blase).
+            const forwardAssistantText = (event, text) => {
+                const value = String(text || "").trim();
+                if (value && !ttsResponses.has(event?.response_id)) {
+                    send({ type: "assistant_text", text: value });
+                }
+            };
+            aiClient.on("response.output_audio_transcript.done", (event) =>
+                forwardAssistantText(event, event.transcript)
+            );
+            aiClient.on("response.output_text.done", (event) =>
+                forwardAssistantText(event, event.text)
+            );
+            aiClient.on("response.function_call_arguments.done", (event) => {
+                const callId = event?.call_id;
+                if (!callId || !TOOL_NAMES.has(event.name)) {
+                    LOG.warn(`Ignoring unknown tool call "${event?.name}"`);
+                    return;
+                }
+                let args = {};
+                try {
+                    args = JSON.parse(event.arguments || "{}");
+                } catch {
+                    // ungueltige Argumente: ohne Argumente weiter
+                }
+                LOG.info(`Tool call: ${event.name} ${JSON.stringify(args)}`);
+                pendingCalls.set(
+                    callId,
+                    setTimeout(() => {
+                        pendingCalls.delete(callId);
+                        const finish = () => {
+                            aiSend({
+                                type: "conversation.item.create",
+                                item: {
+                                    type: "function_call_output",
+                                    call_id: callId,
+                                    output: "Timed out while running the action."
+                                }
+                            });
+                            aiSend({ type: "response.create", response: {} });
+                        };
+                        if (responseActive) {
+                            afterResponse.push(finish);
+                        } else {
+                            finish();
+                        }
+                    }, TOOL_TIMEOUT_MS)
+                );
+                send({ type: "tool_call", callId, name: event.name, args });
+            });
+            aiClient.on("response.done", (event) => {
                 responseActive = false;
+                ttsResponses.delete(event?.response?.id);
                 send({ type: "audio_done" });
+                afterResponse.splice(0).forEach((action) => action());
             });
             aiClient.on("error", (event) => {
                 const message =
