@@ -181,9 +181,19 @@ function handleConnection(browser) {
         }
     };
     const aiSend = (payload) => {
-        if (aiClient && !closed) {
-            aiClient.send(payload);
+        if (!aiClient || closed) {
+            return;
         }
+        // Nur senden, wenn der Socket zu AI Core wirklich offen ist.
+        const socket = aiClient.socket;
+        if (socket && socket.readyState !== 1) {
+            LOG.warn(
+                `Dropped "${payload.type}": AI Core socket not open ` +
+                    `(readyState ${socket.readyState})`
+            );
+            return;
+        }
+        aiClient.send(payload);
     };
     const configure = () => {
         if (configured) {
@@ -317,13 +327,28 @@ function handleConnection(browser) {
                 if (/no active response|not active/i.test(message)) {
                     return;
                 }
-                LOG.error("AI Core realtime error:", message);
+                LOG.error(
+                    "AI Core realtime error:",
+                    message,
+                    event?.cause?.message || event?.error?.cause?.message || ""
+                );
                 send({ type: "error", message });
             });
 
             // Die Session wird bereits beim Verbindungsaufbau erzeugt;
             // falls session.created schon vor dem Registrieren der
             // Listener kam, wird die Konfiguration hier nachgeholt.
+            // Sicherstellen, dass der Socket offen ist, bevor gesendet wird.
+            const socket = aiClient.socket;
+            if (socket && socket.readyState === 0) {
+                await new Promise((resolve) => {
+                    socket.once("open", resolve);
+                    setTimeout(resolve, 5000);
+                });
+            }
+            LOG.info(
+                `AI Core socket state: ${aiClient.socket?.readyState ?? "unknown"}`
+            );
             configure();
 
             pending.splice(0).forEach(handleBrowserMessage);
