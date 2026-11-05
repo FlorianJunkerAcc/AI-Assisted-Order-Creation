@@ -2331,10 +2331,23 @@ Return exactly this structure:
                 ? new Date(lastOrder.timestamp).toISOString().slice(0, 10)
                 : "";
 
+            // Als Satzteil ("number 123 from October 29, 2026"), ohne Klammern.
+            const spokenDate = lastOrder.timestamp !== null
+                ? new Date(lastOrder.timestamp).toLocaleDateString("en-US", {
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                    timeZone: "UTC"
+                })
+                : "";
+            const orderRef =
+                `number ${lastOrder.id}` +
+                (spokenDate ? ` from ${spokenDate}` : "");
+
             if (items.length === 0) {
                 return {
                     ...emptyResult(
-                        `I found the last order (${lastOrder.id}), but there's ` +
+                        `I found the last order, ${orderRef}, but there's ` +
                             "nothing in it I can copy."
                     ),
                     orderNumber: lastOrder.id,
@@ -2346,9 +2359,7 @@ Return exactly this structure:
                 success: true,
                 message:
                     `Done! I copied ${countOf(items.length, "item")} from the ` +
-                    `last order (${lastOrder.id}` +
-                    (orderDate ? `, ${orderDate}` : "") +
-                    ")." +
+                    `last order, ${orderRef}.` +
                     (skipped > 0
                         ? ` I had to skip ${countOf(skipped, "item")} because ` +
                           (skipped === 1 ? "that product is" : "those products are") +

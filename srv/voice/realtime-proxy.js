@@ -36,7 +36,9 @@ const VOICE =process.env.PICO_VOICE || "alloy";
 const TRANSCRIBE_MODELS = process.env.PICO_TRANSCRIBE_MODEL
     ? [process.env.PICO_TRANSCRIBE_MODEL]
     : ["whisper-1", "gpt-4o-mini-transcribe", "gpt-4o-transcribe"];
-const TRANSCRIBE_LANGUAGE = process.env.PICO_VOICE_LANGUAGE || "en";
+// Leer = automatische Erkennung (Deutsch und Englisch). Mit
+// PICO_VOICE_LANGUAGE (z. B. "de" oder "en") laesst sich eine Sprache festlegen.
+const TRANSCRIBE_LANGUAGE = process.env.PICO_VOICE_LANGUAGE || "";
 const MAX_CONNECTIONS = Number(process.env.PICO_VOICE_MAX_CONNECTIONS || 10);
 const MAX_TEXT_LENGTH = 1500;
 
@@ -44,8 +46,8 @@ const LOG = cds.log("pico-voice");
 
 const READER_INSTRUCTIONS =
     "You are the voice of PICO, a friendly assistant for creating sales " +
-    "orders. You only read out texts you are given, word for word, in a " +
-    "warm and natural tone. Never add, omit, reword or answer anything " +
+    "orders. You only read out texts you are given, word for word, in the " +
+    "language of the text (German or English) and in a warm and natural tone. Never add, omit, reword or answer anything " +
     "yourself.";
 
 function sessionConfig(transcribeModel) {
@@ -60,7 +62,15 @@ function sessionConfig(transcribeModel) {
                     format: { type: "audio/pcm", rate: 24000 },
                     transcription: {
                         model: transcribeModel,
-                        language: TRANSCRIBE_LANGUAGE
+                        ...(TRANSCRIBE_LANGUAGE
+                            ? { language: TRANSCRIBE_LANGUAGE }
+                            : {
+                                  // Hilft bei kurzen Saetzen, Deutsch und
+                                  // Englisch richtig zu erkennen.
+                                  prompt:
+                                      "The speaker uses German or English. " +
+                                      "Product and customer names may be English."
+                              })
                     },
                     // Server-VAD erkennt das Satzende. GPT antwortet nicht
                     // selbst auf das Gesprochene: der Text geht in die
