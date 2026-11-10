@@ -1052,6 +1052,11 @@ sap.ui.define(
                         suggestions: [],
                         pending: []
                     });
+                    // Alle Rueckfragen beantwortet: restliche Schritte des
+                    // urspruenglichen Befehls fortsetzen.
+                    this._resumePendingSteps().catch((oError) => {
+                        console.error("Resuming PICO steps failed:", oError);
+                    });
                 },
                 /**
                  * Berechnet den Gesamtwert des Auftragsentwurfs.
@@ -1810,7 +1815,9 @@ sap.ui.define(
                                 oResult.message ||
                                 "I need your help with one product - please pick one below."
                             );
-                            return;
+                            // Die restlichen Schritte warten, bis alle
+                            // Produkt-Rueckfragen beantwortet sind.
+                            return "clarification";
                         }
 
                         if (aResolvedItems.length === 0) {
