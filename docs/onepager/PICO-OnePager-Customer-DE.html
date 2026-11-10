@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8"><title>PICO – Ihr KI-Copilot für die Auftragserfassung</title>
+<style>
+@page { size: A4 landscape; margin: 0; }
+*{box-sizing:border-box}
+body{margin:0;font-family:"Segoe UI",Arial,sans-serif;color:#2b2340;background:#fff}
+.page{width:297mm;height:210mm;position:relative;overflow:hidden;display:flex;flex-direction:column}
+.hero{background:linear-gradient(120deg,#4a1f72 0%,#8E44AD 60%,#c27fe0 100%);color:#fff;padding:4mm 11mm 3.5mm;display:flex;justify-content:space-between;align-items:center;gap:8mm}
+.tag{font-size:8pt;letter-spacing:.2em;text-transform:uppercase;opacity:.85}
+h1{margin:.5mm 0 .5mm;font-size:21pt;line-height:1.05}
+.sub{font-size:10.5pt;opacity:.96;max-width:185mm}
+.pills{display:flex;flex-direction:column;gap:.8mm;align-items:flex-end}
+.pill{background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.5);border-radius:10mm;padding:.6mm 3.5mm;font-size:7.6pt;font-weight:600;white-space:nowrap}
+.main{display:grid;grid-template-columns:68mm 1fr 52mm;gap:6mm;padding:3.5mm 11mm 0}
+h2{font-size:9.5pt;text-transform:uppercase;letter-spacing:.09em;color:#8E44AD;margin:0 0 2mm}
+.pain,.ben{display:grid;grid-template-columns:6mm 1fr;gap:2mm;margin-bottom:1.6mm;font-size:8pt;line-height:1.3}
+.pain i,.ben i{font-style:normal;font-size:10pt;text-align:center}
+.pain b,.ben b{display:block;font-size:8.6pt}
+.pain span,.ben span{color:#5a5270}
+.col1 .sep{height:1px;background:#e3d6ee;margin:2.5mm 0}
+.modes{display:grid;grid-template-columns:repeat(4,1fr);gap:2mm;margin-bottom:3mm}
+.mode{background:#F1EAF7;border-radius:2.5mm;padding:2mm;text-align:center;font-size:7.6pt;line-height:1.25}
+.mode i{display:block;font-style:normal;font-size:15pt;margin-bottom:.5mm}
+.mode b{display:block;font-size:8.4pt;color:#5b2a86}
+.caps{display:grid;grid-template-columns:1fr 1fr;gap:2mm}
+.cap{border:1px solid #e3d6ee;border-left:1.2mm solid #8E44AD;border-radius:2mm;padding:1.8mm 2.5mm;font-size:7.7pt;line-height:1.28}
+.cap b{display:block;font-size:8.6pt;color:#2b2340}
+.cap span{color:#5a5270}
+.shot{text-align:center}
+.shot img{width:100%;border-radius:3mm;box-shadow:0 2mm 6mm rgba(60,20,90,.3);border:1px solid #e3d6ee}
+.shot figcaption{font-size:7.2pt;color:#7a7192;margin-top:1.5mm;line-height:1.3}
+.flow{margin:2.5mm 11mm 0;background:#faf6fd;border:1px solid #e3d6ee;border-radius:3mm;padding:2.5mm 3mm}
+.flow h2{margin-bottom:1.5mm}
+.steps{display:grid;grid-template-columns:repeat(7,1fr);gap:2.2mm}
+.step{background:#fff;border-radius:2mm;padding:1.8mm 2mm;font-size:7.4pt;line-height:1.25;border-top:1.2mm solid;position:relative;min-height:20mm}
+.step b{display:block;font-size:8.2pt;margin-bottom:.5mm}
+.step em{display:inline-block;font-style:normal;font-size:6.6pt;font-weight:700;border-radius:5mm;padding:.2mm 2mm;margin-top:1mm;color:#fff}
+.ai{border-color:#8E44AD}.ai em{background:#8E44AD}
+.sw{border-color:#2a8f6a}.sw em{background:#2a8f6a}
+.hu{border-color:#e08a00}.hu em{background:#e08a00}
+.step:not(:last-child):after{content:"›";position:absolute;right:-2.6mm;top:50%;transform:translateY(-50%);font-size:13pt;color:#8E44AD;font-weight:700}
+.legend{font-size:7.2pt;color:#6a6180;margin-top:1.2mm}
+.foot{margin:2.5mm 11mm 0;display:grid;grid-template-columns:1fr 1fr;gap:5mm}
+.int{border-radius:3mm;padding:2.5mm 3.5mm;font-size:8pt;line-height:1.35}
+.int b{font-size:9pt}
+.i1{background:#eaf4ff;border:1px solid #3a78c2}
+.i2{background:linear-gradient(120deg,#5b2a86,#8E44AD);color:#fff}
+.cap b,.pain b,.ben b{font-size:8.2pt}.pain,.ben{margin-bottom:1.1mm}.step{min-height:17mm}.flow{padding:2mm 3mm}.main{padding-top:3mm}.shot figcaption{font-size:6.8pt}.int{font-size:7.6pt;line-height:1.3}.foot{margin-top:2mm}.hero{padding:3.5mm 11mm 3mm}</style></head><body>
+<div class="page">
+
+<div class="hero">
+  <div>
+    <div class="tag">KI-gestützte Auftragserfassung</div>
+    <h1>PICO – Ihr KI-Copilot für die Auftragserfassung</h1>
+    <div class="sub">Aus einem gesprochenen Satz wird ein prüffertiger Kundenauftrag – Conversational GenAI trifft auf Ihre CRM-Daten, der Mensch behält die Kontrolle.</div>
+  </div>
+  <div class="pills">
+    <div class="pill">🎙 Voice-first</div>
+    <div class="pill">✨ KI mit Next-best-Action</div>
+    <div class="pill">🛡 Human-in-the-Loop</div>
+    <div class="pill">🔌 CRM-unabhängig</div><div class="pill">🗣 Komplett per Sprache steuerbar</div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="col1">
+    <h2>Pain Points, die wir lösen</h2>
+    <div class="pain"><i>⏱</i><div><b>Langsame, klickintensive Erfassung</b><span>Kunden und Produkte Maske für Maske suchen.</span></div></div>
+    <div class="pain"><i>🔁</i><div><b>Immer gleiche Nachbestellungen</b><span>Dieselben Warenkörbe werden wieder und wieder erfasst.</span></div></div>
+    <div class="pain"><i>⚠️</i><div><b>Teure Erfassungsfehler</b><span>Falsches Produkt, auffällige Menge, vergessene Positionen.</span></div></div>
+    <div class="pain"><i>🚗</i><div><b>Keine freien Hände im Außendienst</b><span>Mitarbeiter unterwegs oder beim Kunden vor Ort.</span></div></div>
+    <div class="sep"></div>
+    <h2>Ihr Nutzen</h2>
+    <div class="ben"><i>🚀</i><div><b>Hochproduktiver Vertrieb</b><span>Aufträge in Sekunden statt Minuten.</span></div></div>
+    <div class="ben"><i>🎯</i><div><b>Höhere Auftragsqualität</b><span>Plausibilitätsprüfung gegen die Bestellhistorie.</span></div></div>
+    <div class="ben"><i>💡</i><div><b>Upselling auf Autopilot</b><span>Intelligente Vorschläge auf Basis des Kaufverhaltens.</span></div></div>
+    <div class="ben"><i>🤝</i><div><b>Vertrauen by Design</b><span>Preise und IDs stammen aus Ihren Daten – nie von der KI.</span></div></div>
+  </div>
+
+  <div class="col2">
+    <h2>Arbeiten Sie, wie Sie möchten</h2>
+    <div class="modes">
+      <div class="mode"><i>⌨️</i><b>Manuell</b>Klassische Erfassung mit Live-Preisen</div>
+      <div class="mode"><i>💬</i><b>Tippen</b>In normaler Sprache beschreiben</div>
+      <div class="mode"><i>🎤</i><b>Sprechen</b>Diktieren auf Deutsch oder Englisch</div>
+      <div class="mode"><i>🔊</i><b>Zuhören</b>PICO liest Antworten vor</div>
+    </div>
+    <h2>Das kann PICO</h2>
+    <div class="caps">
+      <div class="cap"><b>👤 Kunde auswählen</b><span>Findet den richtigen Kunden per Name oder Nummer und fragt bei Unsicherheit nach.</span></div>
+      <div class="cap"><b>⚡ Auto-Entwurf aus Historie</b><span>Erstellt die übliche Bestellung; unsichere Positionen werden zu Vorschlägen.</span></div>
+      <div class="cap"><b>➕ Positionen hinzufügen, ändern, entfernen</b><span>„Mach 10 daraus“, „Entferne Produkt B“.</span></div>
+      <div class="cap"><b>💡 Produkte empfehlen</b><span>Schlägt Artikel vor, die der Kunde voraussichtlich braucht.</span></div>
+      <div class="cap"><b>✅ Auftrag prüfen</b><span>Markiert ungewöhnliche Produkte oder Mengen vor dem Absenden.</span></div>
+      <div class="cap"><b>📋 Letzte Bestellung kopieren</b><span>Startet mit der letzten Bestellung und passt sie an.</span></div>
+    </div>
+    <div class="cap" style="margin-top:2mm;border-left-color:#2a8f6a;background:#f1faf6"><b>🧭 Immer der logische nächste Schritt</b><span>Nach jeder Aktion bietet PICO Folgeschritte per Klick an (prüfen, mehr vorschlagen, Menge ändern, entfernen) – Sie müssen nie überlegen, was als Nächstes kommt.</span></div>
+  </div>
+
+  <figure class="shot" style="margin:0">
+    <img src="pico-chat2.png" alt="PICO Chat">
+    <figcaption>Echte Konversation: PICO bestätigt, was es getan hat, und schlägt den nächsten Schritt als Klick-Buttons vor. Spracheingabe und Senden sind immer griffbereit.</figcaption>
+  </figure>
+</div>
+
+<div class="flow">
+  <h2>Typischer Sprachablauf: Was die KI macht – und was nicht</h2>
+  <div class="steps">
+    <div class="step hu"><b>1 · Sie sprechen</b>„Füge 5 Stück Produkt A und 10 Stück Produkt B hinzu.“<br><em>MENSCH</em></div>
+    <div class="step ai"><b>2 · Sprache zu Text</b>Ihre Stimme wird in Echtzeit transkribiert.<br><em>KI</em></div>
+    <div class="step ai"><b>3 · Absicht verstehen</b>Die KI wählt genau eine von sechs Funktionen oder stellt eine Rückfrage.<br><em>KI</em></div>
+    <div class="step ai"><b>4 · Anfrage auswerten</b>Die KI erkennt Produkte und Mengen und gleicht sie mit dem aktuellen Katalog ab.<br><em>KI</em></div>
+    <div class="step sw"><b>5 · Prüfen &amp; bepreisen</b>IDs werden geprüft, Preise aus den CRM-Stammdaten gezogen. Kein Raten.<br><em>KEINE KI · REGELN &amp; DATEN</em></div>
+    <div class="step hu"><b>6 · Sie bestätigen</b>Entwurf prüfen, dann „Create Order“ drücken. Es wird nichts automatisch gebucht.<br><em>MENSCH</em></div>
+    <div class="step ai"><b>7 · PICO antwortet</b>Die Antwort wird wortgetreu vorgelesen. Nichts wird hinzugefügt.<br><em>KI</em></div>
+  </div>
+  <div class="legend">Historienbasierte Entwürfe, Empfehlungen, Validierung und „Letzte Bestellung kopieren“ laufen über klassische Geschäftslogik und Ihre CRM-Daten – ganz ohne KI.</div>
+</div>
+
+<div class="foot">
+  <div class="int i1"><b>🔗 Nahtlos in SAP Sales Cloud V1 integriert</b><br>Kunden, Produkte, Preise und Bestellhistorie live aus SAP Sales Cloud V1; der Auftrag wird dort angelegt. Läuft auf SAP BTP mit Enterprise-Security, KI über den SAP Generative AI Hub.</div>
+  <div class="int i2"><b>🔌 Kein SAP? Kein Problem.</b><br>Wir binden PICO über Standard-APIs an jedes CRM oder ERP an. <b>Nächster Schritt:</b> Ausbau zur komplett sprachgesteuerten Auftragserfassung – von der Begrüßung bis zur Bestätigung.</div>
+</div>
+
+</div>
+</body></html>

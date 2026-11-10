@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8"><title>PICO – Was macht die KI, was nicht?</title>
+<style>
+@page { size: A4 landscape; margin: 0; }
+*{box-sizing:border-box}
+body{margin:0;font-family:"Segoe UI",Arial,sans-serif;color:#2b2340}
+.page{width:297mm;height:210mm;padding:8mm 11mm;overflow:hidden}
+h1{margin:0;font-size:21pt;color:#5b2a86}
+.sub{font-size:10pt;color:#6a6180;margin:1mm 0 2mm}
+</style></head><body>
+<div class="page">
+<h1>PICO: So entsteht aus Ihrer Sprache ein Auftrag</h1>
+<div class="sub">Beispiel: „Füge 5 Stück Produkt A und 10 Stück Produkt B hinzu“ – wo arbeitet die KI, wo klassische Software, wo entscheidet der Mensch?</div>
+
+<svg viewBox="0 0 1100 610" width="100%" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif">
+<defs>
+<marker id="k" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6a6180"/></marker>
+<marker id="p" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#8E44AD"/></marker>
+</defs>
+
+<rect x="0" y="0" width="22" height="22" rx="5" fill="#8E44AD"/><text x="30" y="16" font-size="13" font-weight="600">KI (Sprachmodelle)</text>
+<rect x="230" y="0" width="22" height="22" rx="5" fill="#2a8f6a"/><text x="260" y="16" font-size="13" font-weight="600">Klassische Software &amp; Daten (regelbasiert)</text>
+<rect x="590" y="0" width="22" height="22" rx="5" fill="#e08a00"/><text x="620" y="16" font-size="13" font-weight="600">Mensch</text>
+
+<g transform="translate(0,45)">
+<rect width="160" height="250" rx="12" fill="#fff4e0" stroke="#e08a00" stroke-width="2"/>
+<rect width="160" height="38" rx="12" fill="#e08a00"/><rect y="20" width="160" height="18" fill="#e08a00"/>
+<text x="80" y="25" font-size="14" font-weight="700" fill="#fff" text-anchor="middle">1 · Sprechen</text>
+<text x="80" y="70" font-size="34" text-anchor="middle">🎤</text>
+<text x="80" y="110" font-size="12" text-anchor="middle">Der Vertriebsmitarbeiter</text>
+<text x="80" y="127" font-size="12" text-anchor="middle">spricht oder tippt</text>
+<text x="80" y="144" font-size="12" text-anchor="middle">seinen Wunsch im</text>
+<text x="80" y="161" font-size="12" text-anchor="middle">Browser (Fiori).</text>
+<text x="80" y="205" font-size="11" fill="#7a5a10" text-anchor="middle">Mikrofon &amp; Oberfläche:</text>
+<text x="80" y="221" font-size="11" fill="#7a5a10" text-anchor="middle">keine KI-Zugangsdaten</text>
+</g>
+
+<g transform="translate(185,45)">
+<rect width="160" height="250" rx="12" fill="#f4e9fa" stroke="#8E44AD" stroke-width="2"/>
+<rect width="160" height="38" rx="12" fill="#8E44AD"/><rect y="20" width="160" height="18" fill="#8E44AD"/>
+<text x="80" y="25" font-size="14" font-weight="700" fill="#fff" text-anchor="middle">2 · Sprache → Text</text>
+<text x="80" y="70" font-size="34" text-anchor="middle">👂</text>
+<text x="80" y="110" font-size="12" text-anchor="middle">Spracherkennung wandelt</text>
+<text x="80" y="127" font-size="12" text-anchor="middle">das Gesprochene in Text</text>
+<text x="80" y="144" font-size="12" text-anchor="middle">um (Deutsch &amp; Englisch).</text>
+<text x="80" y="188" font-size="11" font-weight="700" fill="#5b2a86" text-anchor="middle">KI: Spracherkennung</text>
+<text x="80" y="205" font-size="11" fill="#5b2a86" text-anchor="middle">nur „Ohr“ – wertet nichts</text>
+<text x="80" y="221" font-size="11" fill="#5b2a86" text-anchor="middle">aus, antwortet nicht selbst</text>
+</g>
+
+<g transform="translate(370,45)">
+<rect width="160" height="250" rx="12" fill="#f4e9fa" stroke="#8E44AD" stroke-width="2"/>
+<rect width="160" height="38" rx="12" fill="#8E44AD"/><rect y="20" width="160" height="18" fill="#8E44AD"/>
+<text x="80" y="25" font-size="14" font-weight="700" fill="#fff" text-anchor="middle">3 · Absicht erkennen</text>
+<text x="80" y="70" font-size="34" text-anchor="middle">🧭</text>
+<text x="80" y="110" font-size="12" text-anchor="middle">Die KI entscheidet, was</text>
+<text x="80" y="127" font-size="12" text-anchor="middle">gewünscht ist – genau</text>
+<text x="80" y="144" font-size="12" text-anchor="middle">eine von sechs Funktionen.</text>
+<text x="80" y="161" font-size="12" text-anchor="middle">Unklar? Sie fragt nach.</text>
+<text x="80" y="205" font-size="11" font-weight="700" fill="#5b2a86" text-anchor="middle">KI: Sprachverständnis</text>
+<text x="80" y="221" font-size="11" fill="#5b2a86" text-anchor="middle">(Routing)</text>
+</g>
+
+<g transform="translate(555,45)">
+<rect width="250" height="250" rx="12" fill="#fff" stroke="#6a6180" stroke-width="2"/>
+<rect width="250" height="38" rx="12" fill="#6a6180"/><rect y="20" width="250" height="18" fill="#6a6180"/>
+<text x="125" y="25" font-size="14" font-weight="700" fill="#fff" text-anchor="middle">4 · Funktion ausführen</text>
+<rect x="10" y="48" width="230" height="92" rx="8" fill="#f4e9fa" stroke="#8E44AD"/>
+<text x="20" y="67" font-size="12" font-weight="700" fill="#5b2a86">Hier hilft die KI beim Verstehen:</text>
+<text x="20" y="85" font-size="11.5">• Produkte &amp; Mengen erkennen</text>
+<text x="20" y="101" font-size="11.5">   (unklare Angabe → Rückfrage)</text>
+<text x="20" y="118" font-size="11.5">• Kunden anhand Name/Nummer finden</text>
+<text x="20" y="133" font-size="10" fill="#5b2a86">mit dem echten Katalog als Vorgabe</text>
+<rect x="10" y="150" width="230" height="92" rx="8" fill="#e6f4ee" stroke="#2a8f6a"/>
+<text x="20" y="169" font-size="12" font-weight="700" fill="#1f6b50">Hier rechnet klassische Software:</text>
+<text x="20" y="187" font-size="11.5">• Entwurf aus Bestellhistorie</text>
+<text x="20" y="203" font-size="11.5">• Produktempfehlungen</text>
+<text x="20" y="219" font-size="11.5">• Plausibilitätsprüfung</text>
+<text x="20" y="235" font-size="11.5">• Letzte Bestellung kopieren</text>
+</g>
+
+<g transform="translate(830,45)">
+<rect width="125" height="250" rx="12" fill="#e6f4ee" stroke="#2a8f6a" stroke-width="2"/>
+<rect width="125" height="38" rx="12" fill="#2a8f6a"/><rect y="20" width="125" height="18" fill="#2a8f6a"/>
+<text x="62" y="25" font-size="14" font-weight="700" fill="#fff" text-anchor="middle">5 · Absichern</text>
+<text x="62" y="70" font-size="34" text-anchor="middle">🛡️</text>
+<text x="62" y="108" font-size="11.5" text-anchor="middle">Produkt-IDs werden</text>
+<text x="62" y="123" font-size="11.5" text-anchor="middle">gegen den Katalog</text>
+<text x="62" y="138" font-size="11.5" text-anchor="middle">geprüft, Preise aus</text>
+<text x="62" y="153" font-size="11.5" text-anchor="middle">den Stammdaten.</text>
+<text x="62" y="190" font-size="11" font-weight="700" fill="#1f6b50" text-anchor="middle">Keine KI:</text>
+<text x="62" y="206" font-size="11" fill="#1f6b50" text-anchor="middle">Zahlen kommen</text>
+<text x="62" y="221" font-size="11" fill="#1f6b50" text-anchor="middle">aus Ihren Daten</text>
+</g>
+
+<g transform="translate(975,45)">
+<rect width="125" height="250" rx="12" fill="#fff4e0" stroke="#e08a00" stroke-width="2"/>
+<rect width="125" height="38" rx="12" fill="#e08a00"/><rect y="20" width="125" height="18" fill="#e08a00"/>
+<text x="62" y="25" font-size="14" font-weight="700" fill="#fff" text-anchor="middle">6 · Entscheiden</text>
+<text x="62" y="70" font-size="34" text-anchor="middle">✅</text>
+<text x="62" y="108" font-size="11.5" text-anchor="middle">Der Mensch prüft</text>
+<text x="62" y="123" font-size="11.5" text-anchor="middle">den Entwurf und</text>
+<text x="62" y="138" font-size="11.5" text-anchor="middle">klickt selbst auf</text>
+<text x="62" y="153" font-size="11.5" font-weight="700" text-anchor="middle">„Create Order“.</text>
+<text x="62" y="190" font-size="11" fill="#7a5a10" text-anchor="middle">Erst dann Auftrag</text>
+<text x="62" y="206" font-size="11" fill="#7a5a10" text-anchor="middle">in SAP Sales Cloud</text>
+</g>
+
+<path d="M160 170 L183 170" stroke="#6a6180" stroke-width="3" marker-end="url(#k)"/>
+<path d="M345 170 L368 170" stroke="#6a6180" stroke-width="3" marker-end="url(#k)"/>
+<path d="M530 170 L553 170" stroke="#6a6180" stroke-width="3" marker-end="url(#k)"/>
+<path d="M805 170 L828 170" stroke="#6a6180" stroke-width="3" marker-end="url(#k)"/>
+<path d="M955 170 L973 170" stroke="#6a6180" stroke-width="3" marker-end="url(#k)"/>
+
+<!-- Rückweg: Antwort vorlesen -->
+<path d="M680 295 L680 335 L650 335" stroke="#8E44AD" stroke-width="3" fill="none" stroke-dasharray="7 4"/>
+<path d="M290 335 L80 335 L80 299" stroke="#8E44AD" stroke-width="3" fill="none" stroke-dasharray="7 4" marker-end="url(#p)"/>
+<rect x="290" y="315" width="360" height="40" rx="10" fill="#f4e9fa" stroke="#8E44AD"/>
+<text x="470" y="331" font-size="12.5" font-weight="700" fill="#5b2a86" text-anchor="middle">PICO antwortet per Stimme (KI: Text → Sprache)</text>
+<text x="470" y="347" font-size="11" fill="#5b2a86" text-anchor="middle">liest nur den fertigen Text vor, erfindet nichts dazu</text>
+
+<g transform="translate(0,385)">
+<rect width="355" height="150" rx="12" fill="#f4e9fa" stroke="#8E44AD"/>
+<text x="16" y="28" font-size="14" font-weight="700" fill="#5b2a86">Das macht die KI</text>
+<text x="16" y="54" font-size="12.5">✔ Sprache in Text umwandeln</text>
+<text x="16" y="76" font-size="12.5">✔ Verstehen, was gemeint ist</text>
+<text x="16" y="98" font-size="12.5">✔ Produkte, Mengen, Kunden erkennen</text>
+<text x="16" y="120" font-size="12.5">✔ Bei Unklarheit freundlich nachfragen</text>
+<text x="16" y="142" font-size="12.5">✔ Antworten natürlich vorlesen</text>
+</g>
+<g transform="translate(372,385)">
+<rect width="355" height="150" rx="12" fill="#e6f4ee" stroke="#2a8f6a"/>
+<text x="16" y="28" font-size="14" font-weight="700" fill="#1f6b50">Das macht klassische Software</text>
+<text x="16" y="54" font-size="12.5">✔ Kunden, Produkte, Preise aus SAP Sales Cloud</text>
+<text x="16" y="76" font-size="12.5">✔ Entwürfe &amp; Empfehlungen aus der Historie</text>
+<text x="16" y="98" font-size="12.5">✔ Plausibilitätsprüfung der Positionen</text>
+<text x="16" y="120" font-size="12.5">✔ Prüfung aller KI-Ergebnisse gegen Stammdaten</text>
+<text x="16" y="142" font-size="12.5">✔ Anmeldung &amp; Berechtigungen (SAP BTP)</text>
+</g>
+<g transform="translate(745,385)">
+<rect width="355" height="150" rx="12" fill="#fff4e0" stroke="#e08a00"/>
+<text x="16" y="28" font-size="14" font-weight="700" fill="#7a5a10">Das bleibt beim Menschen</text>
+<text x="16" y="54" font-size="12.5">✔ Der Auftrag wird nie automatisch angelegt</text>
+<text x="16" y="76" font-size="12.5">✔ KI-Ergebnisse landen nur im Entwurf</text>
+<text x="16" y="98" font-size="12.5">✔ Prüfen, ändern, bestätigen</text>
+<text x="16" y="120" font-size="12.5">✔ Pro Befehl genau eine Funktion</text>
+<text x="16" y="142" font-size="12.5">✔ Die KI erfindet keine Produkte oder Preise</text>
+</g>
+
+<!-- Ausblick -->
+<g transform="translate(0,550)">
+<rect width="1100" height="58" rx="12" fill="url(#gr)"/>
+<defs><linearGradient id="gr" x1="0" x2="1"><stop offset="0" stop-color="#5b2a86"/><stop offset="1" stop-color="#8E44AD"/></linearGradient></defs>
+<text x="20" y="25" font-size="14" font-weight="700" fill="#fff">🗣 Ausblick: komplett per Stimme steuerbar</text>
+<text x="20" y="45" font-size="12" fill="#fff">Der Showcase lässt sich Schritt für Schritt so ausbauen, dass der gesamte Ablauf – vom Kunden wählen bis zur Bestätigung – allein per Sprache geführt wird.</text>
+</g>
+</svg>
+</div>
+</body></html>

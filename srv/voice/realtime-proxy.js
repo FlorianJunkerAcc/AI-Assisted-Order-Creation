@@ -39,7 +39,9 @@ const TRANSCRIBE_MODELS = process.env.PICO_TRANSCRIBE_MODEL
 // Leer = automatische Erkennung (Deutsch und Englisch). Mit
 // PICO_VOICE_LANGUAGE (z. B. "de" oder "en") laesst sich eine Sprache festlegen.
 const TRANSCRIBE_LANGUAGE = process.env.PICO_VOICE_LANGUAGE || "";
-const MAX_CONNECTIONS = Number(process.env.PICO_VOICE_MAX_CONNECTIONS || 10);
+// Stille (ms), nach der ein gesprochener Abschnitt als beendet gilt.
+const SILENCE_DURATION_MS = Number(process.env.PICO_VOICE_SILENCE_MS || 1500);
+const MAX_CONNECTIONS =Number(process.env.PICO_VOICE_MAX_CONNECTIONS || 10);
 const MAX_TEXT_LENGTH = 1500;
 
 const LOG = cds.log("pico-voice");
@@ -75,8 +77,15 @@ function sessionConfig(transcribeModel) {
                     // Server-VAD erkennt das Satzende. GPT antwortet nicht
                     // selbst auf das Gesprochene: der Text geht in die
                     // bestehende PICO-Logik (routeAiCommand, Sonnet).
+                    //
+                    // Mehrteilige Befehle ("Select customer X and add 5
+                    // computers ... and suggest more") enthalten
+                    // Denkpausen. Deshalb gilt erst eine laengere Stille als
+                    // Satzende (Standard waere nur ~0,5 s).
                     turn_detection: {
                         type: "server_vad",
+                        silence_duration_ms: SILENCE_DURATION_MS,
+                        prefix_padding_ms: 300,
                         create_response: false,
                         interrupt_response: false
                     }

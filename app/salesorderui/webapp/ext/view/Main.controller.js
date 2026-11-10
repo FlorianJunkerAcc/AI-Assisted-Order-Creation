@@ -314,6 +314,10 @@ sap.ui.define(
                  * als Chips unter dem Verlauf.
                  */
                 _picoSay: function (sText, bAskNext) {
+                    // Mitten in einem mehrteiligen Befehl keine "What next?"-Frage.
+                    if (this._moreSteps) {
+                        bAskNext = false;
+                    }
                     if (!bAskNext) {
                         this._addChatMessage("pico", sText);
                         return;
@@ -1268,36 +1272,21 @@ sap.ui.define(
                                 );
                                 this.byId("aiOrderInput").setValue("");
 
-                                if (oResult.intent === "generate_order_draft") {
-                                    await this._runGenerateOrderDraft();
-                                } else if (
-                                    oResult.intent === "select_customer"
-                                ) {
-                                    await this._runSelectCustomer(sCommand);
-                                } else if (
-                                    oResult.intent === "add_items"
-                                ) {
-                                    await this._runAddItems(sCommand);
-                                } else if (
-                                    oResult.intent === "recommend_products"
-                                ) {
-                                    await this._runRecommendProducts();
-                                } else if (
-                                    oResult.intent === "validate_order"
-                                ) {
-                                    await this._runValidateOrder();
-                                } else if (
-                                    oResult.intent === "copy_last_order"
-                                ) {
-                                    await this._runCopyLastOrder(
-                                        sCommand,
-                                        oResult.customerReference
-                                    );
-                                } else {
-                                    this._picoSay(
-                                        "Sorry, I didn't quite understand what you'd like me to do."
-                                    );
-                                }
+                                // Ein Befehl kann mehrere Schritte enthalten
+                                // (z. B. Kunde waehlen + Positionen
+                                // hinzufuegen + Vorschlaege). Sie laufen
+                                // nacheinander in der gesprochenen Reihenfolge.
+                                const aSteps =
+                                    Array.isArray(oResult.steps) &&
+                                    oResult.steps.length > 0
+                                        ? oResult.steps
+                                        : [{
+                                            intent: oResult.intent,
+                                            command: sCommand,
+                                            customerReference:
+                                                oResult.customerReference
+                                        }];
+                                await this._runSteps(aSteps);
                                 break;
                             }
 
@@ -1317,6 +1306,77 @@ sap.ui.define(
                         oUiModel.setProperty("/isAiProcessing", false);
                         this._updateAiSubmitState();
                         oButton.setBusy(false);
+                    }
+                },
+                /**
+                 * Fuehrt die vom Router erkannten Schritte nacheinander aus.
+                 * Braucht ein Schritt eine Eingabe des Nutzers (Kunden-
+                 * Rueckfrage), werden die uebrigen Schritte gemerkt und nach
+                 * der Auswahl fortgesetzt. Scheitert die Kundenauswahl,
+                 * werden die folgenden Schritte nicht ausgefuehrt.
+                 */
+                _runSteps: async function (aSteps) {
+                    this._pendingSteps = null;
+                    for (let i = 0; i < aSteps.length; i++) {
+                        // Zwischenschritte stellen keine "What next?"-Frage.
+                        this._moreSteps = i < aSteps.length - 1;
+                        let sOutcome;
+                        try {
+                            sOutcome = await this._runStep(aSteps[i]);
+                        } finally {
+                            this._moreSteps = false;
+                        }
+                        if (sOutcome === "clarification") {
+                            this._pendingSteps = aSteps.slice(i + 1);
+                            if (this._pendingSteps.length > 0) {
+                                this._picoSay(
+                                    "Once that's settled, I'll continue with the rest of your request."
+                                );
+                            }
+                            return;
+                        }
+                        if (sOutcome === "failed" &&
+                            aSteps[i].intent === "select_customer") {
+                            if (i < aSteps.length - 1) {
+                                this._picoSay(
+                                    "I've paused the rest of your request, because I need a customer first."
+                                );
+                            }
+                            return;
+                        }
+                    }
+                },
+                /** Setzt die nach einer Rueckfrage offenen Schritte fort. */
+                _resumePendingSteps: async function () {
+                    const aSteps = this._pendingSteps;
+                    this._pendingSteps = null;
+                    if (aSteps && aSteps.length > 0) {
+                        await this._runSteps(aSteps);
+                    }
+                },
+                _runStep: async function (oStep) {
+                    const sCommand = oStep.command;
+                    switch (oStep.intent) {
+                        case "generate_order_draft":
+                            return this._runGenerateOrderDraft();
+                        case "select_customer":
+                            return this._runSelectCustomer(sCommand);
+                        case "add_items":
+                            return this._runAddItems(sCommand);
+                        case "recommend_products":
+                            return this._runRecommendProducts();
+                        case "validate_order":
+                            return this._runValidateOrder();
+                        case "copy_last_order":
+                            return this._runCopyLastOrder(
+                                sCommand,
+                                oStep.customerReference
+                            );
+                        default:
+                            this._picoSay(
+                                "Sorry, I didn't quite understand what you'd like me to do."
+                            );
+                            return "failed";
                     }
                 },
                 /**
@@ -1435,10 +1495,10 @@ sap.ui.define(
                         }
                         if (sStatus === "clarification") {
                             this._pendingCopyLastOrder = true;
-                            return;
+                            return "clarification";
                         }
                         if (sStatus !== "resolved") {
-                            return;
+                            return "failed";
                         }
                     }
                     await this._copyLastOrderForSelectedCustomer();
@@ -1549,18 +1609,28 @@ sap.ui.define(
                         });
 
                     if (bApplied) {
+                        const bMoreSteps =
+                            (this._pendingSteps || []).length > 0;
                         this._picoSay(
                             `Got it, I've selected ${oSuggestion.customerName}.`,
-                            !this._pendingCopyLastOrder
+                            !this._pendingCopyLastOrder && !bMoreSteps
                         );
                         // Wartete ein "copy last order" auf die Kundenauswahl,
                         // jetzt fortsetzen.
                         if (this._pendingCopyLastOrder) {
                             this._pendingCopyLastOrder = false;
-                            await this._copyLastOrderForSelectedCustomer();
+                            this._moreSteps = bMoreSteps;
+                            try {
+                                await this._copyLastOrderForSelectedCustomer();
+                            } finally {
+                                this._moreSteps = false;
+                            }
                         }
+                        // Restliche Schritte des urspruenglichen Befehls.
+                        await this._resumePendingSteps();
                     } else {
                         this._pendingCopyLastOrder = false;
+                        this._pendingSteps = null;
                         this._picoSay(
                             "I couldn't find that customer in the dropdown. " +
                             "Could you select them there yourself?"

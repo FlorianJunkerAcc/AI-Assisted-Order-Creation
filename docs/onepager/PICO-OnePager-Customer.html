@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>PICO – Your AI Sales Order Copilot</title>
+<style>
+@page { size: A4 landscape; margin: 0; }
+*{box-sizing:border-box}
+body{margin:0;font-family:"Segoe UI",Arial,sans-serif;color:#2b2340;background:#fff}
+.page{width:297mm;height:210mm;position:relative;overflow:hidden;display:flex;flex-direction:column}
+.hero{background:linear-gradient(120deg,#4a1f72 0%,#8E44AD 60%,#c27fe0 100%);color:#fff;padding:4mm 11mm 3.5mm;display:flex;justify-content:space-between;align-items:center;gap:8mm}
+.tag{font-size:8pt;letter-spacing:.2em;text-transform:uppercase;opacity:.85}
+h1{margin:.5mm 0 .5mm;font-size:21pt;line-height:1.05}
+.sub{font-size:10.5pt;opacity:.96;max-width:185mm}
+.pills{display:flex;flex-direction:column;gap:.8mm;align-items:flex-end}
+.pill{background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.5);border-radius:10mm;padding:.6mm 3.5mm;font-size:7.6pt;font-weight:600;white-space:nowrap}
+.main{display:grid;grid-template-columns:68mm 1fr 52mm;gap:6mm;padding:3.5mm 11mm 0}
+h2{font-size:9.5pt;text-transform:uppercase;letter-spacing:.09em;color:#8E44AD;margin:0 0 2mm}
+.pain,.ben{display:grid;grid-template-columns:6mm 1fr;gap:2mm;margin-bottom:1.6mm;font-size:8pt;line-height:1.3}
+.pain i,.ben i{font-style:normal;font-size:10pt;text-align:center}
+.pain b,.ben b{display:block;font-size:8.6pt}
+.pain span,.ben span{color:#5a5270}
+.col1 .sep{height:1px;background:#e3d6ee;margin:2.5mm 0}
+.modes{display:grid;grid-template-columns:repeat(4,1fr);gap:2mm;margin-bottom:3mm}
+.mode{background:#F1EAF7;border-radius:2.5mm;padding:2mm;text-align:center;font-size:7.6pt;line-height:1.25}
+.mode i{display:block;font-style:normal;font-size:15pt;margin-bottom:.5mm}
+.mode b{display:block;font-size:8.4pt;color:#5b2a86}
+.caps{display:grid;grid-template-columns:1fr 1fr;gap:2mm}
+.cap{border:1px solid #e3d6ee;border-left:1.2mm solid #8E44AD;border-radius:2mm;padding:1.8mm 2.5mm;font-size:7.7pt;line-height:1.28}
+.cap b{display:block;font-size:8.6pt;color:#2b2340}
+.cap span{color:#5a5270}
+.shot{text-align:center}
+.shot img{width:100%;border-radius:3mm;box-shadow:0 2mm 6mm rgba(60,20,90,.3);border:1px solid #e3d6ee}
+.shot figcaption{font-size:7.2pt;color:#7a7192;margin-top:1.5mm;line-height:1.3}
+.flow{margin:2.5mm 11mm 0;background:#faf6fd;border:1px solid #e3d6ee;border-radius:3mm;padding:2.5mm 3mm}
+.flow h2{margin-bottom:1.5mm}
+.steps{display:grid;grid-template-columns:repeat(7,1fr);gap:2.2mm}
+.step{background:#fff;border-radius:2mm;padding:1.8mm 2mm;font-size:7.4pt;line-height:1.25;border-top:1.2mm solid;position:relative;min-height:20mm}
+.step b{display:block;font-size:8.2pt;margin-bottom:.5mm}
+.step em{display:inline-block;font-style:normal;font-size:6.6pt;font-weight:700;border-radius:5mm;padding:.2mm 2mm;margin-top:1mm;color:#fff}
+.ai{border-color:#8E44AD}.ai em{background:#8E44AD}
+.sw{border-color:#2a8f6a}.sw em{background:#2a8f6a}
+.hu{border-color:#e08a00}.hu em{background:#e08a00}
+.step:not(:last-child):after{content:"›";position:absolute;right:-2.6mm;top:50%;transform:translateY(-50%);font-size:13pt;color:#8E44AD;font-weight:700}
+.legend{font-size:7.2pt;color:#6a6180;margin-top:1.2mm}
+.foot{margin:2.5mm 11mm 0;display:grid;grid-template-columns:1fr 1fr;gap:5mm}
+.int{border-radius:3mm;padding:2.5mm 3.5mm;font-size:8pt;line-height:1.35}
+.int b{font-size:9pt}
+.i1{background:#eaf4ff;border:1px solid #3a78c2}
+.i2{background:linear-gradient(120deg,#5b2a86,#8E44AD);color:#fff}
+</style></head><body>
+<div class="page">
+
+<div class="hero">
+  <div>
+    <div class="tag">AI-Assisted Order Creation</div>
+    <h1>PICO – Your AI Sales Order Copilot</h1>
+    <div class="sub">Turn a spoken sentence into a ready-to-review sales order. Conversational GenAI meets your CRM data, with a human always in control.</div>
+  </div>
+  <div class="pills">
+    <div class="pill">🎙 Voice-first</div>
+    <div class="pill">✨ Next-best-action AI</div>
+    <div class="pill">🛡 Human-in-the-loop</div>
+    <div class="pill">🔌 CRM-agnostic</div><div class="pill">🗣 Fully voice-controllable</div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="col1">
+    <h2>Pain points we remove</h2>
+    <div class="pain"><i>⏱</i><div><b>Slow, click-heavy order entry</b><span>Searching customers and products screen by screen.</span></div></div>
+    <div class="pain"><i>🔁</i><div><b>Repetitive reorders</b><span>The same baskets typed in again and again.</span></div></div>
+    <div class="pain"><i>⚠️</i><div><b>Costly entry errors</b><span>Wrong product, odd quantity, forgotten items.</span></div></div>
+    <div class="pain"><i>🚗</i><div><b>No hands free in the field</b><span>Reps on the move or at the customer site.</span></div></div>
+    <div class="sep"></div>
+    <h2>Benefits you get</h2>
+    <div class="ben"><i>🚀</i><div><b>Hyper-productive reps</b><span>Orders in seconds instead of minutes.</span></div></div>
+    <div class="ben"><i>🎯</i><div><b>Higher order quality</b><span>Plausibility checks against order history.</span></div></div>
+    <div class="ben"><i>💡</i><div><b>Upsell on autopilot</b><span>Smart suggestions based on buying patterns.</span></div></div>
+    <div class="ben"><i>🤝</i><div><b>Trust by design</b><span>Prices and IDs come from your data, never from the AI.</span></div></div>
+  </div>
+
+  <div class="col2">
+    <h2>Work your way</h2>
+    <div class="modes">
+      <div class="mode"><i>⌨️</i><b>Manual</b>Classic order entry with live prices</div>
+      <div class="mode"><i>💬</i><b>Type</b>Describe it in plain language</div>
+      <div class="mode"><i>🎤</i><b>Speak</b>Dictate in English or German</div>
+      <div class="mode"><i>🔊</i><b>Listen</b>PICO reads its answers aloud</div>
+    </div>
+    <h2>What PICO can do</h2>
+    <div class="caps">
+      <div class="cap"><b>👤 Select customer</b><span>Finds the right account by name or number, asks if unsure.</span></div>
+      <div class="cap"><b>⚡ Auto-draft from history</b><span>Builds the usual order; uncertain items become suggestions.</span></div>
+      <div class="cap"><b>➕ Add, change, remove items</b><span>“Make it 10 instead”, “remove Product B”.</span></div>
+      <div class="cap"><b>💡 Recommend products</b><span>Proposes items the customer is likely to need.</span></div>
+      <div class="cap"><b>✅ Validate order</b><span>Flags unusual products or quantities before you submit.</span></div>
+      <div class="cap"><b>📋 Copy last order</b><span>Starts from the most recent order and adjusts.</span></div>
+    </div>
+    <div class="cap" style="margin-top:2mm;border-left-color:#2a8f6a;background:#f1faf6"><b>🧭 Always the logical next step</b><span>After every action PICO offers one-click follow-ups (validate, suggest more, change quantity, remove) so you never wonder what to do next.</span></div>
+  </div>
+
+  <figure class="shot" style="margin:0">
+    <img src="pico-chat2.png" alt="PICO chat">
+    <figcaption>Real conversation: PICO confirms what it did and proposes the next step as one-click buttons. Voice input and Send are always at hand.</figcaption>
+  </figure>
+</div>
+
+<div class="flow">
+  <h2>A typical voice interaction: what the AI does, and what it does not</h2>
+  <div class="steps">
+    <div class="step hu"><b>1 · You speak</b>“Add 5 of Product A and 10 of Product B.”<br><em>HUMAN</em></div>
+    <div class="step ai"><b>2 · Speech to text</b>Your voice is transcribed in real time.<br><em>AI</em></div>
+    <div class="step ai"><b>3 · Understand intent</b>AI picks exactly one of six skills, or asks a clarifying question.<br><em>AI</em></div>
+    <div class="step ai"><b>4 · Read the request</b>AI extracts products and quantities and compares them with the live catalog.<br><em>AI</em></div>
+    <div class="step sw"><b>5 · Verify &amp; price</b>IDs checked, prices pulled from CRM master data. No guessing.<br><em>NO AI · RULES &amp; DATA</em></div>
+    <div class="step hu"><b>6 · You confirm</b>Review the draft, then press “Create Order”. Nothing is booked automatically.<br><em>HUMAN</em></div>
+    <div class="step ai"><b>7 · PICO talks back</b>The reply is read aloud, word for word. Nothing added.<br><em>AI</em></div>
+  </div>
+  <div class="legend">History-based drafts, recommendations, validation and copy-last-order run on classic business logic and your CRM data, with no AI involved.</div>
+</div>
+
+<div class="foot">
+  <div class="int i1"><b>🔗 Seamlessly integrated with SAP Sales Cloud V1</b><br>The showcase reads customers, products, prices and order history live from SAP Sales Cloud V1 and creates the order there. Runs on SAP BTP with enterprise-grade security and AI via SAP Generative AI Hub.</div>
+  <div class="int i2"><b>🔌 Not on SAP? No problem.</b><br>Modular integration layer: we connect PICO to any CRM or ERP via standard APIs. <b>Next step:</b> the showcase can be extended into a fully voice-controlled order experience, from first greeting to final confirmation.</div>
+</div>
+
+</div>
+</body></html>

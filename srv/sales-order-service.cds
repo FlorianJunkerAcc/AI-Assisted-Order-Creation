@@ -113,6 +113,13 @@ action validateOrderItems(
     items      : String
 ) returns OrderValidationResult;
 
+type PicoRouteStep {
+    intent            : String;
+    // Der zu diesem Schritt gehoerende Teil des Befehls.
+    command           : String;
+    customerReference : String;
+}
+
 type PicoRouteResult {
     // "ok" | "clarification_required" | "multiple_intents" | "unknown_intent"
     status  : String;
@@ -124,6 +131,9 @@ type PicoRouteResult {
     // Nur bei intent "copy_last_order": der im Befehl genannte Kunde
     // (Name/Nummer), sonst leer.
     customerReference : String;
+    // Alle Schritte des Befehls in der Reihenfolge der Ausfuehrung
+    // (nur bei status "ok").
+    steps   : many PicoRouteStep;
 }
 
 action routeAiCommand(

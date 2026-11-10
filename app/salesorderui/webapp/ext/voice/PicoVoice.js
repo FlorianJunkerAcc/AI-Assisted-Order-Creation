@@ -6,7 +6,13 @@ sap.ui.define([], function () {
     //  - speak():  Text -> PICO-Stimme (alloy) -> Lautsprecher
     const SOCKET_PATH = "/pico-voice";
     const SAMPLE_RATE = 24000;
-    const LISTEN_TIMEOUT_MS = 20000;
+    // Gesamtdauer einer Aufnahme (lange, mehrteilige Befehle).
+    const LISTEN_TIMEOUT_MS = 120000;
+    // Wird nach dem Start gar nichts gesprochen, endet die Aufnahme frueher.
+    const NO_SPEECH_TIMEOUT_MS = 20000;
+    // Nach dem Satzende bleibt das Mikrofon noch kurz offen: faengt der
+    // Nutzer wieder an zu sprechen, gehoert das zum selben Befehl.
+    const CONTINUE_GRACE_MS = 2000;
     const TRANSCRIPT_TIMEOUT_MS = 10000;
     const WORKLET_URL = sap.ui.require.toUrl(
         "com/prototype/salesorderai/salesorderui/ext/voice/pcm-worklet.js"
@@ -116,24 +122,40 @@ sap.ui.define([], function () {
                 this._playChunk(oMessage.data);
                 break;
             case "speech_started":
-                if (this._listen && this._listen.callbacks.onSpeech) {
-                    this._listen.callbacks.onSpeech();
+                if (this._listen) {
+                    // Es wird (weiter) gesprochen: weder Warte- noch
+                    // Nachlauf-Timer duerfen die Aufnahme beenden.
+                    clearTimeout(this._listen.noSpeechTimer);
+                    clearTimeout(this._listen.graceTimer);
+                    this._listen.speaking = true;
+                    if (this._listen.callbacks.onSpeech) {
+                        this._listen.callbacks.onSpeech();
+                    }
                 }
                 break;
             case "speech_stopped":
-                // Aufnahme beenden, das Transkript kommt gleich nach.
+                // Ein Abschnitt ist zu Ende; sein Transkript kommt gleich.
+                // Das Mikrofon bleibt noch kurz offen, falls der Befehl
+                // weitergeht (mehrere Anweisungen in einem Rutsch).
                 if (this._listen) {
-                    this._stopCapture();
-                    clearTimeout(this._listen.timer);
-                    this._listen.timer = setTimeout(
-                        () => this._finishListening(null),
-                        TRANSCRIPT_TIMEOUT_MS
+                    const oListen = this._listen;
+                    oListen.speaking = false;
+                    oListen.segments++;
+                    clearTimeout(oListen.graceTimer);
+                    oListen.graceTimer = setTimeout(
+                        () => this._endCapturePhase(),
+                        CONTINUE_GRACE_MS
                     );
                 }
                 break;
             case "transcript":
-                if (this._listen && oMessage.text) {
-                    this._finishListening(oMessage.text);
+                if (this._listen) {
+                    const oListen = this._listen;
+                    oListen.transcribed++;
+                    if (oMessage.text) {
+                        oListen.parts.push(oMessage.text);
+                    }
+                    this._finishIfComplete();
                 }
                 break;
             case "error":
@@ -231,7 +253,18 @@ sap.ui.define([], function () {
         }
         // PICO soll sich nicht selbst zuhoeren.
         this.stopSpeaking();
-        this._listen = { callbacks: oCallbacks, timer: null };
+        this._listen = {
+            callbacks: oCallbacks,
+            timer: null, // Gesamtdauer
+            noSpeechTimer: null,
+            graceTimer: null,
+            transcriptTimer: null,
+            speaking: false,
+            closing: false, // Mikrofon geschlossen, Transkripte ausstehend
+            segments: 0, // beendete Sprechabschnitte
+            transcribed: 0, // eingegangene Transkripte
+            parts: []
+        };
         try {
             await this._connect();
             const oStream = await navigator.mediaDevices.getUserMedia({
@@ -270,8 +303,12 @@ sap.ui.define([], function () {
             this._listen.capture = { stream: oStream, ctx: oCtx, node: oNode, source: oSource };
             this._send({ type: "clear" });
             this._listen.timer = setTimeout(
-                () => this._finishListening(null),
+                () => this._endCapturePhase(),
                 LISTEN_TIMEOUT_MS
+            );
+            this._listen.noSpeechTimer = setTimeout(
+                () => this._finishListening(null),
+                NO_SPEECH_TIMEOUT_MS
             );
             if (oCallbacks.onStart) {
                 oCallbacks.onStart();
@@ -302,6 +339,43 @@ sap.ui.define([], function () {
         }
     };
 
+    /**
+     * Schliesst das Mikrofon und wartet auf die noch ausstehenden
+     * Transkripte. Mit mehreren Abschnitten wird ihr Text zusammengesetzt.
+     */
+    PicoVoice.prototype._endCapturePhase = function () {
+        const oListen = this._listen;
+        if (!oListen || oListen.closing) {
+            return;
+        }
+        oListen.closing = true;
+        this._stopCapture();
+        clearTimeout(oListen.timer);
+        clearTimeout(oListen.graceTimer);
+        clearTimeout(oListen.noSpeechTimer);
+        // Wurde zuletzt noch gesprochen (Gesamtdauer erreicht), fehlt das
+        // Satzende; dann gibt es keinen weiteren Abschnitt zu erwarten.
+        oListen.transcriptTimer = setTimeout(
+            () => this._finishListening(this._joinedTranscript()),
+            TRANSCRIPT_TIMEOUT_MS
+        );
+        this._finishIfComplete();
+    };
+
+    PicoVoice.prototype._joinedTranscript = function () {
+        const oListen = this._listen;
+        const sText = oListen ? oListen.parts.join(" ").trim() : "";
+        return sText || null;
+    };
+
+    PicoVoice.prototype._finishIfComplete = function () {
+        const oListen = this._listen;
+        if (oListen && oListen.closing &&
+            oListen.transcribed >= oListen.segments) {
+            this._finishListening(this._joinedTranscript());
+        }
+    };
+
     PicoVoice.prototype._finishListening = function (sTranscript) {
         const oListen = this._listen;
         if (!oListen) {
@@ -309,6 +383,9 @@ sap.ui.define([], function () {
         }
         this._stopCapture();
         clearTimeout(oListen.timer);
+        clearTimeout(oListen.noSpeechTimer);
+        clearTimeout(oListen.graceTimer);
+        clearTimeout(oListen.transcriptTimer);
         this._listen = null;
         if (oListen.callbacks.onEnd) {
             oListen.callbacks.onEnd(sTranscript);

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>VIVA – Your Voice-First AI Visit Copilot</title>
+<style>
+@page { size: A4 landscape; margin: 0; }
+*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{margin:0;font-family:"Segoe UI",Arial,sans-serif;color:#10243a;background:#fff}
+.page{width:297mm;height:210mm;position:relative;overflow:hidden;display:flex;flex-direction:column}
+.strip{background:repeating-linear-gradient(-45deg,#f5b800 0 4mm,#1a1a1a 4mm 8mm);color:#fff;text-align:center;font-weight:800;letter-spacing:.3em;font-size:10pt;height:6mm;line-height:6mm;text-shadow:0 0 1.5mm #000,0 0 1.5mm #000,0 0 1mm #000}
+.hero{background:linear-gradient(120deg,#06172b 0%,#0b4f8a 55%,#14b8c8 100%);color:#fff;padding:2.5mm 11mm 2.5mm;display:flex;justify-content:space-between;align-items:center;gap:8mm}
+.tag{font-size:8pt;letter-spacing:.2em;text-transform:uppercase;opacity:.85}
+h1{margin:.5mm 0 .5mm;font-size:21pt;line-height:1.05}
+.sub{font-size:10.5pt;opacity:.96;max-width:185mm}
+.soon{background:#fff;color:#0b4f8a;font-weight:800;font-size:19pt;white-space:nowrap;letter-spacing:.12em;text-transform:uppercase;border-radius:10mm;padding:1mm 7mm;animation:pulse 2.4s ease-in-out infinite;box-shadow:0 0 0 1mm rgba(127,243,255,.45),0 0 5mm rgba(127,243,255,.8);margin-bottom:1.2mm}
+.pills{display:flex;flex-direction:column;gap:.8mm;align-items:flex-end}
+.pill{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.5);border-radius:10mm;padding:.6mm 3.5mm;font-size:7.6pt;font-weight:600;white-space:nowrap}
+.main{display:grid;grid-template-columns:66mm 1fr 70mm;gap:6mm;padding:3mm 11mm 0}
+h2{font-size:9.5pt;text-transform:uppercase;letter-spacing:.09em;color:#0b6fb0;margin:0 0 2mm}
+.pain,.ben{display:grid;grid-template-columns:6mm 1fr;gap:2mm;margin-bottom:1.6mm;font-size:8pt;line-height:1.3}
+.pain i,.ben i{font-style:normal;font-size:10pt;text-align:center}
+.pain b,.ben b{display:block;font-size:8.6pt}
+.pain span,.ben span{color:#4a6078}
+.sep{height:1px;background:#cfe3f0;margin:2.5mm 0}
+.caps{display:grid;grid-template-columns:1fr 1fr;gap:2mm}
+.cap{border:1px solid #cfe3f0;border-left:1.2mm solid #0b6fb0;border-radius:2mm;padding:1.8mm 2.5mm;font-size:7.7pt;line-height:1.28}
+.cap b{display:block;font-size:8.6pt;color:#10243a}
+.cap span{color:#4a6078}
+.green{border-left-color:#2a8f6a;background:#f1faf6}
+.phone{background:#06172b;border-radius:4mm;padding:3mm;color:#fff;box-shadow:0 2mm 6mm rgba(6,40,80,.35)}
+.orbwrap{display:flex;flex-direction:column;align-items:center}
+.orb{width:17mm;height:17mm;border-radius:50%;background:radial-gradient(circle at 35% 30%,#7ff3ff,#14b8c8 45%,#0b4f8a 100%);display:flex;align-items:center;justify-content:center;font-size:15pt;
+ box-shadow:0 0 0 2mm rgba(20,184,200,.25),0 0 0 4.5mm rgba(20,184,200,.12),0 0 7mm 2mm rgba(20,184,200,.55);animation:pulse 2.4s ease-in-out infinite}
+@keyframes pulse{50%{transform:scale(1.07)}}
+.wave{display:flex;gap:.7mm;align-items:center;height:3mm;margin-top:3mm}
+.wave u{display:block;width:.7mm;background:#7ff3ff;border-radius:1mm;text-decoration:none}
+.tr{border:1px solid #cfe3f0;background:#f4fafe;border-radius:2mm;padding:1.8mm 2.4mm;font-size:6.9pt;line-height:1.3}
+.tr p{margin:0 0 1mm}.tr b{color:#0b6fb0;display:inline-block;min-width:7mm}
+.tr u{text-decoration:none;font-weight:700;color:#2a8f6a}.tr b.y{color:#e08a00}
+.trh{font-weight:700;font-size:7.2pt;margin-bottom:1.2mm;color:#10243a}
+.state{font-size:6.4pt;letter-spacing:.14em;text-transform:uppercase;color:#7ff3ff;margin-top:1mm}
+.flow{margin:2.5mm 11mm 0;background:#f4fafe;border:1px solid #cfe3f0;border-radius:3mm;padding:2.5mm 3mm}
+.flow h2{margin-bottom:1.5mm}
+.steps{display:grid;grid-template-columns:repeat(7,1fr);gap:2.2mm}
+.step{background:#fff;border-radius:2mm;padding:1.8mm 2mm;font-size:7.4pt;line-height:1.25;border-top:1.2mm solid;position:relative;min-height:17mm}
+.step b{display:block;font-size:8.2pt;margin-bottom:.5mm}
+.step em{display:inline-block;font-style:normal;font-size:6.6pt;font-weight:700;border-radius:5mm;padding:.2mm 2mm;margin-top:1mm;color:#fff}
+.ai{border-color:#0b6fb0}.ai em{background:#0b6fb0}
+.sw{border-color:#2a8f6a}.sw em{background:#2a8f6a}
+.hu{border-color:#e08a00}.hu em{background:#e08a00}
+.step:not(:last-child):after{content:"›";position:absolute;right:-2.6mm;top:50%;transform:translateY(-50%);font-size:13pt;color:#0b6fb0;font-weight:700}
+.legend{font-size:7.2pt;color:#5a7088;margin-top:1.2mm}
+.foot{margin:2.5mm 11mm 0;display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:3.5mm}
+.int{border-radius:3mm;padding:2mm 3mm;font-size:7.2pt;line-height:1.3}
+.int b{font-size:8.2pt}
+.i1{background:#eaf4ff;border:1px solid #3a78c2}
+.i2{background:linear-gradient(120deg,#06172b,#0b6fb0);color:#fff}
+.i3{background:#f1faf6;border:1px solid #2a8f6a}
+</style></head><body>
+<div class="page">
+<div class="strip">🚧 &nbsp;COMING SOON &nbsp;·&nbsp; CONCEPT – NOT YET AVAILABLE &nbsp;🚧</div>
+
+<div class="hero">
+  <div>
+    <div class="tag">AI-Assisted Visit Documentation · Concept</div>
+    <h1>VIVA – Your Voice-First AI Visit Copilot</h1>
+    <div class="sub">Just talk. VIVA turns a spoken visit debrief into a documented customer visit with follow-up tasks and updated opportunities in SAP Sales Cloud V1, asking the questions a seasoned sales expert would ask.</div>
+  </div>
+  <div class="pills">
+    <div class="soon">🚧 Coming Soon!</div>
+    <div class="pill">🚗 Built for on the go, hands-free</div>
+    <div class="pill">🧠 Sales-expert follow-ups</div>
+    <div class="pill">🛡 Confirms before every CRM change</div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="col1">
+    <h2>Challenges today</h2>
+    <div class="pain"><i>📝</i><div><b>Late, click-heavy documentation</b><span>Notes typed hours later across many CRM screens.</span></div></div>
+    <div class="pain"><i>🕳</i><div><b>Thin, inconsistent notes</b><span>Budget, competitor, next step often missing.</span></div></div>
+    <div class="pain"><i>🔀</i><div><b>Follow-ups fall through</b><span>Promises to customers never become tasks.</span></div></div>
+    <div class="pain"><i>🚗</i><div><b>No time between meetings</b><span>Reps are on the road to the next customer.</span></div></div>
+    <div class="sep"></div>
+    <h2>Benefits you get</h2>
+    <div class="ben"><i>🚀</i><div><b>Documented in 2 minutes</b><span>Right after the visit, while it is fresh.</span></div></div>
+    <div class="ben"><i>🎯</i><div><b>Complete, richer data</b><span>VIVA asks for what is missing.</span></div></div>
+    <div class="ben"><i>✅</i><div><b>Nothing gets forgotten</b><span>Tasks and updates are created instantly.</span></div></div>
+    <div class="ben"><i>🤝</i><div><b>You stay in control</b><span>No CRM change without your explicit OK.</span></div></div>
+  </div>
+
+  <div class="col2">
+    <h2>What VIVA can do</h2>
+    <div class="caps">
+      <div class="cap"><b>📍 Find or create the visit</b><span>Detects an open visit for the customer, otherwise creates a new one.</span></div>
+      <div class="cap"><b>🗣 Structured visit summary</b><span>Turns free speech into clean notes: topics, outcome, attendees.</span></div>
+      <div class="cap"><b>❓ Ask like a sales expert</b><span>Budget? Timeline? Decision maker? Competitor? Next step?</span></div>
+      <div class="cap"><b>📌 Create follow-up tasks</b><span>“Send offer by Friday” becomes a dated task for you.</span></div>
+      <div class="cap"><b>💼 Create opportunities</b><span>Spots new business in the conversation and drafts it.</span></div>
+      <div class="cap"><b>🔄 Update opportunities</b><span>Stage, value, close date, all by voice.</span></div>
+      <div class="cap"><b>📎 Transcript as attachment</b><span>The full conversation is attached to the visit for audit and reference.</span></div>
+      <div class="cap"><b>🔊 Talks back</b><span>Short spoken replies. No screen needed, eyes stay free.</span></div>
+    </div>
+    <div class="cap green" style="margin-top:2mm"><b>🚗 Made for life on the road</b><span>In the car, at the airport, between meetings: no chat, no forms, just one glowing, animated microphone. Tap once and talk.</span></div>
+  </div>
+
+  <div class="col3">
+    <h2>The whole UI: one microphone</h2>
+    <div class="phone">
+      <div class="orbwrap">
+        <div class="orb">🎙</div>
+        <div class="wave"><u style="height:30%"></u><u style="height:60%"></u><u style="height:100%"></u><u style="height:70%"></u><u style="height:40%"></u><u style="height:85%"></u><u style="height:55%"></u><u style="height:25%"></u><u style="height:65%"></u><u style="height:35%"></u></div>
+        <div class="state">Listening…</div>
+      </div>
+    </div>
+    <h2 style="margin-top:2.5mm">Example dialogue</h2>
+    <div class="tr">
+      <div class="trh">📎 Transcript attached to the visit</div>
+      <p><b class="y">You</b> Just left Müller Maschinenbau, new packaging line.</p>
+      <p><b>VIVA</b> Found your open 10:00 visit. Budget or decision makers?</p>
+      <p><b class="y">You</b> Around 250k, the CFO signs off, Competitor X is bidding.</p>
+      <p><b>VIVA</b> I would create the opportunity “Packaging Line” and a task “Send quote” due Nov 30, and move the service opportunity to Negotiation. <u>Shall I make these changes?</u></p>
+      <p><b class="y">You</b> Yes, go ahead.</p>
+      <p><b>VIVA</b> Done, all three are saved.</p>
+    </div>
+  </div>
+</div>
+
+<div class="flow">
+  <h2>A typical voice interaction: what the AI does, and what it does not</h2>
+  <div class="steps">
+    <div class="step hu"><b>1 · You speak</b>“Just left Müller, they want a quote for a packaging line.”<br><em>HUMAN</em></div>
+    <div class="step ai"><b>2 · Speech to text</b>Your voice is transcribed in real time.<br><em>AI</em></div>
+    <div class="step ai"><b>3 · Understand intent</b>AI recognizes visit notes, tasks or opportunity changes, or asks a clarifying question.<br><em>AI</em></div>
+    <div class="step ai"><b>4 · Extract &amp; ask</b>AI pulls out facts and asks sales-expert questions for gaps.<br><em>AI</em></div>
+    <div class="step sw"><b>5 · Match &amp; validate</b>Customer, open visit and opportunity IDs matched against live CRM data. No guessing.<br><em>NO AI · RULES &amp; DATA</em></div>
+    <div class="step hu"><b>6 · You confirm</b>VIVA reads back every planned change; you say “yes”. Nothing is written without your OK.<br><em>HUMAN</em></div>
+    <div class="step ai"><b>7 · VIVA talks back</b>Spoken confirmation; the transcript is attached to the visit.<br><em>AI</em></div>
+  </div>
+  <div class="legend">Record lookup, visit detection, linking and the CRM writes themselves run on classic business logic, with no AI involved. VIVA never changes the CRM without your confirmation first.</div>
+</div>
+
+<div class="foot">
+  <div class="int i1"><b>🔗 Built for SAP Sales Cloud V1</b><br>Planned: VIVA reads accounts, visits, opportunities and tasks live and creates or updates records there. Runs on SAP BTP with AI via SAP Generative AI Hub.</div>
+  <div class="int i3"><b>🤝 Why not just Joule?</b><br>Joule is SAP’s general assistant: answers, summaries, drafted emails. VIVA is a focused visit-debrief copilot: hands-free voice dialogue, sales-expert questions, visits, tasks and opportunities created or updated after your OK, transcript attached. It complements Joule; to be aligned with SAP’s roadmap.</div>
+  <div class="int i2"><b>🔌 Not on SAP? No problem.</b><br>Modular integration layer for any CRM via standard APIs. <b>Next step:</b> pre-visit briefings and proactive “you promised X last time” reminders, all by voice.</div>
+</div>
+
+</div>
+</body></html>

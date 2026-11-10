@@ -73,6 +73,8 @@ const PICO_ALLOWED_STATUSES = [
     "multiple_intents",
     "unknown_intent"
 ];
+// Maximale Zahl an Schritten, die ein einzelner Befehl ausloesen darf.
+const PICO_MAX_STEPS = 6;
 const PICO_ALLOWED_INTENTS = [
     "select_customer",
     "generate_order_draft",
@@ -2495,12 +2497,18 @@ PICO can perform exactly six functions:
 5. validate_order - check the current order draft's line items against the customer's order history and flag unusual product categories or quantities.
 6. copy_last_order - copy the line items of the customer's most recent order into the order draft so that they can be adjusted afterwards. The command may name the customer (for example "copy the last order of customer Acme" or "copy the last order"). Naming the customer here is only a parameter of this function and does NOT make it a multiple-intent command.
 
-Analyze the user's command and decide which single function is meant.
+Analyze the user's command and split it into the ordered list of functions that must be executed. A single command may contain SEVERAL requests (for example "Select customer Acme and add 5 computers and 5 tablets to the order. Suggest further order items as well." = select_customer, add_items, recommend_products). All of them are executed one after another, in the order in which they were asked.
 
 Rules:
 
-- If the command clearly and unambiguously matches exactly ONE of the six functions, respond with status "ok" and set intent to that function's identifier (select_customer, generate_order_draft, add_items, recommend_products, validate_order, or copy_last_order). The message field can be a short one-sentence acknowledgement.
-- If the command explicitly or implicitly asks for TWO OR MORE of the six functions to be performed together (for example "select customer Acme and add 5 Nutella"), respond with status "multiple_intents", intent set to an empty string, and a friendly message explaining that PICO can only execute one function per command and asking the user to submit the requests one at a time.
+- If the command matches one or more of the six functions, respond with status "ok" and fill "steps" with one entry per function, in the order of the command. Each step has:
+  - "intent": the function identifier (select_customer, generate_order_draft, add_items, recommend_products, validate_order, or copy_last_order).
+  - "command": ONLY the part of the user's command that belongs to this step, in the user's original language, complete enough to be understood on its own (for example "Select customer Acme" and "Add 5 computers and 5 tablets to the order"). Do not repeat parts that belong to other steps. For recommend_products, generate_order_draft and validate_order this may be a short paraphrase.
+  - "customerReference": see below.
+  Merge requests that belong to the same function into ONE step (for example "add 5 computers and 5 tablets" is a single add_items step, not two). Never invent steps the user did not ask for.
+- The top-level "intent" field is always the intent of the first step.
+- The message field can be a short one-sentence acknowledgement.
+- Status "multiple_intents" is no longer used.
 - If the command could reasonably match more than one function, or its meaning is unclear, respond with status "clarification_required", intent set to an empty string, and a short clarifying question that helps determine which of the six functions is meant.
 - If the command does not relate to any of the six functions at all (for example small talk, unrelated topics, or requests PICO cannot fulfill), respond with status "unknown_intent", intent set to an empty string, and a very friendly message explaining that PICO cannot help with this, briefly restating the six things PICO can help with.
 
@@ -2508,7 +2516,7 @@ Always write the "message" field in English, regardless of the language of the i
 
 Do not invent order data or customer data. Do not decide which specific customer, products, or quantities are meant - that happens later in a separate step. Your only job is to decide WHICH of the six functions applies.
 
-For intent "copy_last_order" only: set "customerReference" to the customer name and/or number exactly as the user wrote it in the command, or to an empty string if the command does not name a customer. For all other intents set "customerReference" to an empty string.
+For a step with intent "copy_last_order" only: set "customerReference" to the customer name and/or number exactly as the user wrote it in the command, or to an empty string if the command does not name a customer. For all other steps set "customerReference" to an empty string. Selecting a customer first and then copying the last order are two steps (select_customer, then copy_last_order with an empty customerReference).
 
 Return only valid JSON in exactly this structure. Do not wrap the JSON in Markdown code fences.
 
@@ -2516,8 +2524,17 @@ Return only valid JSON in exactly this structure. Do not wrap the JSON in Markdo
   "status": "ok" | "clarification_required" | "multiple_intents" | "unknown_intent",
   "intent": "select_customer" | "generate_order_draft" | "add_items" | "recommend_products" | "validate_order" | "copy_last_order" | "",
   "message": "string",
-  "customerReference": "string"
-}`
+  "customerReference": "string",
+  "steps": [
+    {
+      "intent": "select_customer" | "generate_order_draft" | "add_items" | "recommend_products" | "validate_order" | "copy_last_order",
+      "command": "string",
+      "customerReference": "string"
+    }
+  ]
+}
+
+For every status other than "ok", set "steps" to an empty array.`
                     },
                     {
                         role: "user",
@@ -2538,24 +2555,43 @@ Return only valid JSON in exactly this structure. Do not wrap the JSON in Markdo
                 );
             }
 
-            if (parsedResponse.status === "ok" &&
-                !PICO_ALLOWED_INTENTS.includes(parsedResponse.intent)) {
-                throw new Error(
-                    `PICO returned an unknown intent: ${parsedResponse.intent}`
-                );
+            // Rueckwaertskompatibel: fehlt "steps", wird aus dem
+            // einzelnen Intent ein Schritt gebaut.
+            let steps = [];
+            if (parsedResponse.status === "ok") {
+                steps = Array.isArray(parsedResponse.steps) &&
+                    parsedResponse.steps.length > 0
+                    ? parsedResponse.steps
+                    : [{
+                        intent: parsedResponse.intent,
+                        command,
+                        customerReference: parsedResponse.customerReference
+                    }];
+                steps = steps.slice(0, PICO_MAX_STEPS).map((step) => {
+                    if (!PICO_ALLOWED_INTENTS.includes(step?.intent)) {
+                        throw new Error(
+                            `PICO returned an unknown intent: ${step?.intent}`
+                        );
+                    }
+                    return {
+                        intent: step.intent,
+                        command: String(step.command || "").trim() || command,
+                        customerReference:
+                            step.intent === "copy_last_order"
+                                ? String(step.customerReference || "").trim()
+                                : ""
+                    };
+                });
             }
 
             return {
                 status: parsedResponse.status,
-                intent: parsedResponse.status === "ok"
-                    ? parsedResponse.intent
-                    : "",
+                intent: steps.length > 0 ? steps[0].intent : "",
                 message: parsedResponse.message || "",
-                customerReference:
-                    parsedResponse.status === "ok" &&
-                    parsedResponse.intent === "copy_last_order"
-                        ? String(parsedResponse.customerReference || "").trim()
-                        : ""
+                customerReference: steps.length > 0
+                    ? steps[0].customerReference
+                    : "",
+                steps
             };
 
         } catch (error) {
