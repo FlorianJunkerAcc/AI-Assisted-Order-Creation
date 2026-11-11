@@ -3,9 +3,6 @@
   "version": "1.0.0",
   "private": true,
   "description": "Standalone approuter: Login, UI aus dem HTML5-Repo, Weiterleitung an das CAP-Backend",
-  "engines": {
-    "node": "^20"
-  },
   "scripts": {
     "start": "node node_modules/@sap/approuter/approuter.js"
   },
