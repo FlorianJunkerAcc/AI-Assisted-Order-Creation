@@ -314,6 +314,13 @@ sap.ui.define(
                  * als Chips unter dem Verlauf.
                  */
                 _picoSay: function (sText, bAskNext) {
+                    // Laeuft ein mehrteiliger Befehl, werden die Antworten
+                    // der Schritte gesammelt und am Ende als EINE
+                    // zusammenhaengende Antwort ausgegeben (_flushCollected).
+                    if (this._collected) {
+                        this._collected.push({ text: sText, askNext: bAskNext });
+                        return;
+                    }
                     // Mitten in einem mehrteiligen Befehl keine "What next?"-Frage.
                     if (this._moreSteps) {
                         bAskNext = false;
@@ -1322,6 +1329,34 @@ sap.ui.define(
                  */
                 _runSteps: async function (aSteps) {
                     this._pendingSteps = null;
+                    this._collected = [];
+                    try {
+                        await this._runStepList(aSteps);
+                    } finally {
+                        this._flushCollected();
+                    }
+                },
+                /**
+                 * Gibt die gesammelten Antworten als eine zusammenhaengende
+                 * Nachricht aus (Chat und Sprache). Die "What next?"-Frage
+                 * bzw. die Chips kommen aus der Antwort des letzten Schritts.
+                 */
+                _flushCollected: function () {
+                    const aCollected = this._collected || [];
+                    this._collected = null;
+                    const aTexts = aCollected
+                        .map((o) => String(o.text || "").trim())
+                        .filter(Boolean)
+                        .map((s) => (/[.!?…]$/.test(s) ? s : s + "."));
+                    if (aTexts.length === 0) {
+                        return;
+                    }
+                    this._picoSay(
+                        aTexts.join(" "),
+                        aCollected[aCollected.length - 1].askNext
+                    );
+                },
+                _runStepList: async function (aSteps) {
                     for (let i = 0; i < aSteps.length; i++) {
                         // Zwischenschritte stellen keine "What next?"-Frage.
                         this._moreSteps = i < aSteps.length - 1;
