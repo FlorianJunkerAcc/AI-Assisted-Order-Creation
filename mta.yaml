@@ -29,6 +29,25 @@ modules:
   - name: prototype_salesorderApp_ai-db
   parameters:
     buildpack: nodejs_buildpack
+- name: prototype_salesorderApp_ai-approuter
+  # Eigener Approuter: stellt die URL fuer die App bereit (Login, UI aus dem
+  # HTML5-Repo) und leitet /sales-order und den WebSocket /pico-voice an das
+  # Backend weiter.
+  type: approuter.nodejs
+  path: approuter
+  requires:
+  - name: srv-api
+    group: destinations
+    properties:
+      name: srv-api
+      url: ~{srv-url}
+      forwardAuthToken: true
+      timeout: 600000
+  - name: prototype_salesorderApp_ai-auth
+  - name: prototype_salesorderApp_ai-html5-runtime
+  parameters:
+    disk-quota: 256M
+    memory: 256M
 - name: prototype_salesorderApp_ai-app-content
   type: com.sap.application.content
   path: .
@@ -62,6 +81,9 @@ resources:
         credential-types:
         - binding-secret
         - x509
+        # Erlaubt den Login-Redirect zur URL des Approuters.
+        redirect-uris:
+        - https://*.hana.ondemand.com/**
       role-collections:
       - description: generated
         name: admin (prototype_salesorderApp_ai ${space})
@@ -91,6 +113,11 @@ resources:
   type: org.cloudfoundry.existing-service
   parameters:
     service-name: AICore
+- name: prototype_salesorderApp_ai-html5-runtime
+  type: org.cloudfoundry.managed-service
+  parameters:
+    service: html5-apps-repo
+    service-plan: app-runtime
 - name: prototype_salesorderApp_ai-destination-service
   type: org.cloudfoundry.managed-service
   requires:

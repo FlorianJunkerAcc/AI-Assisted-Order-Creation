@@ -1,0 +1,29 @@
+{
+  "welcomeFile": "/comprototypesalesorderaisalesorderui/index.html",
+  "authenticationMethod": "route",
+  "websockets": {
+    "enabled": true
+  },
+  "routes": [
+    {
+      "source": "^/sales-order/(.*)$",
+      "target": "/sales-order/$1",
+      "destination": "srv-api",
+      "authenticationType": "xsuaa",
+      "csrfProtection": false
+    },
+    {
+      "source": "^/pico-voice$",
+      "target": "/pico-voice",
+      "destination": "srv-api",
+      "authenticationType": "xsuaa",
+      "csrfProtection": false
+    },
+    {
+      "source": "^(.*)$",
+      "target": "$1",
+      "service": "html5-apps-repo-rt",
+      "authenticationType": "xsuaa"
+    }
+  ]
+}
