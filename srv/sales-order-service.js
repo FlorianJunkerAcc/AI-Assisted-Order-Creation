@@ -134,6 +134,27 @@ function getResultRows(result) {
 }
 
 /**
+ * Liest eine JSON-Antwort des Modells. Das Modell verpackt das JSON trotz
+ * Anweisung manchmal in Markdown-Codezaeune (```json ... ```) oder setzt
+ * Text davor/danach; beides wird toleriert.
+ */
+function parseModelJson(text) {
+    const raw = String(text ?? "").trim();
+    try {
+        return JSON.parse(raw);
+    } catch (error) {
+        const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(raw);
+        const candidate = fenced
+            ? fenced[1].trim()
+            : raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1);
+        if (!candidate) {
+            throw error;
+        }
+        return JSON.parse(candidate);
+    }
+}
+
+/**
  * Findet ein Katalogprodukt zu einer vom Modell gelieferten ID. Das Modell
  * vertippt sich bei den langen IDs gelegentlich um ein Zeichen und trifft
  * dann ein ANDERES, existierendes Produkt. Deshalb muss bei angegebenem
@@ -288,7 +309,7 @@ async function generateRecommendationReasonsWithAI(recommendations) {
         ]
     });
 
-    const parsedResponse = JSON.parse(response.getContent());
+    const parsedResponse = parseModelJson(response.getContent());
 
     if (!Array.isArray(parsedResponse.recommendations)) {
         throw new Error("AI response did not contain a recommendations array.");
@@ -960,7 +981,7 @@ Return exactly this structure:
 
             console.log("Raw AI response:", aiResponse);
 
-            const parsedResponse = JSON.parse(aiResponse);
+            const parsedResponse = parseModelJson(aiResponse);
 
             if (!Array.isArray(parsedResponse.items)) {
                 throw new Error(
@@ -1836,7 +1857,7 @@ Return exactly this structure:
 
             console.log("Raw customer selection AI response:", aiResponse);
 
-            const parsedResponse = JSON.parse(aiResponse);
+            const parsedResponse = parseModelJson(aiResponse);
 
             if (!["resolved", "clarification_required"].includes(
                 parsedResponse.status
@@ -2578,7 +2599,7 @@ For every status other than "ok", set "steps" to an empty array.`
 
             console.log("PICO raw routing response:", aiResponse);
 
-            const parsedResponse = JSON.parse(aiResponse);
+            const parsedResponse = parseModelJson(aiResponse);
 
             if (!PICO_ALLOWED_STATUSES.includes(parsedResponse.status)) {
                 throw new Error(
