@@ -133,6 +133,33 @@ function getResultRows(result) {
     return [];
 }
 
+/**
+ * Findet ein Katalogprodukt zu einer vom Modell gelieferten ID. Das Modell
+ * vertippt sich bei den langen IDs gelegentlich um ein Zeichen und trifft
+ * dann ein ANDERES, existierendes Produkt. Deshalb muss bei angegebenem
+ * Namen auch dieser passen; sonst wird ueber den Namen gesucht.
+ */
+function resolveCatalogProduct(products, id, name) {
+    const byId = products.find((candidate) => candidate.ID === id);
+    const normalize = (value) => String(value || "").trim().toLowerCase();
+    const wanted = normalize(name);
+    if (!wanted || (byId && normalize(byId.name) === wanted)) {
+        return byId || null;
+    }
+    const byName = products.filter(
+        (candidate) => normalize(candidate.name) === wanted
+    );
+    if (byName.length >= 1) {
+        console.warn(
+            `AI product ID/name mismatch for "${name}" (ID ${id}); ` +
+                "using the catalog product with that name."
+        );
+        return byName[0];
+    }
+    // Name unbekannt (z. B. umformuliert): der ID weiter vertrauen.
+    return byId || null;
+}
+
 // Einfache Pluralbildung fuer die Chat-Texte von PICO ("1 item", "3 items").
 function countOf(count, singular, plural = `${singular}s`) {
     return `${count} ${count === 1 ? singular : plural}`;
@@ -999,8 +1026,10 @@ Return exactly this structure:
                     const productId = action === "update" && !item.productId
                         ? line.product_ID
                         : item.productId;
-                    const product = products.find(
-                        (candidate) => candidate.ID === productId
+                    const product = resolveCatalogProduct(
+                        products,
+                        productId,
+                        item.productId ? item.productName : ""
                     );
 
                     if (!product) {
@@ -1040,8 +1069,10 @@ Return exactly this structure:
 
                    const validatedSuggestions = (item.suggestions || [])
     .map((suggestion) => {
-        const product = products.find(
-            (candidate) => candidate.ID === suggestion.productId
+        const product = resolveCatalogProduct(
+            products,
+            suggestion.productId,
+            suggestion.productName
         );
 
         if (!product) {
