@@ -64,11 +64,13 @@ resources:
         - x509
       role-collections:
       - description: generated
-        name: admin (prototype_salesorderApp_ai ${org}-${space})
+        name: admin (prototype_salesorderApp_ai ${space})
         role-template-references:
         - $XSAPPNAME.admin
       tenant-mode: dedicated
-      xsappname: prototype_salesorderApp_ai-${org}-${space}
+      # ${org} ist hier bewusst nicht enthalten: Die Org dieses Accounts
+      # enthaelt Leerzeichen und Punkte, die in einem xsappname verboten sind.
+      xsappname: prototype_salesorderApp_ai-${space}
     path: ./xs-security.json
     service: xsuaa
     service-plan: application
