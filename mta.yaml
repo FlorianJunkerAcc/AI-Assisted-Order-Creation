@@ -113,13 +113,11 @@ resources:
             URL: ~{srv-api/srv-url}
             HTML5.DynamicDestination: true
             HTML5.ForwardAuthToken: true
-          # Zugangsdaten (Authentication, User, Password) nach dem ersten
-          # Deployment im Cockpit ergaenzen.
-          - Authentication: NoAuthentication
-            Name: SAP_Sales_Cloud_V1
-            ProxyType: Internet
-            Type: HTTP
-            URL: https://my347080.crm.ondemand.com
+          # SAP_Sales_Cloud_V1 wird hier bewusst NICHT angelegt: die
+          # Destination mit Zugangsdaten (Kommunikationsvereinbarung aus
+          # C4C) liegt im Subaccount. Eine Destination mit gleichem Namen
+          # in dieser Service-Instanz haette Vorrang und wuerde sie
+          # ueberdecken.
           # "ignore": bestehende Destinations (z. B. mit im Cockpit
           # ergaenzten Zugangsdaten) werden bei einem erneuten Deployment
           # nicht ueberschrieben.
