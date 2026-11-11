@@ -10,10 +10,13 @@ modules:
   - name: prototype_salesorderApp_ai-auth
   - name: prototype_salesorderApp_ai-db
   - name: prototype_salesorderApp_ai-destination-service
+  - name: prototype_salesorderApp_ai-aicore
   provides:
   - name: srv-api
     properties:
       srv-url: ${default-url}
+  properties:
+    AICORE_RESOURCE_GROUP: default
   parameters:
     buildpack: nodejs_buildpack
     instances: 1
@@ -80,11 +83,20 @@ resources:
     service: html5-apps-repo
     service-name: prototype_salesorderApp_ai-html5-service
     service-plan: app-host
+- name: prototype_salesorderApp_ai-aicore
+  # Vorhandene SAP-AI-Core-Instanz im Space AI_DEV (wird nur gebunden,
+  # nicht neu angelegt). Die Resource Group "default" steht beim srv-Modul.
+  type: org.cloudfoundry.existing-service
+  parameters:
+    service-name: AICore
 - name: prototype_salesorderApp_ai-destination-service
   type: org.cloudfoundry.managed-service
+  requires:
+  - name: srv-api
   parameters:
     config:
-      HTML5Runtime_enabled: false
+      # true: der HTML5-Runtime (Approuter) darf die Destinations nutzen
+      HTML5Runtime_enabled: true
       init_data:
         instance:
           destinations:
@@ -93,12 +105,25 @@ resources:
             ProxyType: Internet
             Type: HTTP
             URL: https://ui5.sap.com
+          # Backend der App (OData /sales-order und WebSocket /pico-voice)
+          - Authentication: NoAuthentication
+            Name: srv-api
+            ProxyType: Internet
+            Type: HTTP
+            URL: ~{srv-api/srv-url}
+            HTML5.DynamicDestination: true
+            HTML5.ForwardAuthToken: true
+          # Zugangsdaten (Authentication, User, Password) nach dem ersten
+          # Deployment im Cockpit ergaenzen.
           - Authentication: NoAuthentication
             Name: SAP_Sales_Cloud_V1
             ProxyType: Internet
             Type: HTTP
             URL: https://my347080.crm.ondemand.com
-          existing_destinations_policy: update
+          # "ignore": bestehende Destinations (z. B. mit im Cockpit
+          # ergaenzten Zugangsdaten) werden bei einem erneuten Deployment
+          # nicht ueberschrieben.
+          existing_destinations_policy: ignore
       version: 1.0.0
     service: destination
     service-name: prototype_salesorderApp_ai-destination-service
