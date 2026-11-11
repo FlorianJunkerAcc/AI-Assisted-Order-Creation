@@ -1333,7 +1333,7 @@ sap.ui.define(
                     try {
                         await this._runStepList(aSteps);
                     } finally {
-                        this._flushCollected();
+                        await this._flushCollected();
                     }
                 },
                 /**
@@ -1341,7 +1341,7 @@ sap.ui.define(
                  * Nachricht aus (Chat und Sprache). Die "What next?"-Frage
                  * bzw. die Chips kommen aus der Antwort des letzten Schritts.
                  */
-                _flushCollected: function () {
+                _flushCollected: async function () {
                     const aCollected = this._collected || [];
                     this._collected = null;
                     const aTexts = aCollected
@@ -1351,10 +1351,29 @@ sap.ui.define(
                     if (aTexts.length === 0) {
                         return;
                     }
-                    this._picoSay(
-                        aTexts.join(" "),
-                        aCollected[aCollected.length - 1].askNext
-                    );
+                    const bAskNext = aCollected[aCollected.length - 1].askNext;
+                    let sReply = aTexts.join(" ");
+                    // Mehrere Teilantworten lässt die KI zu einer fluessigen,
+                    // menschlich klingenden Antwort verbinden. Scheitert das,
+                    // bleibt die einfache Aneinanderreihung.
+                    if (aTexts.length > 1) {
+                        try {
+                            const oBinding = this.getView().getModel()
+                                .bindContext("/composeReply(...)");
+                            oBinding.setParameter(
+                                "parts", JSON.stringify(aTexts)
+                            );
+                            await oBinding.execute();
+                            const oResult = await oBinding
+                                .getBoundContext().requestObject();
+                            if (oResult && oResult.reply) {
+                                sReply = oResult.reply;
+                            }
+                        } catch (oError) {
+                            console.warn("Could not compose reply:", oError);
+                        }
+                    }
+                    this._picoSay(sReply, bAskNext);
                 },
                 _runStepList: async function (aSteps) {
                     for (let i = 0; i < aSteps.length; i++) {

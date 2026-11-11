@@ -113,6 +113,15 @@ action validateOrderItems(
     items      : String
 ) returns OrderValidationResult;
 
+type PicoComposedReply {
+    reply : String;
+}
+
+// Verbindet Teilantworten (JSON-Array aus Strings) zu einer fluessigen Antwort.
+action composeReply(
+    parts : String
+) returns PicoComposedReply;
+
 type PicoRouteStep {
     intent            : String;
     // Der zu diesem Schritt gehoerende Teil des Befehls.

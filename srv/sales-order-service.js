@@ -2516,6 +2516,71 @@ Return exactly this structure:
      * unabhängig davon, in welcher Sprache der Nutzer seinen Befehl
      * eingegeben hat.
      */
+    /**
+     * Verbindet die Teilantworten eines mehrteiligen Befehls zu EINER
+     * fluessigen, menschlich klingenden Antwort (composeReply). Das Modell
+     * darf nur umformulieren, nichts erfinden.
+     */
+    this.on("composeReply", async (req) => {
+        let parts;
+        try {
+            parts = JSON.parse(req.data.parts || "[]");
+        } catch {
+            return req.reject(400, "parts must be a JSON array of strings.");
+        }
+        parts = (Array.isArray(parts) ? parts : [])
+            .map((part) => String(part || "").trim())
+            .filter(Boolean)
+            .slice(0, 12);
+        if (parts.length === 0) {
+            return { reply: "" };
+        }
+        if (parts.length === 1) {
+            return { reply: parts[0] };
+        }
+
+        try {
+            const client = new OrchestrationClient({
+                promptTemplating: {
+                    model: { name: "anthropic--claude-4.6-sonnet" }
+                }
+            }, AI_CORE_OPTIONS);
+
+            const response = await client.chatCompletion({
+                messages: [
+                    {
+                        role: "system",
+                        content: `You are PICO, a friendly assistant that helps sales representatives create sales orders. You just carried out several steps for the user. You are given the short status messages of these steps, in order.
+
+Combine them into ONE reply that sounds like a real, friendly colleague talking: natural, flowing, in first person ("I"), in English, with smooth transitions ("then", "after that", "and") instead of a list of separate sentences. Keep it short (usually two or three sentences).
+
+Rules:
+- Keep every fact: customer names, product names, quantities, numbers, warnings, and anything the user still has to decide or do. Do not invent anything and do not leave out a problem or a question to the user.
+- If a message asks the user to pick or confirm something, make that the end of the reply, phrased as a clear request.
+- Do not ask "What would you like to do next?" - that is added separately.
+- No lists, no Markdown, no emojis, no quotation marks around the whole reply.
+- Return only the reply text.`
+                    },
+                    {
+                        role: "user",
+                        content: parts
+                            .map((part, index) => `${index + 1}. ${part}`)
+                            .join("\n")
+                    }
+                ]
+            });
+
+            const reply = String(response.getContent() || "")
+                .replace(/^```[a-z]*\s*|\s*```$/gi, "")
+                .trim();
+            return { reply: reply || parts.join(" ") };
+        } catch (error) {
+            // Nicht kritisch: die UI faellt auf die einfache Aneinanderreihung zurueck.
+            console.error("Composing the PICO reply failed:", error);
+            return { reply: "" };
+        }
+    });
+
     this.on("routeAiCommand", async (req) => {
         const { command } = req.data;
 
