@@ -2841,6 +2841,8 @@ Rules:
 Rules:
 - Keep the tone: warm, natural, like a helpful colleague. Always address the user informally ("du", never "Sie").
 - Translate everything, but keep product names, customer names, customer numbers, product numbers, IDs, quantities, prices and units exactly as they are.
+- If the text is already in German, return it exactly as it is, unchanged.
+- Never comment, ask questions, apologize or explain your task. Whatever the input is, output only the (translated or unchanged) text itself.
 - Do not add, remove or reorder information. Do not answer the message, only translate it.
 - No Markdown, no quotation marks around the whole text, no explanations.
 - Return only the translated text.`
