@@ -163,7 +163,20 @@ type PicoRouteResult {
     // Alle Schritte des Befehls in der Reihenfolge der Ausfuehrung
     // (nur bei status "ok").
     steps   : many PicoRouteStep;
+    // Sprache des Nutzerbefehls: "de" (Deutsch) oder "en" (alles andere).
+    language : String;
 }
+
+type PicoTranslation {
+    text : String;
+}
+
+// Uebersetzt eine (englische) PICO-Chatnachricht in die Sprache des Nutzers.
+// Fuer language "en" wird der Text unveraendert zurueckgegeben.
+action translateReply(
+    text     : String,
+    language : String
+) returns PicoTranslation;
 
 action routeAiCommand(
     command : String

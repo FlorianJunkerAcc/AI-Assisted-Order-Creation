@@ -219,6 +219,49 @@ sap.ui.define(
                     if (!oPicoModel || !sText) {
                         return;
                     }
+                    // PICO startet immer auf Englisch. Hat der Nutzer
+                    // zuletzt auf Deutsch geschrieben, wird PICOs Antwort
+                    // vor der Anzeige uebersetzt. Alle Eintraege laufen dann
+                    // durch eine Warteschlange, damit die Reihenfolge im
+                    // Chat stimmt.
+                    const bTranslate =
+                        sRole === "pico" && this._picoLanguage === "de";
+                    if (!bTranslate && !this._chatPending) {
+                        this._appendChatMessage(sRole, sText, aChips);
+                        return;
+                    }
+                    this._chatPending = (this._chatPending || 0) + 1;
+                    this._chatQueue = (this._chatQueue || Promise.resolve())
+                        .then(async () => {
+                            const sShown = bTranslate
+                                ? await this._translateReply(sText)
+                                : sText;
+                            this._appendChatMessage(sRole, sShown, aChips);
+                        })
+                        .catch((oError) => {
+                            console.error("Adding chat message failed:", oError);
+                        })
+                        .finally(() => {
+                            this._chatPending -= 1;
+                        });
+                },
+                _translateReply: async function (sText) {
+                    try {
+                        const oBinding = this.getView().getModel()
+                            .bindContext("/translateReply(...)");
+                        oBinding.setParameter("text", sText);
+                        oBinding.setParameter("language", "de");
+                        await oBinding.execute();
+                        const oResult =
+                            await oBinding.getBoundContext().requestObject();
+                        return (oResult && oResult.text) || sText;
+                    } catch (oError) {
+                        console.warn("Could not translate reply:", oError);
+                        return sText;
+                    }
+                },
+                _appendChatMessage: function (sRole, sText, aChips) {
+                    const oPicoModel = this.getView().getModel("pico");
                     // Vorschlaege stehen nur in der jeweils neuesten
                     // Sprechblase; aeltere werden entfernt.
                     const aMessages = (
@@ -1438,6 +1481,10 @@ sap.ui.define(
                             await oResultContext.requestObject();
 
                         console.log("PICO routing result:", oResult);
+
+                        // Antwortsprache: folgt der Sprache des letzten Befehls.
+                        this._picoLanguage =
+                            oResult.language === "de" ? "de" : "en";
 
                         switch (oResult.status) {
 
@@ -2801,6 +2848,7 @@ sap.ui.define(
                             canSubmitAiCommand: false
                         });
                     this._saveChatMessages([]);
+                    this._picoLanguage = "en";
                     this.getView()
                         .getModel("pico")
                         .setData({

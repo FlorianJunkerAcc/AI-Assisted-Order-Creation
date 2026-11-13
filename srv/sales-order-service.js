@@ -586,6 +586,16 @@ export default cds.service.impl(async function () {
             byLanguage.set(String(entry.Language || "").toUpperCase(), text);
             descriptionsByProduct.set(entry.ParentObjectID, byLanguage);
         }
+        // Alle sonstigen Bezeichnungen (andere Sprachen), damit PICO ein
+        // Produkt auch unter dem deutschen bzw. englischen Namen findet.
+        const alternativeNames = (product, primary) => [
+            ...new Set(
+                [...(descriptionsByProduct.get(product.ObjectID)?.values() ||
+                    []), product.Description, product.Name]
+                    .map((text) => String(text || "").trim())
+                    .filter((text) => text && text !== primary)
+            )
+        ];
         const pickDescription = (product) => {
             const byLanguage = descriptionsByProduct.get(product.ObjectID);
             return (
@@ -607,18 +617,28 @@ export default cds.service.impl(async function () {
             }
         }
 
-        return products.map((product) => ({
-            ID: product.ObjectID,
-            productNumber: product.ProductID,
-            name: pickDescription(product),
-            productCategoryID: product.ProductCategoryID,
-            description: pickDescription(product),
-            price: pricesByProduct.get(
-                String(product.ProductID).trim().toUpperCase()
-            ) ??
-                0,
-            unit: product.BaseUOMText
-        }));
+        return products.map((product) => {
+            const name = pickDescription(product);
+            const entry = {
+                ID: product.ObjectID,
+                productNumber: product.ProductID,
+                name,
+                productCategoryID: product.ProductCategoryID,
+                description: name,
+                price: pricesByProduct.get(
+                    String(product.ProductID).trim().toUpperCase()
+                ) ??
+                    0,
+                unit: product.BaseUOMText
+            };
+            // Nicht aufzaehlbar, damit es nicht in Antworten oder
+            // Datenbank-Inserts landet.
+            Object.defineProperty(entry, "alternativeNames", {
+                value: alternativeNames(product, name),
+                enumerable: false
+            });
+            return entry;
+        });
     };
 
     /**
@@ -1021,7 +1041,10 @@ export default cds.service.impl(async function () {
             const productCatalog = products
                 .map(
                     (product) =>
-                        `${product.ID} | ${product.productNumber} | ${product.name}`
+                        `${product.ID} | ${product.productNumber} | ${product.name}` +
+                        (product.alternativeNames?.length
+                            ? ` | also called: ${product.alternativeNames.join(" / ")}`
+                            : "")
                 )
                 .join("\n");
 
@@ -2797,6 +2820,50 @@ Rules:
         }
     });
 
+    /**
+     * Uebersetzt eine PICO-Chatnachricht ins Deutsche (language "de").
+     * Alles andere bleibt unveraendert. Scheitert die Uebersetzung, wird der
+     * englische Originaltext zurueckgegeben, damit der Chat nie leer bleibt.
+     */
+    this.on("translateReply", async (req) => {
+        const text = String(req.data.text || "").trim();
+        if (!text || req.data.language !== "de") {
+            return { text };
+        }
+        try {
+            const client = new OrchestrationClient({
+                promptTemplating: {
+                    model: { name: "anthropic--claude-4.6-sonnet" }
+                }
+            }, AI_CORE_OPTIONS);
+
+            const response = await client.chatCompletion({
+                messages: [
+                    {
+                        role: "system",
+                        content: `You translate chat messages of PICO, a friendly assistant that helps sales representatives create sales orders, from English into German.
+
+Rules:
+- Keep the tone: warm, natural, like a helpful colleague. Address the user formally ("Sie").
+- Translate everything, but keep product names, customer names, customer numbers, product numbers, IDs, quantities, prices and units exactly as they are.
+- Do not add, remove or reorder information. Do not answer the message, only translate it.
+- No Markdown, no quotation marks around the whole text, no explanations.
+- Return only the translated text.`
+                    },
+                    { role: "user", content: text }
+                ]
+            });
+
+            const translated = String(response.getContent() || "")
+                .replace(/^```[a-z]*\s*|\s*```$/gi, "")
+                .trim();
+            return { text: translated || text };
+        } catch (error) {
+            console.error("Translating the PICO reply failed:", error);
+            return { text };
+        }
+    });
+
     this.on("routeAiCommand", async (req) => {
         const { command } = req.data;
 
@@ -2845,6 +2912,8 @@ Rules:
 - If the command could reasonably match more than one function, or its meaning is unclear, respond with status "clarification_required", intent set to an empty string, and a short clarifying question that helps determine which of the six functions is meant.
 - If the command does not relate to any of the six functions at all (for example small talk, unrelated topics, or requests PICO cannot fulfill), respond with status "unknown_intent", intent set to an empty string, and a very friendly message explaining that PICO cannot help with this, briefly restating the six things PICO can help with.
 
+Set "language" to "de" if the user's command is written in German, otherwise to "en".
+
 Always write the "message" field in English, regardless of the language of the input command. Write it as PICO speaking directly to the user in a warm, natural, conversational first-person tone ("I", "you"), in one or two short sentences, like a helpful colleague in a chat. Avoid technical or system-like wording. Vary your wording from one answer to the next, so that it sounds like a real person and not like a template. Whenever you need an answer from the user, end the message with one clear, direct question that can be answered in a few words.
 
 Do not invent order data or customer data. Do not decide which specific customer, products, or quantities are meant - that happens later in a separate step. Your only job is to decide WHICH of the six functions applies.
@@ -2857,6 +2926,7 @@ Return only valid JSON in exactly this structure. Do not wrap the JSON in Markdo
   "status": "ok" | "clarification_required" | "multiple_intents" | "unknown_intent",
   "intent": "select_customer" | "generate_order_draft" | "add_items" | "recommend_products" | "validate_order" | "copy_last_order" | "",
   "message": "string",
+  "language": "en" | "de",
   "customerReference": "string",
   "steps": [
     {
@@ -2921,6 +2991,7 @@ For every status other than "ok", set "steps" to an empty array.`
                 status: parsedResponse.status,
                 intent: steps.length > 0 ? steps[0].intent : "",
                 message: parsedResponse.message || "",
+                language: parsedResponse.language === "de" ? "de" : "en",
                 customerReference: steps.length > 0
                     ? steps[0].customerReference
                     : "",
