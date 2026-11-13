@@ -6,6 +6,9 @@ service SalesOrderService @(path: '/sales-order') {
 
     entity Products as projection on db.Products;
 
+    @readonly
+    entity ProductDependencies as projection on db.ProductDependencies;
+
     entity SalesOrders as projection on db.SalesOrders;
 
     entity SalesOrderItems as projection on db.SalesOrderItems;
@@ -76,6 +79,23 @@ action interpretOrderItems(
     // JSON-Array der aktuellen Positionen: [{position, product_ID, productName, quantity}]
     currentItems : LargeString
 ) returns InterpretationResult;
+
+type DependencyResult {
+    // Hinweis fuer den Nutzer, welche Pflicht-Unterprodukte ergaenzt wurden
+    // (leer, wenn das Produkt keine hat).
+    message : String;
+    items   : many InterpretedOrderItem;
+    // Hinterlegte Unterprodukte, die im aktiven Katalog fehlen.
+    missing : many String;
+}
+
+// Liefert die Pflicht-Unterprodukte zu einem Produkt (in der hinterlegten
+// Reihenfolge). Die Menge je Unterprodukt ist die hinterlegte Menge mal
+// quantity (Menge des Hauptprodukts).
+action getProductDependencies(
+    productId : String,
+    quantity  : Integer
+) returns DependencyResult;
 
 action recommendProducts(
     customerId : UUID,

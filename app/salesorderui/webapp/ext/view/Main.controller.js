@@ -762,6 +762,15 @@ sap.ui.define(
                             oOrderModel.setProperty("/items", aItems);
                             this._calculateOrderTotal();
                             this._focusOrderQuantity(iFocusIndex);
+                            const oDependencies =
+                                await this._loadDependencyItems(sProductID, 1);
+                            if (oDependencies.items.length > 0) {
+                                this._addAiItemsToOrder(oDependencies.items);
+                            }
+                            if (oDependencies.message) {
+                                MessageBox.information(oDependencies.message);
+                                this._picoSay(oDependencies.message);
+                            }
                         } else {
                             await this._setSelectedProduct(
                                 oProductContext,
@@ -785,6 +794,123 @@ sap.ui.define(
                     this._productOrderContext = null;
                     this._productEntryMode = false;
                     this.byId("productValueHelpDialog").close();
+                },
+                /**
+                 * Pflicht-Unterprodukte: Hat das Produkt hinterlegte
+                 * Unterprodukte, werden sie (in der hinterlegten Reihenfolge)
+                 * mit in den Auftrag aufgenommen. Gibt den Hinweistext fuer
+                 * den Nutzer zurueck ("" wenn es keine gibt). Fehler brechen
+                 * das Hinzufuegen des Hauptprodukts nicht ab.
+                 */
+                _loadDependencyItems: async function (sProductID, iQuantity) {
+                    try {
+                        const oBinding = this.getView().getModel().bindContext(
+                            "/getProductDependencies(...)"
+                        );
+                        oBinding.setParameter("productId", String(sProductID));
+                        oBinding.setParameter(
+                            "quantity",
+                            Math.max(1, Number(iQuantity) || 1)
+                        );
+                        await oBinding.execute();
+                        const oResult =
+                            await oBinding.getBoundContext().requestObject();
+                        return {
+                            message: oResult.message || "",
+                            items: Array.isArray(oResult.items)
+                                ? oResult.items
+                                : [],
+                            missing: Array.isArray(oResult.missing)
+                                ? oResult.missing
+                                : []
+                        };
+                    } catch (oError) {
+                        console.error(
+                            "Could not load product dependencies:",
+                            oError
+                        );
+                        return { message: "", items: [], missing: [] };
+                    }
+                },
+                /**
+                 * Ergaenzt eine Liste neuer Positionen um die Pflicht-
+                 * Unterprodukte. Die Unterprodukte stehen direkt hinter
+                 * ihrem Hauptprodukt, in der hinterlegten Reihenfolge.
+                 * Ist ein Unterprodukt schon Teil der Liste (z. B. weil es
+                 * bei einer frueheren Bestellung mit dabei war), wird es an
+                 * die richtige Stelle gezogen und nicht doppelt angelegt;
+                 * seine Menge bleibt dabei erhalten. Alle anderen
+                 * Unterprodukte kommen mit der hinterlegten Menge mal der
+                 * Menge des Hauptprodukts hinzu.
+                 * Liefert { items, message }.
+                 */
+                _expandWithDependencies: async function (aItems) {
+                    const aDependencies = await Promise.all(
+                        aItems.map((oItem) => oItem.product_ID
+                            ? this._loadDependencyItems(
+                                oItem.product_ID, oItem.quantity
+                            )
+                            : Promise.resolve(
+                                { message: "", items: [], missing: [] }
+                            ))
+                    );
+                    const oInList = new Map(
+                        aItems.map((oItem) => [oItem.product_ID, oItem])
+                    );
+                    // Listenpositionen, die Unterprodukt eines anderen Eintrags
+                    // der Liste sind, werden erst hinter diesem eingeordnet.
+                    const oChildIDs = new Set();
+                    aDependencies.forEach((oDependency, iIndex) => {
+                        oDependency.items.forEach((oChild) => {
+                            if (oInList.has(oChild.product_ID) &&
+                                oChild.product_ID !==
+                                    aItems[iIndex].product_ID) {
+                                oChildIDs.add(oChild.product_ID);
+                            }
+                        });
+                    });
+                    const oPlaced = new Set();
+                    const aResult = [];
+                    const aMessages = [];
+
+                    aItems.forEach((oItem, iIndex) => {
+                        if (oPlaced.has(oItem.product_ID) ||
+                            oChildIDs.has(oItem.product_ID)) {
+                            return;
+                        }
+                        oPlaced.add(oItem.product_ID);
+                        aResult.push(oItem);
+                        const oDependency = aDependencies[iIndex];
+                        let bAddedNew = false;
+                        oDependency.items.forEach((oChild) => {
+                            if (oPlaced.has(oChild.product_ID)) {
+                                return;
+                            }
+                            oPlaced.add(oChild.product_ID);
+                            if (oInList.has(oChild.product_ID)) {
+                                aResult.push(oInList.get(oChild.product_ID));
+                            } else {
+                                aResult.push(oChild);
+                                bAddedNew = true;
+                            }
+                        });
+                        if (oDependency.message &&
+                            (bAddedNew || oDependency.missing.length > 0)) {
+                            aMessages.push(oDependency.message);
+                        }
+                    });
+
+                    return { items: aResult, message: aMessages.join(" ") };
+                },
+                /**
+                 * Wie _addAiItemsToOrder, aber mit Pflicht-Unterprodukten.
+                 * Gibt den Hinweistext fuer den Nutzer zurueck ("" wenn es
+                 * keine Unterprodukte gab).
+                 */
+                _addItemsWithDependencies: async function (aItems) {
+                    const oExpanded = await this._expandWithDependencies(aItems);
+                    this._addAiItemsToOrder(oExpanded.items);
+                    return oExpanded.message;
                 },
                 _focusOrderQuantity: function (iIndex) {
                     const oTable = this.byId("orderItemsTable");
@@ -1055,17 +1181,22 @@ sap.ui.define(
                                     return;
                                 }
                                 const fTotalPrice = fUnitPrice * iQuantity;
-                                this._addAiItemsToOrder([{
+                                return this._addItemsWithDependencies([{
                                     product_ID: oSuggestion.productId,
                                     productName: oSuggestion.productName,
+                                    unit: oProduct.unit || "",
                                     quantity: iQuantity,
                                     unitPrice: fUnitPrice,
                                     totalPrice: fTotalPrice
-                                }]);
-                                this._picoSay(
-                                    `Added ${oSuggestion.productName} to your order draft.`
-                                );
-                                this._advanceToNextClarification();
+                                }]).then(function (sDependencyMessage) {
+                                    this._picoSay(
+                                        `Added ${oSuggestion.productName} to your order draft.` +
+                                        (sDependencyMessage
+                                            ? " " + sDependencyMessage
+                                            : "")
+                                    );
+                                    this._advanceToNextClarification();
+                                }.bind(this));
                             }.bind(this)
                         )
                         .catch(
@@ -1693,8 +1824,15 @@ sap.ui.define(
                             oOrderModel.setProperty("/items", []);
                         }
 
-                        this._addAiItemsToOrder(aItems);
-                        this._picoSay(oResult.message, true);
+                        const sCopyDependencyMessage =
+                            await this._addItemsWithDependencies(aItems);
+                        this._picoSay(
+                            oResult.message +
+                            (sCopyDependencyMessage
+                                ? " " + sCopyDependencyMessage
+                                : ""),
+                            true
+                        );
 
                     } catch (oError) {
                         console.error("Copying the last order failed:", oError);
@@ -2053,15 +2191,19 @@ sap.ui.define(
                         }
 
                         // Sichere Items direkt in den Entwurf uebernehmen.
+                        let sDraftDependencyMessage = "";
                         if (aAuto.length > 0) {
-                            this._addAiItemsToOrder(aAuto.map((oItem) => ({
-                                product_ID: oItem.product_ID,
-                                productName: oItem.productName,
-                                unit: oItem.unit || "",
-                                quantity: Number(oItem.quantity),
-                                unitPrice: Number(oItem.unitPrice),
-                                totalPrice: Number(oItem.totalPrice)
-                            })));
+                            sDraftDependencyMessage =
+                                await this._addItemsWithDependencies(
+                                    aAuto.map((oItem) => ({
+                                        product_ID: oItem.product_ID,
+                                        productName: oItem.productName,
+                                        unit: oItem.unit || "",
+                                        quantity: Number(oItem.quantity),
+                                        unitPrice: Number(oItem.unitPrice),
+                                        totalPrice: Number(oItem.totalPrice)
+                                    }))
+                                );
                         }
 
                         oDraftModel.setData({
@@ -2077,7 +2219,10 @@ sap.ui.define(
                         // kommt aus der Backend-Nachricht; gibt es keine
                         // Vorschlaege, fragt PICO nach dem naechsten Schritt.
                         this._picoSay(
-                            oResult.message || "Your draft is ready.",
+                            (oResult.message || "Your draft is ready.") +
+                            (sDraftDependencyMessage
+                                ? " " + sDraftDependencyMessage
+                                : ""),
                             aSuggestions.length === 0 ? true : "chips"
                         );
 
@@ -2113,7 +2258,7 @@ sap.ui.define(
                  * Item wird in den Entwurf uebernommen und aus der
                  * Vorschlagsliste entfernt.
                  */
-                onAddDraftSuggestion: function (oEvent) {
+                onAddDraftSuggestion: async function (oEvent) {
                     const oContext =
                         oEvent.getSource().getBindingContext("draft");
                     const oSuggestion = oContext?.getObject();
@@ -2130,14 +2275,15 @@ sap.ui.define(
                         : 1;
                     const fUnitPrice = Number(oSuggestion.unitPrice);
 
-                    this._addAiItemsToOrder([{
-                        product_ID: oSuggestion.product_ID,
-                        productName: oSuggestion.productName,
-                        unit: oSuggestion.unit || "",
-                        quantity: iQuantity,
-                        unitPrice: fUnitPrice,
-                        totalPrice: fUnitPrice * iQuantity
-                    }]);
+                    const sDraftSuggestionDependencies =
+                        await this._addItemsWithDependencies([{
+                            product_ID: oSuggestion.product_ID,
+                            productName: oSuggestion.productName,
+                            unit: oSuggestion.unit || "",
+                            quantity: iQuantity,
+                            unitPrice: fUnitPrice,
+                            totalPrice: fUnitPrice * iQuantity
+                        }]);
 
                     const oDraftModel = this.getView().getModel("draft");
                     const aRemaining =
@@ -2153,7 +2299,10 @@ sap.ui.define(
                     );
 
                     this._picoSay(
-                        `Added ${oSuggestion.productName} (Qty ${iQuantity}) to your draft.`,
+                        `Added ${oSuggestion.productName} (Qty ${iQuantity}) to your draft.` +
+                        (sDraftSuggestionDependencies
+                            ? " " + sDraftSuggestionDependencies
+                            : ""),
                         aRemaining.length === 0 ? true : "chips"
                     );
                 },
@@ -2263,7 +2412,7 @@ sap.ui.define(
                  * Adds the selected recommendation to the draft and removes
                  * only that product from the displayed recommendations.
                  */
-                onSelectRecommendedProduct: function (oEvent) {
+                onSelectRecommendedProduct: async function (oEvent) {
                     const oContext =
                         oEvent.getSource().getBindingContext("recommendation");
                     const oRecommendation = oContext?.getObject();
@@ -2281,14 +2430,15 @@ sap.ui.define(
                         ? oRecommendation.averageQuantity
                         : 1;
 
-                    this._addAiItemsToOrder([{
-                        product_ID: oRecommendation.product_ID,
-                        productName: oRecommendation.productName,
-                        unit: oRecommendation.unit || "",
-                        quantity: iRecommendedQuantity,
-                        unitPrice: fUnitPrice,
-                        totalPrice: fUnitPrice * iRecommendedQuantity
-                    }]);
+                    const sRecommendationDependencies =
+                        await this._addItemsWithDependencies([{
+                            product_ID: oRecommendation.product_ID,
+                            productName: oRecommendation.productName,
+                            unit: oRecommendation.unit || "",
+                            quantity: iRecommendedQuantity,
+                            unitPrice: fUnitPrice,
+                            totalPrice: fUnitPrice * iRecommendedQuantity
+                        }]);
                     const oRecommendationModel =
                         this.getView().getModel("recommendation");
                     const aRemainingRecommendations =
@@ -2305,7 +2455,10 @@ sap.ui.define(
                         recommendations: aRemainingRecommendations
                     });
                     this._picoSay(
-                        `Added ${oRecommendation.productName} (Qty ${iRecommendedQuantity}) to your draft.`,
+                        `Added ${oRecommendation.productName} (Qty ${iRecommendedQuantity}) to your draft.` +
+                        (sRecommendationDependencies
+                            ? " " + sRecommendationDependencies
+                            : ""),
                         aRemainingRecommendations.length === 0 ? true : "chips"
                     );
                 },

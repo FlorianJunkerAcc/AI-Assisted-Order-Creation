@@ -469,12 +469,74 @@ function evaluateProductFilter(tokens, product) {
     return matches;
 }
 
+const normalizeProductNumber = (value) =>
+    String(value || "").trim().toUpperCase();
+
+/**
+ * Baut die Auftragspositionen fuer die Pflicht-Unterprodukte eines
+ * Hauptprodukts (in der hinterlegten Reihenfolge). Die Menge ist die
+ * hinterlegte Menge mal der Menge des Hauptprodukts. Unterprodukte, die
+ * im aktiven Katalog fehlen, werden in "missing" gemeldet.
+ */
+function buildDependencyItems(parent, parentQuantity, rows, catalogByNumber) {
+    const items = [];
+    const missing = [];
+    for (const row of rows) {
+        const child = catalogByNumber.get(
+            normalizeProductNumber(row.productNumber)
+        );
+        if (!child) {
+            missing.push(row.productNumber);
+            continue;
+        }
+        const quantity =
+            Math.max(1, Number(row.quantity) || 1) * parentQuantity;
+        const unitPrice = Number(child.price) || 0;
+        items.push({
+            action: "add",
+            position: null,
+            product_ID: child.ID,
+            productNumber: child.productNumber,
+            productName: child.name,
+            unit: child.unit,
+            quantity,
+            unitPrice,
+            totalPrice: Number((unitPrice * quantity).toFixed(2)),
+            confidence: 1,
+            message: `Required together with ${parent.name}`
+        });
+    }
+    return { items, missing };
+}
+
+// Hinweistext fuer den Nutzer ("... nur zusammen mit ... angeboten werden").
+function describeDependencies(parent, items, missing) {
+    const names = items.map((item) => item.productName);
+    const list = names.length > 1
+        ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
+        : names[0];
+    let text = "";
+    if (items.length > 0) {
+        text = `${parent.name} can only be offered together with ${list}, ` +
+            `so I added ${items.length === 1 ? "it" : "them"} to your ` +
+            "order draft as well.";
+    }
+    if (missing.length > 0) {
+        text += `${text ? " " : ""}Heads up: the required ` +
+            `${missing.length === 1 ? "product" : "products"} ` +
+            `${missing.join(", ")} for ${parent.name} ` +
+            `${missing.length === 1 ? "is" : "are"} not active in the ` +
+            "catalog, so please check the order.";
+    }
+    return text;
+}
+
 // Implementierung des SalesOrderService.
 // Diese Datei wird automatisch mit der gleichnamigen CDS-Service-Datei verbunden.
 export default cds.service.impl(async function () {
 
     // Holt die Entities Customers und Products aus dem aktuellen SalesOrderService.
-    const { Customers, Products } = this.entities;
+    const { Customers, Products, ProductDependencies } = this.entities;
 
     const salesCloud = await cds.connect.to("SalesCloud");
     const {
@@ -558,6 +620,71 @@ export default cds.service.impl(async function () {
             unit: product.BaseUOMText
         }));
     };
+
+    /**
+     * Liest die hinterlegten Pflicht-Unterprodukte (Tabelle
+     * ProductDependencies) und liefert sie je Hauptprodukt-Nummer, sortiert
+     * nach Position. Die Tabelle ist klein, daher wird sie komplett gelesen.
+     */
+    const loadProductDependencies = async () => {
+        const rows = await SELECT.from(ProductDependencies);
+        const byParent = new Map();
+        for (const row of rows) {
+            const parent = normalizeProductNumber(row.parentProductNumber);
+            if (!byParent.has(parent)) {
+                byParent.set(parent, []);
+            }
+            byParent.get(parent).push(row);
+        }
+        for (const list of byParent.values()) {
+            list.sort((left, right) => left.position - right.position);
+        }
+        return byParent;
+    };
+
+    /**
+     * Pflicht-Unterprodukte fuer das Frontend (manuelles Hinzufuegen und
+     * Auswahl bei einer Rueckfrage). Aendert nichts am Auftrag.
+     */
+    this.on("getProductDependencies", async (req) => {
+        const { productId } = req.data;
+        const parentQuantity = Math.max(1, Number(req.data.quantity) || 1);
+        try {
+            const [products, dependencies] = await Promise.all([
+                loadSalesCloudProducts(),
+                loadProductDependencies()
+            ]);
+            const parent = products.find(
+                (product) => product.ID === productId
+            );
+            const rows = parent
+                ? dependencies.get(
+                    normalizeProductNumber(parent.productNumber)
+                ) || []
+                : [];
+            if (!parent || rows.length === 0) {
+                return { message: "", items: [], missing: [] };
+            }
+            const catalogByNumber = new Map(products.map((product) => [
+                normalizeProductNumber(product.productNumber),
+                product
+            ]));
+            const { items, missing } = buildDependencyItems(
+                parent, parentQuantity, rows, catalogByNumber
+            );
+            return {
+                message: describeDependencies(parent, items, missing),
+                items,
+                missing
+            };
+        } catch (error) {
+            console.error("Product dependency lookup failed:", error);
+            return req.reject(
+                500,
+                `PRODUCT_DEPENDENCIES_FAILED: ${error.message}`
+            );
+        }
+    });
 
     /**
      * Lädt die aktiven Sales-Cloud-Kunden (CorporateAccountCollection).
@@ -1187,6 +1314,55 @@ if (validatedSuggestions.length === 0) {
                 }
             }
 
+            // Pflicht-Unterprodukte: Jedes neu hinzugefuegte (oder auf ein
+            // anderes Produkt geaenderte) Hauptprodukt bringt seine
+            // hinterlegten Unterprodukte direkt dahinter mit.
+            const dependencyNotes = [];
+            const dependencies = await loadProductDependencies();
+            if (dependencies.size > 0) {
+                const catalogByNumber = new Map(products.map((product) => [
+                    normalizeProductNumber(product.productNumber),
+                    product
+                ]));
+                const requestedIDs = new Set(
+                    validatedItems
+                        .filter((entry) => entry.action !== "remove")
+                        .map((entry) => entry.product_ID)
+                );
+                const expandedItems = [];
+                for (const entry of validatedItems) {
+                    expandedItems.push(entry);
+                    const productChanged = entry.action === "add" || (
+                        entry.action === "update" &&
+                        currentLineByPosition.get(entry.position)
+                            ?.product_ID !== entry.product_ID
+                    );
+                    if (!productChanged) {
+                        continue;
+                    }
+                    const rows = dependencies.get(
+                        normalizeProductNumber(entry.productNumber)
+                    ) || [];
+                    if (rows.length === 0) {
+                        continue;
+                    }
+                    const parent = { name: entry.productName };
+                    const { items, missing } = buildDependencyItems(
+                        parent, entry.quantity, rows, catalogByNumber
+                    );
+                    // Was der Nutzer selbst genannt hat, nicht doppelt anlegen.
+                    const toAdd = items.filter(
+                        (item) => !requestedIDs.has(item.product_ID)
+                    );
+                    expandedItems.push(...toAdd);
+                    const note = describeDependencies(parent, toAdd, missing);
+                    if (note) {
+                        dependencyNotes.push(note);
+                    }
+                }
+                validatedItems.splice(0, validatedItems.length, ...expandedItems);
+            }
+
             console.log("Validated order items:", validatedItems);
             console.log("Clarifications needed:", clarifications);
 
@@ -1212,6 +1388,10 @@ if (validatedSuggestions.length === 0) {
                     `All set - ${countOf(validatedItems.length, "change")} ` +
                         "made in your order draft."
                 );
+            }
+
+            if (dependencyNotes.length > 0) {
+                message += " " + dependencyNotes.join(" ");
             }
 
             if (notes.length > 0) {

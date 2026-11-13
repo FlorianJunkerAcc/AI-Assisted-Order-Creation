@@ -35,3 +35,16 @@ entity SalesOrderItems : cuid, managed {
     quantity : Integer;
     price    : Decimal(9,2);
 }
+
+/**
+ * Pflicht-Unterprodukte: Wird das Produkt parentProductNumber in einen
+ * Auftrag aufgenommen, muessen die hier hinterlegten Produkte in der
+ * Reihenfolge "position" mit angeboten werden. Referenziert werden die
+ * Produktnummern (ProductID) aus der SAP Sales Cloud.
+ */
+entity ProductDependencies {
+    key parentProductNumber : String(20);
+    key position            : Integer;
+        productNumber       : String(20);
+        quantity            : Integer default 1;
+}
