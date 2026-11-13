@@ -162,7 +162,7 @@
 <VBox id="customerClarificationBox" class="clarificationBox sapUiSmallMarginBottom">
 <HBox id="customerClarificationHeaderBox" alignItems="Center" class="sapUiTinyMarginBottom">
 <core:Icon id="customerClarificationIcon" src="sap-icon://ai" class="clarificationIcon sapUiTinyMarginEnd"/>
-<Text id="customerClarificationHeaderText" text="I need your help" class="clarificationHeaderText"/>
+<Text id="customerClarificationHeaderText" text="{pico>/needHelpText}" class="clarificationHeaderText"/>
 </HBox>
 <Text id="customerClarificationQuestionText" text="{customerClarification>/question}" class="clarificationQuestionText"/>
 </VBox>
@@ -177,7 +177,7 @@
 <VBox id="clarificationBox" class="clarificationBox sapUiSmallMarginBottom">
 <HBox id="clarificationHeaderBox" alignItems="Center" class="sapUiTinyMarginBottom">
 <core:Icon id="clarificationIcon" src="sap-icon://ai" class="clarificationIcon sapUiTinyMarginEnd"/>
-<Text id="clarificationHeaderText" text="I need your help" class="clarificationHeaderText"/>
+<Text id="clarificationHeaderText" text="{pico>/needHelpText}" class="clarificationHeaderText"/>
 </HBox>
 <Text id="clarificationQuestionText" text="{clarification>/question}" wrapping="true" class="clarificationQuestionText"/>
 </VBox>

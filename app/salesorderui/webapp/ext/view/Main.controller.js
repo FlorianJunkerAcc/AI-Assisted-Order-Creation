@@ -100,6 +100,9 @@ sap.ui.define(
                             messageVisible: false,
                             message: "",
                             showAllSkills: false,
+                            // Ueberschrift der Rueckfrage-Karten (folgt der
+                            // Sprache des Nutzers)
+                            needHelpText: "I need your help",
                             // Sprachausgabe (Vorlesen von PICOs Antworten)
                             speechEnabled: this._loadSpeechEnabled(),
                             speechSupported: PicoVoice.isSupported(),
@@ -244,6 +247,29 @@ sap.ui.define(
                         .finally(() => {
                             this._chatPending -= 1;
                         });
+                },
+                /**
+                 * Setzt die Antwortsprache von PICO ("de" oder "en") und
+                 * passt feste Texte im Chat-Panel daran an.
+                 */
+                _setPicoLanguage: function (sLanguage) {
+                    this._picoLanguage = sLanguage === "de" ? "de" : "en";
+                    const oPicoModel = this.getView().getModel("pico");
+                    if (oPicoModel) {
+                        oPicoModel.setProperty(
+                            "/needHelpText",
+                            this._picoLanguage === "de"
+                                ? "Ich brauche deine Hilfe"
+                                : "I need your help"
+                        );
+                    }
+                },
+                // Uebersetzt nur, wenn der Nutzer zuletzt Deutsch geschrieben hat.
+                _translateIfGerman: async function (sText) {
+                    if (!sText || this._picoLanguage !== "de") {
+                        return sText;
+                    }
+                    return this._translateReply(sText);
                 },
                 _translateReply: async function (sText) {
                     try {
@@ -811,7 +837,11 @@ sap.ui.define(
                                 this._addAiItemsToOrder(oDependencies.items);
                             }
                             if (oDependencies.message) {
-                                MessageBox.information(oDependencies.message);
+                                MessageBox.information(
+                                    await this._translateIfGerman(
+                                        oDependencies.message
+                                    )
+                                );
                                 this._picoSay(oDependencies.message);
                             }
                         } else {
@@ -1483,8 +1513,7 @@ sap.ui.define(
                         console.log("PICO routing result:", oResult);
 
                         // Antwortsprache: folgt der Sprache des letzten Befehls.
-                        this._picoLanguage =
-                            oResult.language === "de" ? "de" : "en";
+                        this._setPicoLanguage(oResult.language);
 
                         switch (oResult.status) {
 
@@ -1737,7 +1766,9 @@ sap.ui.define(
                                 );
                             oCustomerClarificationModel.setData({
                                 visible: true,
-                                question: oResult.question,
+                                question: await this._translateIfGerman(
+                                    oResult.question
+                                ),
                                 suggestions: oResult.suggestions
                             });
                             // PICO sagt, dass der Nutzer selbst waehlen muss.
@@ -2090,6 +2121,17 @@ sap.ui.define(
                                         }
                                     );
                                 });
+                            // Rueckfragen in der Sprache des Nutzers anzeigen.
+                            await Promise.all(
+                                aPreparedClarifications.map(
+                                    async (oPrepared) => {
+                                        oPrepared.question =
+                                            await this._translateIfGerman(
+                                                oPrepared.question
+                                            );
+                                    }
+                                )
+                            );
                             const oClarificationModel =
                                 this.getView().getModel("clarification");
                             const oFirstClarification =
@@ -2852,6 +2894,7 @@ sap.ui.define(
                     this.getView()
                         .getModel("pico")
                         .setData({
+                            needHelpText: "I need your help",
                             chatOpen: false,
                             greetingVisible: false,
                             messageVisible: false,

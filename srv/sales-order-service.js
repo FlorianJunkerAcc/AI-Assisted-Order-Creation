@@ -511,15 +511,10 @@ function buildDependencyItems(parent, parentQuantity, rows, catalogByNumber) {
 
 // Hinweistext fuer den Nutzer ("... nur zusammen mit ... angeboten werden").
 function describeDependencies(parent, items, missing) {
-    const names = items.map((item) => item.productName);
-    const list = names.length > 1
-        ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
-        : names[0];
     let text = "";
     if (items.length > 0) {
-        text = `${parent.name} can only be offered together with ${list}, ` +
-            `so I added ${items.length === 1 ? "it" : "them"} to your ` +
-            "order draft as well.";
+        text = `I recognized a dependency for ${parent.name} and added the ` +
+            "required products to your order draft as well.";
     }
     if (missing.length > 0) {
         text += `${text ? " " : ""}Heads up: the required ` +
@@ -2844,7 +2839,7 @@ Rules:
                         content: `You translate chat messages of PICO, a friendly assistant that helps sales representatives create sales orders, from English into German.
 
 Rules:
-- Keep the tone: warm, natural, like a helpful colleague. Address the user formally ("Sie").
+- Keep the tone: warm, natural, like a helpful colleague. Always address the user informally ("du", never "Sie").
 - Translate everything, but keep product names, customer names, customer numbers, product numbers, IDs, quantities, prices and units exactly as they are.
 - Do not add, remove or reorder information. Do not answer the message, only translate it.
 - No Markdown, no quotation marks around the whole text, no explanations.
