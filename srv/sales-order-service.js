@@ -480,13 +480,14 @@ export default cds.service.impl(async function () {
     const {
         CorporateAccountCollection,
         ProductCollection,
+        ProductOtherDescriptionsCollection,
         InternalPriceDiscountListItemsCollection,
         CustomerOrderCollection,
         CustomerOrderItemCollection
     } = salesCloud.entities;
 
     const loadSalesCloudProducts = async () => {
-        const [products, priceItems] = await Promise.all([
+        const [products, priceItems, otherDescriptions] = await Promise.all([
             salesCloud.run(
                 SELECT.from(ProductCollection).where({
                     Status: "2"
@@ -496,8 +497,43 @@ export default cds.service.impl(async function () {
                 SELECT.from(InternalPriceDiscountListItemsCollection).where({
                     PriceDiscountListID: BASE_PRICE_LIST_NAME
                 })
-            )
+            ),
+            // Fehler hier duerfen den Produktkatalog nicht blockieren;
+            // dann gilt der Fallback auf Description/Name.
+            salesCloud.run(
+                SELECT.from(ProductOtherDescriptionsCollection)
+            ).catch((error) => {
+                console.warn(
+                    "Could not load product descriptions:",
+                    getSalesCloudErrorMessage(error)
+                );
+                return [];
+            })
         ]);
+
+        // Beschreibungen je Produkt: Englisch bevorzugt, sonst Deutsch,
+        // sonst die erste vorhandene.
+        const descriptionsByProduct = new Map();
+        for (const entry of getResultRows(otherDescriptions)) {
+            const text = String(entry.Description || "").trim();
+            if (!entry.ParentObjectID || !text) {
+                continue;
+            }
+            const byLanguage =
+                descriptionsByProduct.get(entry.ParentObjectID) || new Map();
+            byLanguage.set(String(entry.Language || "").toUpperCase(), text);
+            descriptionsByProduct.set(entry.ParentObjectID, byLanguage);
+        }
+        const pickDescription = (product) => {
+            const byLanguage = descriptionsByProduct.get(product.ObjectID);
+            return (
+                byLanguage?.get("EN") ||
+                byLanguage?.get("DE") ||
+                (byLanguage && [...byLanguage.values()][0]) ||
+                product.Description ||
+                product.Name
+            );
+        };
 
         const pricesByProduct = new Map();
         for (const priceItem of priceItems) {
@@ -512,9 +548,9 @@ export default cds.service.impl(async function () {
         return products.map((product) => ({
             ID: product.ObjectID,
             productNumber: product.ProductID,
-            name: product.Description || product.Name,
+            name: pickDescription(product),
             productCategoryID: product.ProductCategoryID,
-            description: product.Description || product.Name,
+            description: pickDescription(product),
             price: pricesByProduct.get(
                 String(product.ProductID).trim().toUpperCase()
             ) ??

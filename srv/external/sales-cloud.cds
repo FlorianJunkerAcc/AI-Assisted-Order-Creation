@@ -21,6 +21,17 @@ service SalesCloud {
             Status   : String(2);
     }
 
+    // Sprachabhaengige Produktbeschreibungen (ein Eintrag pro Sprache).
+    // ProductCollection.Description ist leer, wenn der Text nur hier steht.
+    @readonly
+    entity ProductOtherDescriptionsCollection {
+        key ObjectID       : String(40);
+            ParentObjectID : String(40);
+            ProductID      : String(40);
+            Language       : String(10);
+            Description    : String(255);
+    }
+
     @readonly
     entity InternalPriceDiscountListItemsCollection {
         key ObjectID      : String(40);
