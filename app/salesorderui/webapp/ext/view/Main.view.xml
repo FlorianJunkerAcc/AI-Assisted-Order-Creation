@@ -94,7 +94,7 @@
                      Immer sichtbar, unabhaengig vom Panel-Zustand. Dient gleichzeitig
                      als einziger Schliessen-Mechanismus (Toggle), daher gibt es im
                      Chat-Header selbst KEINEN separaten Schliessen-Button.   -->
-<Button id="picoFabButton" icon="sap-icon://ai" type="Emphasized" tooltip="{i18n>startPico}" press=".onTogglePicoChat" class="picoFabButton"/>
+<Button id="picoFabButton" icon="sap-icon://ai" type="Emphasized" tooltip="{picoI18n>startPico}" press=".onTogglePicoChat" class="picoFabButton"/>
 <!--   Chat-Panel: standardmaessig eingeklappt (visible=false).
                      Enthaelt Header (nur Titel), einen scrollbaren Ergebnisbereich und
                      fest positionierten Eingabebereich.   -->
@@ -103,25 +103,25 @@
 <HBox id="picoChatHeader" alignItems="Center" class="picoChatHeader">
 <core:Icon id="picoChatHeaderIcon" src="sap-icon://ai" class="picoChatHeaderIcon sapUiTinyMarginEnd"/>
 <Text id="picoChatHeaderTitle" text="PICO" class="picoChatHeaderTitle"><layoutData><FlexItemData growFactor="1"/></layoutData></Text>
-<Button id="picoSpeechButton" visible="{pico>/speechSupported}" icon="{= ${pico>/speechEnabled} ? 'sap-icon://sound' : 'sap-icon://sound-off'}" type="Transparent" tooltip="{= ${pico>/speechEnabled} ? ${i18n>picoSpeechOff} : ${i18n>picoSpeechOn}}" press=".onToggleSpeech" class="picoSpeechButton"/>
+<Button id="picoSpeechButton" visible="{pico>/speechSupported}" icon="{= ${pico>/speechEnabled} ? 'sap-icon://sound' : 'sap-icon://sound-off'}" type="Transparent" tooltip="{= ${pico>/speechEnabled} ? ${picoI18n>picoSpeechOff} : ${picoI18n>picoSpeechOn}}" press=".onToggleSpeech" class="picoSpeechButton"/>
 </HBox>
 <!--   Scrollbarer Ergebnisbereich   -->
 <VBox id="picoChatBody" class="picoChatBody">
 <!--   Begruessung: wird jedes Mal gezeigt, wenn PICO geoeffnet wird.   -->
 <VBox id="picoGreetingArea" visible="{pico>/greetingVisible}" class="clarificationBox sapUiSmallMarginBottom">
-<Text id="picoGreetingIntroText" text="{i18n>picoGreetingIntro}" class="clarificationQuestionText sapUiTinyMarginBottom"/>
+<Text id="picoGreetingIntroText" text="{picoI18n>picoGreetingIntro}" class="clarificationQuestionText sapUiTinyMarginBottom"/>
 <!--   Start-Vorschlaege (solange noch kein Chat-Verlauf existiert); danach stehen die Vorschlaege in PICOs Sprechblasen   -->
 <FlexBox id="picoChips" visible="{= ${pico>/messages}.length === 0}" wrap="Wrap" items="{pico>/chips}" class="sapUiTinyMarginBottom">
 <Button text="{pico>label}" icon="{pico>icon}" type="{pico>type}" tooltip="{pico>tooltip}" press=".onPicoChipPress" class="sapUiTinyMarginEnd sapUiTinyMarginBottom"/>
 </FlexBox>
-<Link id="picoShowSkillsLink" text="{= ${pico>/showAllSkills} ? ${i18n>picoHideSkills} : ${i18n>picoShowSkills}}" press=".onToggleAllSkills" class="sapUiTinyMarginBottom"/>
+<Link id="picoShowSkillsLink" text="{= ${pico>/showAllSkills} ? ${picoI18n>picoHideSkills} : ${picoI18n>picoShowSkills}}" press=".onToggleAllSkills" class="sapUiTinyMarginBottom"/>
 <VBox id="picoGreetingBulletList" visible="{pico>/showAllSkills}" class="sapUiTinyMarginBottom">
-<Text id="picoGreetingBullet1Text" text="{i18n>picoGreetingBullet1}" class="clarificationQuestionText"/>
-<Text id="picoGreetingBullet2Text" text="{i18n>picoGreetingBullet2}" class="clarificationQuestionText"/>
-<Text id="picoGreetingBullet3Text" text="{i18n>picoGreetingBullet3}" class="clarificationQuestionText"/>
-<Text id="picoGreetingBullet4Text" text="{i18n>picoGreetingBullet4}" class="clarificationQuestionText"/>
-<Text id="picoGreetingBullet5Text" text="{i18n>picoGreetingBullet5}" class="clarificationQuestionText"/>
-<Text id="picoGreetingBullet6Text" text="{i18n>picoGreetingBullet6}" class="clarificationQuestionText"/>
+<Text id="picoGreetingBullet1Text" text="{picoI18n>picoGreetingBullet1}" class="clarificationQuestionText"/>
+<Text id="picoGreetingBullet2Text" text="{picoI18n>picoGreetingBullet2}" class="clarificationQuestionText"/>
+<Text id="picoGreetingBullet3Text" text="{picoI18n>picoGreetingBullet3}" class="clarificationQuestionText"/>
+<Text id="picoGreetingBullet4Text" text="{picoI18n>picoGreetingBullet4}" class="clarificationQuestionText"/>
+<Text id="picoGreetingBullet5Text" text="{picoI18n>picoGreetingBullet5}" class="clarificationQuestionText"/>
+<Text id="picoGreetingBullet6Text" text="{picoI18n>picoGreetingBullet6}" class="clarificationQuestionText"/>
 </VBox>
 </VBox>
 <!--   Chat-Verlauf: eigene Eingaben rechts, Antworten von PICO links   -->
@@ -181,12 +181,12 @@
 </HBox>
 <Text id="clarificationQuestionText" text="{clarification>/question}" wrapping="true" class="clarificationQuestionText"/>
 </VBox>
-<Text id="clarificationSuggestionTitle" text="{i18n>draftSuggestionsTitle}" class="draftSectionTitle"/>
+<Text id="clarificationSuggestionTitle" text="{picoI18n>draftSuggestionsTitle}" class="draftSectionTitle"/>
 <VBox id="clarificationSuggestions" items="{clarification>/suggestions}" width="100%">
 <VBox class="validationWarningItem">
 <HBox alignItems="Center" justifyContent="SpaceBetween">
-<Text text="{= ${clarification>productName} + (${clarification>/quantity} ? ' (Qty ' + ${clarification>/quantity} + ')' : '')}" class="validationWarningTitle"/>
-<Button id="clarificationSuggestionButton" text="{i18n>draftAdd}" type="Default" press=".onSelectClarificationSuggestion"/>
+<Text text="{= ${clarification>productName} + (${clarification>/quantity} ? ' (' + ${picoI18n>qtyShort} + ' ' + ${clarification>/quantity} + ')' : '')}" class="validationWarningTitle"/>
+<Button id="clarificationSuggestionButton" text="{picoI18n>draftAdd}" type="Default" press=".onSelectClarificationSuggestion"/>
 </HBox>
 </VBox>
 </VBox>
@@ -199,42 +199,42 @@
 <VBox id="draftBox" class="clarificationBox sapUiSmallMarginBottom">
 <HBox id="draftHeaderBox" alignItems="Center" class="sapUiTinyMarginBottom">
 <core:Icon id="draftIcon" src="sap-icon://ai" class="clarificationIcon sapUiTinyMarginEnd"/>
-<Text id="draftHeaderText" text="{i18n>aiOrderDraft}" class="clarificationHeaderText"/>
+<Text id="draftHeaderText" text="{picoI18n>aiOrderDraft}" class="clarificationHeaderText"/>
 </HBox>
 </VBox>
 <!--   Automatisch hinzugefuegte Items   -->
 <VBox id="draftAutoSection" visible="{draft>/hasAuto}" width="100%" class="sapUiSmallMarginBottom">
-<Text id="draftAutoTitle" text="{i18n>draftAddedTitle}" class="draftSectionTitle"/>
+<Text id="draftAutoTitle" text="{picoI18n>draftAddedTitle}" class="draftSectionTitle"/>
 <VBox id="draftAutoList" items="{draft>/autoItems}" width="100%">
 <VBox class="validationWarningItem">
 <HBox alignItems="Center" justifyContent="SpaceBetween">
-<Text text="{= ${draft>productName} + ' (Qty ' + ${draft>quantity} + ')'}" class="validationWarningTitle"/>
-<Link text="{i18n>why}" press=".onToggleDraftWhy"/>
+<Text text="{= ${draft>productName} + ' (' + ${picoI18n>qtyShort} + ' ' + ${draft>quantity} + ')'}" class="validationWarningTitle"/>
+<Link text="{picoI18n>why}" press=".onToggleDraftWhy"/>
 </HBox>
 <VBox visible="{draft>showWhy}" class="draftWhyBox">
-<Text text="{= 'Why I picked this product: ' + ${draft>reasonProduct}}" wrapping="true" class="recommendationReasonText"/>
-<Text text="{= 'Why this quantity: ' + ${draft>reasonQuantity}}" wrapping="true" class="recommendationReasonText"/>
-<Text text="{= 'My decision: ' + ${draft>reasonDecision}}" wrapping="true" class="recommendationReasonText"/>
+<Text text="{= ${picoI18n>whyProduct} + ' ' + ${draft>reasonProduct}}" wrapping="true" class="recommendationReasonText"/>
+<Text text="{= ${picoI18n>whyQuantity} + ' ' + ${draft>reasonQuantity}}" wrapping="true" class="recommendationReasonText"/>
+<Text text="{= ${picoI18n>whyDecision} + ' ' + ${draft>reasonDecision}}" wrapping="true" class="recommendationReasonText"/>
 </VBox>
 </VBox>
 </VBox>
 </VBox>
 <!--   Vorschlaege, die der Nutzer bestaetigen muss   -->
 <VBox id="draftSuggestionSection" visible="{draft>/hasSuggestions}" width="100%">
-<Text id="draftSuggestionTitle" text="{i18n>draftSuggestionsTitle}" class="draftSectionTitle"/>
+<Text id="draftSuggestionTitle" text="{picoI18n>draftSuggestionsTitle}" class="draftSectionTitle"/>
 <VBox id="draftSuggestionList" items="{draft>/suggestions}" width="100%">
 <VBox class="validationWarningItem">
 <HBox alignItems="Center" justifyContent="SpaceBetween">
-<Text text="{= ${draft>productName} + ' (Qty ' + ${draft>quantity} + ')'}" class="validationWarningTitle"/>
+<Text text="{= ${draft>productName} + ' (' + ${picoI18n>qtyShort} + ' ' + ${draft>quantity} + ')'}" class="validationWarningTitle"/>
 <HBox alignItems="Center">
-<Link text="{i18n>why}" press=".onToggleDraftWhy" class="sapUiTinyMarginEnd"/>
-<Button text="{i18n>draftAdd}" type="Default" press=".onAddDraftSuggestion"/>
+<Link text="{picoI18n>why}" press=".onToggleDraftWhy" class="sapUiTinyMarginEnd"/>
+<Button text="{picoI18n>draftAdd}" type="Default" press=".onAddDraftSuggestion"/>
 </HBox>
 </HBox>
 <VBox visible="{draft>showWhy}" class="draftWhyBox">
-<Text text="{= 'Why I picked this product: ' + ${draft>reasonProduct}}" wrapping="true" class="recommendationReasonText"/>
-<Text text="{= 'Why this quantity: ' + ${draft>reasonQuantity}}" wrapping="true" class="recommendationReasonText"/>
-<Text text="{= 'My decision: ' + ${draft>reasonDecision}}" wrapping="true" class="recommendationReasonText"/>
+<Text text="{= ${picoI18n>whyProduct} + ' ' + ${draft>reasonProduct}}" wrapping="true" class="recommendationReasonText"/>
+<Text text="{= ${picoI18n>whyQuantity} + ' ' + ${draft>reasonQuantity}}" wrapping="true" class="recommendationReasonText"/>
+<Text text="{= ${picoI18n>whyDecision} + ' ' + ${draft>reasonDecision}}" wrapping="true" class="recommendationReasonText"/>
 </VBox>
 </VBox>
 </VBox>
@@ -242,20 +242,20 @@
 </VBox>
 <!--   AI product recommendations (Ergebnis von recommend_products)   -->
 <VBox id="recommendationArea" visible="{recommendation>/visible}" width="100%" class="sapUiSmallMarginBottom">
-<Text id="recommendationSuggestionTitle" text="{i18n>draftSuggestionsTitle}" class="draftSectionTitle"/>
+<Text id="recommendationSuggestionTitle" text="{picoI18n>draftSuggestionsTitle}" class="draftSectionTitle"/>
 <VBox id="productRecommendations" items="{recommendation>/recommendations}" width="100%">
 <VBox id="productRecommendation" class="validationWarningItem">
 <HBox alignItems="Center" justifyContent="SpaceBetween">
-<Text text="{= ${recommendation>productName} + ' (Qty ' + ${recommendation>quantity} + ')'}" class="validationWarningTitle"/>
+<Text text="{= ${recommendation>productName} + ' (' + ${picoI18n>qtyShort} + ' ' + ${recommendation>quantity} + ')'}" class="validationWarningTitle"/>
 <HBox alignItems="Center">
-<Link text="{i18n>why}" press=".onToggleDraftWhy" class="sapUiTinyMarginEnd"/>
-<Button id="recommendedProductButton" text="{i18n>draftAdd}" type="Default" press=".onSelectRecommendedProduct"/>
+<Link text="{picoI18n>why}" press=".onToggleDraftWhy" class="sapUiTinyMarginEnd"/>
+<Button id="recommendedProductButton" text="{picoI18n>draftAdd}" type="Default" press=".onSelectRecommendedProduct"/>
 </HBox>
 </HBox>
 <VBox visible="{recommendation>showWhy}" class="draftWhyBox">
-<Text text="{= 'Why I picked this product: ' + ${recommendation>reasonProduct}}" wrapping="true" class="recommendationReasonText"/>
-<Text text="{= 'Why this quantity: ' + ${recommendation>reasonQuantity}}" wrapping="true" class="recommendationReasonText"/>
-<Text text="{= 'My decision: ' + ${recommendation>reasonDecision}}" wrapping="true" class="recommendationReasonText"/>
+<Text text="{= ${picoI18n>whyProduct} + ' ' + ${recommendation>reasonProduct}}" wrapping="true" class="recommendationReasonText"/>
+<Text text="{= ${picoI18n>whyQuantity} + ' ' + ${recommendation>reasonQuantity}}" wrapping="true" class="recommendationReasonText"/>
+<Text text="{= ${picoI18n>whyDecision} + ' ' + ${recommendation>reasonDecision}}" wrapping="true" class="recommendationReasonText"/>
 </VBox>
 </VBox>
 </VBox>
@@ -267,8 +267,8 @@
 <VBox id="validationWarnings" items="{validation>/warnings}" width="100%">
 <VBox class="validationWarningItem">
 <HBox alignItems="Center" justifyContent="SpaceBetween">
-<Text text="{= 'Position ' + ${validation>position} + ' \u2014 ' + ${validation>productName}}" class="validationWarningTitle"/>
-<Button text="{i18n>ignore}" type="Default" press=".onIgnoreValidationWarning"/>
+<Text text="{= ${picoI18n>position} + ' ' + ${validation>position} + ' \u2014 ' + ${validation>productName}}" class="validationWarningTitle"/>
+<Button text="{picoI18n>ignore}" type="Default" press=".onIgnoreValidationWarning"/>
 </HBox>
 <Text text="{validation>message}" wrapping="true" class="validationWarningMessage"/>
 </VBox>
@@ -278,13 +278,13 @@
 <!--   Ende picoChatBody   -->
 <!--   Fest positionierter Eingabebereich am unteren Rand des Panels   -->
 <VBox id="picoChatInputArea" class="picoChatInputArea">
-<Button id="startVoiceInputButton" text="{i18n>startVoiceInput}" icon="sap-icon://microphone" press=".onStartVoiceInput" class="sapUiTinyMarginBottom voiceStartButton"/>
+<Button id="startVoiceInputButton" text="{picoI18n>startVoiceInput}" icon="sap-icon://microphone" press=".onStartVoiceInput" class="sapUiTinyMarginBottom voiceStartButton"/>
 <VBox id="voiceListeningIndicator" visible="false" alignItems="Center" class="sapUiTinyMargin">
 <core:Icon id="voiceListeningIcon" src="sap-icon://microphone" size="1.5rem" color="#0070F2" class="voiceListeningPulse"/>
-<Text id="voiceListeningText" text="Listening..." class="sapUiTinyMarginTop"/>
+<Text id="voiceListeningText" text="{picoI18n>listening}" class="sapUiTinyMarginTop"/>
 </VBox>
-<TextArea id="aiOrderInput" width="100%" rows="2" value="{ui>/recognizedCommand}" liveChange=".onAIInputChange" valueLiveUpdate="true" placeholder="{i18n>voicePlaceholder}" class="sapUiTinyMarginBottom"/>
-<Button id="askPicoButton" text="{i18n>askPico}" icon="sap-icon://paper-plane" type="Emphasized" enabled="{ui>/canSubmitAiCommand}" press=".onAskPico" width="100%"/>
+<TextArea id="aiOrderInput" width="100%" rows="2" value="{ui>/recognizedCommand}" liveChange=".onAIInputChange" valueLiveUpdate="true" placeholder="{picoI18n>voicePlaceholder}" class="sapUiTinyMarginBottom"/>
+<Button id="askPicoButton" text="{picoI18n>askPico}" icon="sap-icon://paper-plane" type="Emphasized" enabled="{ui>/canSubmitAiCommand}" press=".onAskPico" width="100%"/>
 </VBox>
 </VBox>
 <!--   Ende picoChatPanel   -->

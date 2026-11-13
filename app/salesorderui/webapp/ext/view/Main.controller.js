@@ -7,6 +7,7 @@ sap.ui.define(
         "sap/ui/model/FilterOperator",
         "sap/m/MessageToast",
         "sap/m/MessageBox",
+        "sap/ui/model/resource/ResourceModel",
         "com/prototype/salesorderai/salesorderui/ext/voice/PicoVoice"
     ],
     function (
@@ -17,6 +18,7 @@ sap.ui.define(
         FilterOperator,
         MessageToast,
         MessageBox,
+        ResourceModel,
         PicoVoice
     ) {
         "use strict";
@@ -114,6 +116,12 @@ sap.ui.define(
                         }),
                         "pico"
                     );
+                    // Texte des Chat-Panels (Englisch; bei deutschen Befehlen
+                    // wird das Model gegen die deutsche Fassung getauscht).
+                    this.getView().setModel(
+                        this._getPicoI18n("en"),
+                        "picoI18n"
+                    );
                     this.getView().setModel(
                         new JSONModel({
                             recognizedCommand: "",
@@ -152,8 +160,10 @@ sap.ui.define(
                     );
                     const bItems = (oOrderModel.getProperty("/items") || [])
                         .some((oItem) => oItem.product_ID);
-                    const oBundle =
-                        this.getView().getModel("i18n").getResourceBundle();
+                    const oBundle = (
+                        this.getView().getModel("picoI18n") ||
+                        this.getView().getModel("i18n")
+                    ).getResourceBundle();
 
                     let aChips;
                     if (!bCustomer) {
@@ -248,12 +258,35 @@ sap.ui.define(
                             this._chatPending -= 1;
                         });
                 },
+                _getPicoI18n: function (sLanguage) {
+                    this._picoI18nModels = this._picoI18nModels || {};
+                    if (!this._picoI18nModels[sLanguage]) {
+                        this._picoI18nModels[sLanguage] = sLanguage === "de"
+                            ? new ResourceModel({
+                                bundleUrl: sap.ui.require.toUrl(
+                                    "com/prototype/salesorderai/salesorderui/" +
+                                    "i18n/picoDe.properties"
+                                ),
+                                supportedLocales: [""],
+                                fallbackLocale: ""
+                            })
+                            : new ResourceModel({
+                                bundleName:
+                                    "com.prototype.salesorderai.salesorderui.i18n.i18n"
+                            });
+                    }
+                    return this._picoI18nModels[sLanguage];
+                },
                 /**
                  * Setzt die Antwortsprache von PICO ("de" oder "en") und
                  * passt feste Texte im Chat-Panel daran an.
                  */
                 _setPicoLanguage: function (sLanguage) {
                     this._picoLanguage = sLanguage === "de" ? "de" : "en";
+                    this.getView().setModel(
+                        this._getPicoI18n(this._picoLanguage),
+                        "picoI18n"
+                    );
                     const oPicoModel = this.getView().getModel("pico");
                     if (oPicoModel) {
                         oPicoModel.setProperty(
@@ -262,6 +295,8 @@ sap.ui.define(
                                 ? "Ich brauche deine Hilfe"
                                 : "I need your help"
                         );
+                        // Vorschlags-Chips in der neuen Sprache aufbauen.
+                        this._refreshPicoChips();
                     }
                 },
                 // Uebersetzt nur, wenn der Nutzer zuletzt Deutsch geschrieben hat.
@@ -2340,7 +2375,28 @@ sap.ui.define(
                     }
                     const oModel = oContext.getModel();
                     const sPath = oContext.getPath() + "/showWhy";
-                    oModel.setProperty(sPath, !oModel.getProperty(sPath));
+                    const bOpen = !oModel.getProperty(sPath);
+                    oModel.setProperty(sPath, bOpen);
+
+                    // Begruendungen kommen englisch aus dem Backend; bei
+                    // deutschen Befehlen werden sie beim ersten Aufklappen
+                    // uebersetzt.
+                    if (bOpen && this._picoLanguage === "de" &&
+                        !oModel.getProperty(oContext.getPath() + "/whyTranslated")) {
+                        const sItemPath = oContext.getPath();
+                        oModel.setProperty(sItemPath + "/whyTranslated", true);
+                        ["reasonProduct", "reasonQuantity", "reasonDecision"]
+                            .forEach(async (sField) => {
+                                const sText = oModel.getProperty(
+                                    sItemPath + "/" + sField
+                                );
+                                const sTranslated =
+                                    await this._translateIfGerman(sText);
+                                oModel.setProperty(
+                                    sItemPath + "/" + sField, sTranslated
+                                );
+                            });
+                    }
                 },
                 /**
                  * Nutzer bestaetigt einen Vorschlag aus dem Order Draft:
@@ -2630,7 +2686,15 @@ sap.ui.define(
                         oValidationModel.setData({
                             visible: true,
                             message: oResult.message || "",
-                            warnings: aWarnings
+                            warnings: await Promise.all(
+                                aWarnings.map(async (oWarning) =>
+                                    Object.assign({}, oWarning, {
+                                        message: await this._translateIfGerman(
+                                            oWarning.message
+                                        )
+                                    })
+                                )
+                            )
                         });
 
                         this._picoSay(
