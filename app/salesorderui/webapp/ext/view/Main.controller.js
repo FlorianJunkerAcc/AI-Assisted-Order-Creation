@@ -105,7 +105,9 @@ sap.ui.define(
                             speechSupported: PicoVoice.isSupported(),
                             chips: [],
                             // Chat-Verlauf: { role: "user" | "pico", text }
-                            messages: []
+                            // Wird aus dem sessionStorage wiederhergestellt,
+                            // damit er einen Reload ueberlebt.
+                            messages: this._loadChatMessages()
                         }),
                         "pico"
                     );
@@ -230,6 +232,7 @@ sap.ui.define(
                         askNext: Boolean(aChips)
                     }]);
                     oPicoModel.setProperty("/messages", aMessages);
+                    this._saveChatMessages(aMessages);
                     if (sRole === "pico") {
                         this._speak(sText);
                     }
@@ -240,6 +243,52 @@ sap.ui.define(
                             oDom.scrollTop = oDom.scrollHeight;
                         }
                     }, 50);
+                },
+                /**
+                 * Chat-Verlauf im sessionStorage (gilt pro Browser-Tab).
+                 * Gespeichert werden nur Rolle, Text und askNext; die
+                 * Vorschlags-Chips werden beim Oeffnen aus dem aktuellen
+                 * Zustand neu aufgebaut (_refreshPicoChips).
+                 */
+                _loadChatMessages: function () {
+                    try {
+                        const aStored = JSON.parse(
+                            window.sessionStorage.getItem("picoChat") || "[]"
+                        );
+                        return Array.isArray(aStored)
+                            ? aStored
+                                .filter((oMessage) =>
+                                    oMessage && oMessage.text)
+                                .map((oMessage) => ({
+                                    role: oMessage.role === "user"
+                                        ? "user" : "pico",
+                                    text: String(oMessage.text),
+                                    chips: [],
+                                    askNext: Boolean(oMessage.askNext)
+                                }))
+                            : [];
+                    } catch (e) {
+                        return [];
+                    }
+                },
+                _saveChatMessages: function (aMessages) {
+                    try {
+                        if (!aMessages || aMessages.length === 0) {
+                            window.sessionStorage.removeItem("picoChat");
+                            return;
+                        }
+                        window.sessionStorage.setItem(
+                            "picoChat",
+                            JSON.stringify(aMessages.map((oMessage) => ({
+                                role: oMessage.role,
+                                text: oMessage.text,
+                                askNext: Boolean(oMessage.askNext)
+                            })))
+                        );
+                    } catch (e) {
+                        // sessionStorage nicht verfuegbar: Verlauf gilt nur
+                        // bis zum Neuladen.
+                    }
                 },
                 /**
                  * Sprachausgabe (Web Speech API, laeuft im Browser).
@@ -1152,12 +1201,16 @@ sap.ui.define(
                         // parallel zur Begruessung sichtbar sein.
                         this._clearAiResultAreas();
 
+                        // Der Chat-Verlauf bleibt erhalten; die Begruessung
+                        // erscheint nur, solange noch kein Verlauf existiert.
+                        const bHasHistory = (
+                            oPicoModel.getProperty("/messages") || []
+                        ).length > 0;
                         oPicoModel.setProperty("/showAllSkills", false);
-                        oPicoModel.setProperty("/messages", []);
                         this._refreshPicoChips();
                         oPicoModel.setProperty(
                             "/greetingVisible",
-                            true
+                            !bHasHistory
                         );
                         oPicoModel.setProperty(
                             "/messageVisible",
@@ -1172,6 +1225,12 @@ sap.ui.define(
                                     this.byId("aiOrderInput");
                                 if (oInput) {
                                     oInput.focus();
+                                }
+                                // Bei vorhandenem Verlauf ans Ende scrollen.
+                                const oBody = this.byId("picoChatBody");
+                                const oDom = oBody && oBody.getDomRef();
+                                if (oDom) {
+                                    oDom.scrollTop = oDom.scrollHeight;
                                 }
                             }.bind(this),
                             100
@@ -2588,6 +2647,7 @@ sap.ui.define(
                             isAiProcessing: false,
                             canSubmitAiCommand: false
                         });
+                    this._saveChatMessages([]);
                     this.getView()
                         .getModel("pico")
                         .setData({

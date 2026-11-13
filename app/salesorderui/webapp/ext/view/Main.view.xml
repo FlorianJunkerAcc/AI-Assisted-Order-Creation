@@ -30,8 +30,8 @@
 <Title id="orderItemsTitle" text="{i18n>orderItems}" level="H2"/>
 <ObjectStatus id="orderItemsCount" text="{order>/itemCount} {i18n>items}" state="None" class="sapUiTinyMarginBegin"/>
 <ObjectStatus id="orderItemsHeaderTotal" title="{i18n>orderTotal}" text="{order>/orderTotal} EUR" state="Information" class="sapUiSmallMarginBegin"/>
+<Button id="addProductButton" text="{i18n>addProduct}" icon="sap-icon://add" type="Transparent" press=".onAddProduct" class="addProductButton sapUiSmallMarginBegin"/>
 <ToolbarSpacer/>
-<Button id="addProductButton" text="{i18n>addProduct}" icon="sap-icon://add" type="Transparent" press=".onAddProduct" class="addProductButton sapUiSmallMarginEnd"/>
 </Toolbar>
 </headerToolbar>
 <content>
